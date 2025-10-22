@@ -1,0 +1,66 @@
+@import url('https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;600;700&display=swap');
+
+:root {
+  --bg-primary: #4D6795; 
+  --bg-primary-light: #5e7aaa; 
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
+}
+
+body, h1, h2, h3, h4, h5, h6 {
+  font-family: 'Source Sans Pro', sans-serif !important;
+}
+
+.main-layout-wrapper {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.login-link {
+  display: inline-flex;
+  color: white;
+  height: 100%;
+  width: 100%;
+  justify-content: center;
+  align-items: center;
+  font-weight: 600;
+
+  &:hover {
+    color: black;
+  }
+}
+
+.not-found {
+  height: 30rem;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+}
+
+.login-form {
+  padding: 1rem;
+}
+
+.formErrorMsg {
+	/*color: #843534;
+	*/color: #a94442;
+	background-color: #f2dede;
+	border: 1px solid #ebccd1;
+	border-radius: 4px;
+	font-size: 13px;
+	padding: 6px;
+	margin: 10px 0;
+	-webkit-border-radius: 4px;
+	-moz-border-radius: 4px;
+	-ms-border-radius: 4px;
+	-o-border-radius: 4px;
+}

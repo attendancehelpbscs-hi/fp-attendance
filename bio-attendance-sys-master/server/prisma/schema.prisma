@@ -1,0 +1,97 @@
+// Prisma Schema
+// Documentation: https://pris.ly/d/prisma-schema
+
+// GENERATORS
+generator client {
+  provider = "prisma-client-js"
+}
+
+generator erd {
+  provider = "prisma-erd-generator"
+  output = "./diagrams/ERD-auto.svg"
+}
+
+generator docs {
+  provider = "node node_modules/prisma-docs-generator"
+}
+
+generator joi {
+  provider = "prisma-joi-generator"
+  output = "./joi"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = "mysql://root:23Emthjw9Hi@localhost:3306/bioattendancesysdb"
+}
+
+// MODELS
+model Staff {
+  id         String     @id @default(uuid())
+  name       String
+  email      String     @unique
+  password   String
+  created_at DateTime
+  courses     Course[]
+  students    Student[]
+  attendances Attendance[]
+}
+
+model Student {
+  id          String               @id @default(uuid())
+  staff_id    String
+  name        String
+  matric_no   String              @unique
+  fingerprint String              @db.LongText
+  created_at  DateTime
+  courses      StudentCourse[]
+  attendances  StudentAttendance[]
+  staff       Staff           @relation(fields: [staff_id], references: [id])
+}
+
+model Course {
+  id           String          @id @default(uuid())
+  staff_id     String
+  course_name  String
+  course_code  String          @unique
+  created_at   DateTime
+  attendances   Attendance[]
+  students      StudentCourse[]
+  staff        Staff           @relation(fields: [staff_id], references: [id])
+}
+
+model Attendance {
+  id           String               @id @default(uuid())
+  staff_id     String
+  course_id    String
+  name         String
+  created_at   DateTime
+  date         String
+  course       Course               @relation(fields: [course_id], references: [id])
+  staff        Staff                @relation(fields: [staff_id], references: [id])
+  students     StudentAttendance[]
+}
+
+model StudentCourse {
+  student    Student @relation(fields: [student_id], references: [id])
+  student_id String
+  course     Course  @relation(fields: [course_id], references: [id])
+  course_id  String
+
+  @@id([student_id, course_id])
+}
+
+model StudentAttendance {
+  student        Student     @relation(fields: [student_id], references: [id])
+  student_id     String
+  attendance     Attendance  @relation(fields: [attendance_id], references: [id])
+  attendance_id  String
+
+  @@id([student_id, attendance_id])
+}
+
+model Token {
+  id           String      @id @default(uuid())
+  staff_id     String
+  token        String
+}
