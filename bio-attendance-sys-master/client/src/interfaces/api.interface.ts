@@ -121,6 +121,17 @@ export type UpdateStudentResult = BaseResult<{
   student: Student;
 }>;
 
+export interface StudentFingerprint {
+  id: string;
+  name: string;
+  matric_no: string;
+  fingerprint: string;
+}
+
+export type GetStudentsFingerprintsResult = BaseResult<{
+  students: StudentFingerprint[];
+}>;
+
 /* ATTENDANCE */
 
 export interface Attendance {

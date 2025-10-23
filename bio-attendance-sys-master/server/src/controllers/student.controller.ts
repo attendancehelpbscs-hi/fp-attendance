@@ -164,3 +164,25 @@ export const deleteStudent = async (req: Request, res: Response, next: NextFunct
     return next(err);
   }
 };
+
+export const getStudentsFingerprints = async (req: Request, res: Response, next: NextFunction) => {
+  // get students' fingerprints for identification
+  const { staff_id } = req.params;
+  if (!staff_id) return next(new createError.BadRequest('Staff ID is required'));
+  try {
+    const students = await prisma.student.findMany({
+      where: {
+        staff_id,
+      },
+      select: {
+        id: true,
+        name: true,
+        matric_no: true,
+        fingerprint: true,
+      },
+    });
+    return createSuccess(res, 200, 'Students fingerprints fetched successfully', { students });
+  } catch (err) {
+    return next(err);
+  }
+};

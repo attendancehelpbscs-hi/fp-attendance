@@ -33,7 +33,7 @@ const AddAttendance: FC<{
 }> = ({ onClose, isOpen, size, closeDrawer, activeAttendance, setActiveAttendance }) => {
   const staffInfo = useStore.use.staffInfo();
   const [attendanceInput, setAttendanceInput] = useState<AddAttendanceInput>({
-    staff_id: staffInfo?.id as string,
+    staff_id: staffInfo?.id || '',
     course_id: '',
     name: '',
     date: new Date().toISOString(),
@@ -92,6 +92,10 @@ const AddAttendance: FC<{
 
   const handleAddAttendance: FormEventHandler = async (e) => {
     e.preventDefault();
+    if (!staffInfo?.id) {
+      toast.error('Staff information not available. Please log in again.');
+      return;
+    }
     if (simpleValidator.current.allValid()) {
       try {
         if (activeAttendance) {

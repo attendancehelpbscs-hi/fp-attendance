@@ -5,6 +5,7 @@ import {
   updateStudent,
   deleteStudent,
   getSingleStudent,
+  getStudentsFingerprints,
 } from '../controllers/student.controller';
 import { createStudentSchema, updateStudentSchema } from '../joi/student.joi';
 import joiValidate from '../middlewares/joi.middleware';
@@ -46,5 +47,12 @@ studentRoute.put('/student/:id', joiValidate(updateStudentSchema), updateStudent
 @access 		Private
 */
 studentRoute.delete('/student/:id', deleteStudent);
+
+/*
+@route 			GET /api/students/fingerprints/:staff_id (get students fingerprints for identification)
+@description 	get students fingerprints
+@access 		Private
+*/
+studentRoute.get('/students/fingerprints/:staff_id', getStudentsFingerprints);
 
 export default studentRoute;

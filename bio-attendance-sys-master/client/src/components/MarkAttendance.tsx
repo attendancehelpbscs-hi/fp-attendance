@@ -13,13 +13,16 @@ import {
   Button,
   Box,
   Image,
+  Alert,
+  AlertIcon,
+  AlertTitle,
+  AlertDescription,
 } from '@chakra-ui/react';
-import Select from 'react-select';
 import { InfoIcon } from '@chakra-ui/icons';
 import { Flex } from '@chakra-ui/react';
 import { useMarkAttendance } from '../api/atttendance.api';
-import { useGetStudents } from '../api/student.api';
-import type { MarkAttendanceInput, Attendance } from '../interfaces/api.interface';
+import { useGetStudentsFingerprints } from '../api/student.api';
+import type { MarkAttendanceInput, Attendance, StudentFingerprint } from '../interfaces/api.interface';
 import useStore from '../store/store';
 import SimpleReactValidator from 'simple-react-validator';
 import { toast } from 'react-hot-toast';
@@ -38,31 +41,28 @@ const MarkAttendance: FC<{
   activeAttendance: Attendance | null;
 }> = ({ isOpen, onClose, size, closeDrawer, activeAttendance }) => {
   const staffInfo = useStore.use.staffInfo();
-  const [page] = useState<number>(1);
-  const [per_page] = useState<number>(999);
-  const [markInput, setMarkInput] = useState<MarkAttendanceInput & { fingerprintMatch: boolean }>({
+  const [markInput, setMarkInput] = useState<MarkAttendanceInput>({
     student_id: '',
     attendance_id: '',
-    fingerprintMatch: false,
   });
   const [deviceConnected, setDeviceConnected] = useState<boolean>(false);
-  const [fingerprints, setFingerprints] = useState<{ studentFingerprint: string; newFingerprint: string }>({
-    studentFingerprint: '',
+  const [fingerprints, setFingerprints] = useState<{ newFingerprint: string }>({
     newFingerprint: '',
   });
+  const [identifiedStudent, setIdentifiedStudent] = useState<StudentFingerprint | null>(null);
+  const [identificationStatus, setIdentificationStatus] = useState<'idle' | 'scanning' | 'identifying' | 'success' | 'error'>('idle');
+  const [confidence, setConfidence] = useState<number>(0);
   const [, forceUpdate] = useState<boolean>(false);
-  const { data: studentData } = useGetStudents(
-    staffInfo?.id as string,
-    page,
-    per_page,
-  )({
-    queryKey: ['availablestudents', page],
-    keepPreviousData: true,
+  const studentFingerprintsData = useGetStudentsFingerprints(staffInfo?.id as string)({
+    queryKey: ['studentsfingerprints', staffInfo?.id],
   });
 
   const defaultMarkInput = () => {
-    setMarkInput((prev) => ({ ...prev, student_id: '', fingerprintMatch: true }));
-    setFingerprints((prev) => ({ ...prev, newFingerprint: '', studentFingerprint: '' }));
+    setMarkInput((prev) => ({ ...prev, student_id: '' }));
+    setFingerprints((prev) => ({ ...prev, newFingerprint: '' }));
+    setIdentifiedStudent(null);
+    setIdentificationStatus('idle');
+    setConfidence(0);
   };
 
   const { isLoading, mutate: markAttendance } = useMarkAttendance({
@@ -89,34 +89,51 @@ const MarkAttendance: FC<{
     return new File([u8arr], filename, { type: mime });
   };
 
-  const handleFingerprintVerification = async () => {
+  const handleFingerprintIdentification = async () => {
+    if (!fingerprints.newFingerprint) return;
+
+    setIdentificationStatus('identifying');
     const data = new FormData();
-    data.append('file', dataURLtoFile(getFingerprintImgString(fingerprints.studentFingerprint), 'fingerprint_1.jpeg'));
-    data.append('file', dataURLtoFile(getFingerprintImgString(fingerprints.newFingerprint), 'fingerprint_2.jpeg'));
+    data.append('file', dataURLtoFile(getFingerprintImgString(fingerprints.newFingerprint), 'scanned_fingerprint.jpeg'));
+    data.append('staff_id', staffInfo?.id as string);
+
     try {
-      const res = await axios.post(`${constants.matchBaseUrl}/verify/fingerprint`, data, {
+      const res = await axios.post(`${constants.matchBaseUrl}/identify/fingerprint`, data, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
       });
-      console.log('Match score received:', res.data?.match_score);
-      if (res.data?.match_score > 4) {
-        setMarkInput((prev) => ({ ...prev, fingerprintMatch: true }));
-        toast.success('Fingerprint matches');
+
+      const { student_id, confidence } = res.data;
+      setConfidence(confidence);
+
+      if (student_id && confidence > 1) { // Lower threshold for match
+        const student = studentFingerprintsData.data?.data?.students?.find((s: StudentFingerprint) => s.id === student_id);
+        if (student) {
+          setIdentifiedStudent(student);
+          setMarkInput((prev) => ({ ...prev, student_id: student_id }));
+          setIdentificationStatus('success');
+          toast.success(`Student identified: ${student.name} (${student.matric_no})`);
+        } else {
+          setIdentificationStatus('error');
+          toast.error('Student not found in records');
+        }
       } else {
-        toast.error('Fingerprint does not match');
+        setIdentificationStatus('error');
+        toast.error('Fingerprint not recognized. Please try again.');
       }
     } catch (err) {
-      toast.error('Could not verify fingerprint');
+      setIdentificationStatus('error');
+      toast.error('Could not identify fingerprint');
       console.error('Err: ', err);
     }
   };
 
   useEffect(() => {
-    if (fingerprints.newFingerprint && fingerprints.studentFingerprint) {
-      handleFingerprintVerification();
+    if (fingerprints.newFingerprint && identificationStatus === 'scanning') {
+      handleFingerprintIdentification();
     }
-  }, [fingerprints.newFingerprint, fingerprints.studentFingerprint]);
+  }, [fingerprints.newFingerprint, identificationStatus]);
 
   useEffect(() => {
     if (isOpen && activeAttendance) {
@@ -143,6 +160,7 @@ const MarkAttendance: FC<{
     const rawImages = event?.samples.map((sample: string) => Base64.fromBase64Url(sample));
 
     setFingerprints((prev) => ({ ...prev, newFingerprint: rawImages[0] }));
+    setIdentificationStatus('scanning');
   };
 
   useEffect(() => {
@@ -162,8 +180,7 @@ const MarkAttendance: FC<{
     e.preventDefault();
     if (simpleValidator.current.allValid()) {
       try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        markAttendance(removeObjectProps(markInput as any, ['fingerprintMatch']));
+        markAttendance(markInput);
       } catch (err) {
         console.log('error => ', err);
       }
@@ -172,12 +189,6 @@ const MarkAttendance: FC<{
       forceUpdate((prev) => !prev);
     }
   };
-
-  const students =
-    studentData?.data?.students?.map((student) => ({
-      value: student.id,
-      label: `${student.name} (${student.matric_no})`,
-    })) ?? [];
   return (
     <Drawer
       onClose={() => {
@@ -193,29 +204,14 @@ const MarkAttendance: FC<{
         <DrawerHeader>Mark Student</DrawerHeader>
         <DrawerBody>
           <form className="login-form" method="post" action="#" onSubmit={handleAddAttendance}>
-            <FormControl>
-              <FormLabel>Student</FormLabel>
-              <Select
-                value={students?.find((student) => student.value === markInput.student_id)}
-                options={students}
-                onChange={(newValue) => {
-                  setMarkInput((prev) => ({ ...prev, student_id: newValue?.value ?? '' }));
-                  setFingerprints((prev) => ({
-                    ...prev,
-                    studentFingerprint:
-                      studentData?.data?.students?.find((student) => student.id === newValue?.value)?.fingerprint ?? '',
-                  }));
-                }}
-              />
-              {simpleValidator.current.message('student', markInput.student_id, 'required|between:2,128')}
-            </FormControl>
             <FormControl marginTop="1rem">
-              <FormLabel>Fingerprint</FormLabel>
+              <FormLabel>Fingerprint Identification</FormLabel>
               <Flex gap="0.4rem" borderLeft="3px solid #534949" padding="0.5rem" alignItems="flex-start">
                 <InfoIcon />
-                <Text fontStyle="italic">Ensure a DigitalPersona scanning device is connected to your PC.</Text>
+                <Text fontStyle="italic">Scan fingerprint to identify and mark attendance for the student.</Text>
               </Flex>
               {deviceConnected && <Text>NB: Fingerprint scanner is connected</Text>}
+
               <Box
                 overflow="hidden"
                 shadow="xs"
@@ -226,9 +222,40 @@ const MarkAttendance: FC<{
               >
                 {fingerprints.newFingerprint && <Image src={getFingerprintImgString(fingerprints.newFingerprint)} />}
               </Box>
+
+              {identificationStatus === 'identifying' && (
+                <Text color="blue.500" textAlign="center">Identifying student...</Text>
+              )}
+
+              {identificationStatus === 'success' && identifiedStudent && (
+                <Alert status="success" marginTop="1rem">
+                  <AlertIcon />
+                  <Box>
+                    <AlertTitle>Student Identified!</AlertTitle>
+                    <AlertDescription>
+                      {identifiedStudent.name} ({identifiedStudent.matric_no})<br />
+                      Confidence: {confidence.toFixed(2)}%
+                    </AlertDescription>
+                  </Box>
+                </Alert>
+              )}
+
+              {identificationStatus === 'error' && (
+                <Alert status="error" marginTop="1rem">
+                  <AlertIcon />
+                  <Box>
+                    <AlertTitle>Identification Failed</AlertTitle>
+                    <AlertDescription>
+                      Fingerprint not recognized. Please try scanning again.
+                    </AlertDescription>
+                  </Box>
+                </Alert>
+              )}
+
               {simpleValidator.current.message('fingerprint', fingerprints.newFingerprint, 'required|min:2')}
-              {simpleValidator.current.message('fingerprint', markInput.fingerprintMatch, 'required|accepted|boolean')}
+              {simpleValidator.current.message('student', markInput.student_id, 'required|between:2,128')}
             </FormControl>
+
             <Button
               w="100%"
               type="submit"
@@ -236,7 +263,7 @@ const MarkAttendance: FC<{
               color="white"
               marginTop="3rem"
               _hover={{ background: 'var(--bg-primary-light)' }}
-              disabled={isLoading}
+              disabled={isLoading || identificationStatus !== 'success'}
             >
               {isLoading ? 'Marking student...' : 'Mark student'}
             </Button>
