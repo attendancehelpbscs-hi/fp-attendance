@@ -21,6 +21,15 @@ export const getStaffFromDb = async (staffEmail: string, staffPassword: string):
       const match = await validatePassword(staffPassword, password);
 
       if (match) {
+        // Log successful login
+        await prisma.auditLog.create({
+          data: {
+            staff_id: id,
+            action: 'LOGIN',
+            details: `Staff ${name} logged in successfully`,
+          },
+        });
+
         const accessToken = await signAccessToken({ id });
         const refreshToken = await signRefreshToken({ id });
         return new Promise<RegisterReturn>((resolve) =>
@@ -61,6 +70,15 @@ export const getNewTokens = async (refreshToken: string): Promise<object | undef
 
 export const delRefreshToken = async (staff_id: string): Promise<number | undefined> => {
   try {
+    // Log logout
+    await prisma.auditLog.create({
+      data: {
+        staff_id,
+        action: 'LOGOUT',
+        details: 'Staff logged out successfully',
+      },
+    });
+
     // delete id from database
     await deleteRefreshTokensByStaffId(staff_id);
 

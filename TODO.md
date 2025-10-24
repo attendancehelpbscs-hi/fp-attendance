@@ -1,1 +1,5 @@
-- [x] Update fingerprint identification threshold from 5% to 20% in server.py to prevent false positives
+- [x] Fix foreign key constraint errors in course, student, and attendance creation by using authenticated user's ID instead of req.body.staff_id
+- [x] Update createCourse controller to use req.user.id for staff_id
+- [x] Update createStudent controller to use req.user.id for staff_id
+- [x] Update createAttendance controller to use req.user.id for staff_id
+- [x] Add security checks in getCourses, getStudents, getAttendances to ensure staff_id matches authenticated user

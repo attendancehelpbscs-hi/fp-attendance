@@ -24,7 +24,7 @@ const auth = (req: AuthReq, _: Response, next: NextFunction): void => {
     req.user = decoded;
     next();
   } catch (e) {
-    return next(createError('Token is not valid'));
+    return next(createError(401, 'Token is not valid'));
   }
 };
 

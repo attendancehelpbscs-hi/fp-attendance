@@ -107,11 +107,11 @@ const AddCourse: FC<{
       <DrawerOverlay />
       <DrawerContent>
         <DrawerCloseButton />
-        <DrawerHeader>{activeCourse ? 'Update' : 'Add New'} Course</DrawerHeader>
+        <DrawerHeader>{activeCourse ? 'Update' : 'Add New'} Section</DrawerHeader>
         <DrawerBody>
           <form className="login-form" method="post" action="#" onSubmit={handleAddCourse}>
             <FormControl>
-              <FormLabel>Course Title</FormLabel>
+              <FormLabel>Teacher Name</FormLabel>
               <Input
                 type="text"
                 name="course_name"
@@ -120,13 +120,13 @@ const AddCourse: FC<{
                 onChange={handleInputChange}
               />
               {simpleValidator.current.message(
-                'course name',
+                'teacher name',
                 courseInput.course_name,
                 'required|alpha_num_space|between:2,128',
               )}
             </FormControl>
             <FormControl marginTop="1rem">
-              <FormLabel>Course Code</FormLabel>
+              <FormLabel>Section</FormLabel>
               <Input
                 type="text"
                 name="course_code"
@@ -135,7 +135,7 @@ const AddCourse: FC<{
                 onChange={handleInputChange}
               />
               {simpleValidator.current.message(
-                'course code',
+                'section',
                 courseInput.course_code,
                 'required|alpha_num|between:2,128',
               )}

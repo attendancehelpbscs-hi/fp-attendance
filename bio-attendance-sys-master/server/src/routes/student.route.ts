@@ -10,15 +10,16 @@ import {
 import { createStudentSchema, updateStudentSchema } from '../joi/student.joi';
 import joiValidate from '../middlewares/joi.middleware';
 import { paginateInputSchema } from '../joi/helper.joi';
+import auth from '../middlewares/auth.middleware';
 
 const studentRoute = Router();
 
 /*
 @route 			GET /api/students/staff/:id?page=$1 (get students by a staff)
 @description 	get students
-@access 		Public
+@access 		Private
 */
-studentRoute.get('/students/staff/:staff_id', joiValidate(paginateInputSchema, 'query'), getStudents);
+studentRoute.get('/students/staff/:staff_id', joiValidate(paginateInputSchema, 'query'), auth as any, getStudents);
 
 /*
 @route 			GET /api/student/:id/staff/:staff_id (get students by a staff)
@@ -32,27 +33,27 @@ studentRoute.get('/student/:id', getSingleStudent);
 @description 	add new student
 @access 		Private
 */
-studentRoute.post('/student', joiValidate(createStudentSchema), createStudent);
+studentRoute.post('/student', joiValidate(createStudentSchema), auth as any, createStudent);
 
 /*
 @route 			PUT /api/student (update student)
 @description update student
 @access 		Private
 */
-studentRoute.put('/student/:id', joiValidate(updateStudentSchema), updateStudent);
+studentRoute.put('/student/:id', joiValidate(updateStudentSchema), auth as any, updateStudent);
 
 /*
 @route 			DELETE /api/student (delete student)
 @description 	delete student
 @access 		Private
 */
-studentRoute.delete('/student/:id', deleteStudent);
+studentRoute.delete('/student/:id', auth as any, deleteStudent);
 
 /*
 @route 			GET /api/students/fingerprints/:staff_id (get students fingerprints for identification)
 @description 	get students fingerprints
 @access 		Private
 */
-studentRoute.get('/students/fingerprints/:staff_id', getStudentsFingerprints);
+studentRoute.get('/students/fingerprints/:staff_id', auth as any, getStudentsFingerprints);
 
 export default studentRoute;

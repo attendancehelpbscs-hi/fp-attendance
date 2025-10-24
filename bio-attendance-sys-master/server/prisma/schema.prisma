@@ -6,10 +6,7 @@ generator client {
   provider = "prisma-client-js"
 }
 
-generator erd {
-  provider = "prisma-erd-generator"
-  output = "./diagrams/ERD-auto.svg"
-}
+
 
 generator docs {
   provider = "node node_modules/prisma-docs-generator"
@@ -35,6 +32,8 @@ model Staff {
   courses     Course[]
   students    Student[]
   attendances Attendance[]
+  auditLogs   AuditLog[]
+  tokens      Token[]
 }
 
 model Student {
@@ -42,6 +41,7 @@ model Student {
   staff_id    String
   name        String
   matric_no   String              @unique
+  grade       String
   fingerprint String              @db.LongText
   created_at  DateTime
   courses      StudentCourse[]
@@ -55,7 +55,6 @@ model Course {
   course_name  String
   course_code  String          @unique
   created_at   DateTime
-  attendances   Attendance[]
   students      StudentCourse[]
   staff        Staff           @relation(fields: [staff_id], references: [id])
 }
@@ -63,11 +62,9 @@ model Course {
 model Attendance {
   id           String               @id @default(uuid())
   staff_id     String
-  course_id    String
   name         String
   created_at   DateTime
   date         String
-  course       Course               @relation(fields: [course_id], references: [id])
   staff        Staff                @relation(fields: [staff_id], references: [id])
   students     StudentAttendance[]
 }
@@ -86,12 +83,30 @@ model StudentAttendance {
   student_id     String
   attendance     Attendance  @relation(fields: [attendance_id], references: [id])
   attendance_id  String
+  time_type      TimeType
+  section        String
+  created_at     DateTime    @default(now())
 
   @@id([student_id, attendance_id])
+}
+
+enum TimeType {
+  IN
+  OUT
 }
 
 model Token {
   id           String      @id @default(uuid())
   staff_id     String
   token        String
+  staff        Staff       @relation(fields: [staff_id], references: [id])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  staff_id   String
+  action     String
+  details    String?  @db.LongText
+  created_at DateTime @default(now())
+  staff      Staff    @relation(fields: [staff_id], references: [id])
 }

@@ -20,7 +20,7 @@ const WithStaffLayout: FC<{ children: ReactNode }> = ({ children }) => {
               Profile
             </MenuItem>
             <MenuItem as={RouterLink} to="/staff/manage/courses">
-              Manage Courses
+              Manage Sections
             </MenuItem>
             <MenuItem as={RouterLink} to="/staff/manage/students">
               Manage Students
@@ -30,6 +30,12 @@ const WithStaffLayout: FC<{ children: ReactNode }> = ({ children }) => {
             </MenuItem>
             <MenuItem as={RouterLink} to="/staff/settings">
               Settings
+            </MenuItem>
+            <MenuItem as={RouterLink} to="/staff/reports">
+              Reports & Analytics
+            </MenuItem>
+            <MenuItem as={RouterLink} to="/staff/help">
+              Help & Support
             </MenuItem>
             <MenuItem onClick={handleLogout}>Logout</MenuItem>
           </MenuList>

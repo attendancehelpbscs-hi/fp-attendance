@@ -1,4 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
+import type { AuthReq } from '../interfaces/middleware.interface';
+import type { JwtPayload } from 'jsonwebtoken';
 import { createSuccess } from '../helpers/http.helper';
 import createError from 'http-errors';
 import {
@@ -13,11 +15,13 @@ import type { Attendance, StudentAttendance } from '@prisma/client';
 import type { PaginationMeta } from '../interfaces/helper.interface';
 import { markStudentAttendance, fetchAttendanceStudents, checkIfStudentIsMarked } from '../services/attendance.service';
 
-export const getAttendances = async (req: Request, res: Response, next: NextFunction) => {
+export const getAttendances = async (req: AuthReq, res: Response, next: NextFunction) => {
   // get attendances that belongs to single staff
   const { staff_id } = req.params;
   const { per_page, page } = req.query;
+  const user_id = (req.user as JwtPayload).id;
   if (!staff_id) return next(new createError.BadRequest('Staff ID is required'));
+  if (staff_id !== user_id) return next(new createError.Forbidden('Access denied'));
   if (!per_page || !page) return next(new createError.BadRequest('Pagination info is required'));
   try {
     const attendanceCount = await prisma.attendance.count({
@@ -34,15 +38,7 @@ export const getAttendances = async (req: Request, res: Response, next: NextFunc
       orderBy: {
         created_at: 'desc',
       },
-      include: {
-        course: {
-          select: {
-            id: true,
-            course_code: true,
-            course_name: true,
-          },
-        },
-      },
+
     });
     const meta: PaginationMeta = {
       total_items: attendanceCount,
@@ -82,9 +78,9 @@ export const getSingleAttendance = async (req: Request, res: Response, next: Nex
 
 export const addStudentToAttendance = async (req: Request, res: Response, next: NextFunction) => {
   // create attendance
-  const { attendance_id, student_id } = req.body as StudentAttendance;
+  const { attendance_id, student_id, time_type, section } = req.body as { attendance_id: string; student_id: string; time_type: 'IN' | 'OUT'; section: string };
 
-  if (!attendance_id || !student_id) return next(new createError.BadRequest('No attendance ID or student ID provided'));
+  if (!attendance_id || !student_id || !time_type || !section) return next(new createError.BadRequest('Attendance ID, student ID, time type, and section are required'));
 
   try {
     const courseExists = await checkIfStudentIsMarked({ attendance_id, student_id });
@@ -101,7 +97,7 @@ export const addStudentToAttendance = async (req: Request, res: Response, next: 
         ),
       );
     }
-    await markStudentAttendance({ attendance_id, student_id });
+    await markStudentAttendance({ attendance_id, student_id, time_type, section });
     return createSuccess(res, 200, 'Attendance created successfully', {
       marked: true,
     });
@@ -110,14 +106,13 @@ export const addStudentToAttendance = async (req: Request, res: Response, next: 
   }
 };
 
-export const createAttendance = async (req: Request, res: Response, next: NextFunction) => {
+export const createAttendance = async (req: AuthReq, res: Response, next: NextFunction) => {
   // create attendance
-  const { name, staff_id, course_id, date } = req.body as Omit<Attendance, 'id' | 'created_at'>;
-
-  if (!staff_id || !course_id) return next(new createError.BadRequest('No staff ID or course ID provided'));
+  const { name, date } = req.body as Omit<Attendance, 'id' | 'created_at' | 'course_id' | 'staff_id'>;
+  const staff_id = (req.user as JwtPayload).id;
 
   try {
-    const newAttendance = { staff_id, course_id, name, date, created_at: new Date() };
+    const newAttendance = { staff_id, name, date, created_at: new Date() };
     const savedAttendance = await saveAttendanceToDb(newAttendance);
     const attendanceToSend = await fetchOneAttendance(savedAttendance.id);
     return createSuccess(res, 200, 'Attendance created successfully', {

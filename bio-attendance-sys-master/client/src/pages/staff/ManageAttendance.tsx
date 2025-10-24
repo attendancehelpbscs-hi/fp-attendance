@@ -18,7 +18,15 @@ import {
   Box,
   Text,
   useDisclosure,
+  Card,
+  CardHeader,
+  Badge,
+  Alert,
+  AlertIcon,
+  AlertTitle,
+  AlertDescription,
 } from '@chakra-ui/react';
+import { fingerprintControl } from '../../lib/fingerprint';
 import AddAttendance from '../../components/AddAttendance';
 import { PlusSquareIcon, EditIcon, DeleteIcon, CheckIcon, InfoIcon } from '@chakra-ui/icons';
 import MarkAttendance from '../../components/MarkAttendance';
@@ -40,6 +48,8 @@ const ManageAttendance: FC = () => {
   const [activeAttendance, setActiveAttendance] = useState<Attendance | null>(null);
   const [activeAttendance2, setActiveAttendance2] = useState<Attendance | null>(null);
   const [activeAttendance3, setActiveAttendance3] = useState<Attendance | null>(null);
+  const [scannerConnected, setScannerConnected] = useState<boolean>(false);
+  const [scannerStatus, setScannerStatus] = useState<string>('Checking...');
   const { data, error, isLoading, isError } = useGetAttendances(
     staffInfo?.id as string,
     page,
@@ -78,6 +88,29 @@ const ManageAttendance: FC = () => {
     }
   }, [activeAttendance2]);
 
+  useEffect(() => {
+    const handleDeviceConnected = () => {
+      setScannerConnected(true);
+      setScannerStatus('Connected');
+    };
+
+    const handleDeviceDisconnected = () => {
+      setScannerConnected(false);
+      setScannerStatus('Disconnected');
+    };
+
+    fingerprintControl.onDeviceConnected = handleDeviceConnected;
+    fingerprintControl.onDeviceDisconnected = handleDeviceDisconnected;
+    fingerprintControl.init();
+
+    // Check initial status
+    setTimeout(() => {
+      if (!scannerConnected) {
+        setScannerStatus('Not Detected');
+      }
+    }, 2000);
+  }, [scannerConnected]);
+
   const meta = data?.data?.meta;
   return (
     <WithStaffLayout>
@@ -88,10 +121,41 @@ const ManageAttendance: FC = () => {
         <IconButton
           bg="var(--bg-primary)"
           color="white"
-          aria-label="Add staff"
+          aria-label="Add attendance session"
           icon={<PlusSquareIcon fontSize={20} onClick={() => setDrawerOpen(true)} />}
         />
       </Flex>
+
+      {/* Scanner Status Alert */}
+      <Alert status={scannerConnected ? "success" : "warning"} marginTop="1rem" marginBottom="1rem" borderRadius="md">
+        <AlertIcon />
+        <AlertTitle>Scanner Status: {scannerStatus}</AlertTitle>
+        <AlertDescription>
+          {scannerConnected
+            ? "Fingerprint scanner is ready for attendance marking."
+            : "Please connect the fingerprint scanner to mark attendance."
+          }
+        </AlertDescription>
+      </Alert>
+
+      {/* Scanner Status Card */}
+      <Card marginBottom="2rem" maxW="400px">
+        <CardHeader padding="1rem">
+          <Flex alignItems="center" justifyContent="space-between">
+            <Box>
+              <Text fontWeight="bold" fontSize="lg">Scanner Status</Text>
+              <Text fontSize="sm" color="gray.600">Hardware Connection</Text>
+            </Box>
+            <Badge
+              colorScheme={scannerConnected ? "green" : scannerStatus === 'Checking...' ? "blue" : "red"}
+              fontSize="0.8em"
+              padding="0.25rem 0.5rem"
+            >
+              {scannerStatus}
+            </Badge>
+          </Flex>
+        </CardHeader>
+      </Card>
 
       {isLoading ? (
         <Box marginTop="4rem" display="flex" justifyContent="center">
@@ -109,7 +173,6 @@ const ManageAttendance: FC = () => {
               <Tr>
                 <Th>S/N</Th>
                 <Th>Name</Th>
-                <Th>Course</Th>
                 <Th>Date</Th>
                 <Th>Action</Th>
               </Tr>
@@ -119,7 +182,6 @@ const ManageAttendance: FC = () => {
                 <Tr key={idx}>
                   <Td>{(page - 1) * per_page + (idx + 1)}</Td>
                   <Td>{attendance.name}</Td>
-                  <Td>{attendance.course?.course_code}</Td>
                   <Td>{dayjs(attendance.date).format('DD/MM/YYYY')}</Td>
                   <Td>
                     <Flex justifyContent="flex-start" gap={4} alignItems="center">
@@ -153,7 +215,7 @@ const ManageAttendance: FC = () => {
                         bg="transparent"
                         _hover={{ color: 'white', background: 'var(--bg-primary)' }}
                         color="var(--bg-primary)"
-                        aria-label="Edit staff"
+                        aria-label="Edit attendance session"
                         onClick={() => setActiveAttendance(attendance)}
                         icon={<EditIcon />}
                       />
@@ -161,9 +223,9 @@ const ManageAttendance: FC = () => {
                         bg="white"
                         color="#d10d0d"
                         _hover={{ color: 'white', background: '#d10d0d' }}
-                        aria-label="Delete staff"
+                        aria-label="Delete attendance session"
                         onClick={() => {
-                          toastRef.current = toast.loading('Deleting attendance...');
+                          toastRef.current = toast.loading('Deleting attendance session...');
                           deleteAttendance({ url: `/${attendance.id}` });
                         }}
                         icon={<DeleteIcon />}

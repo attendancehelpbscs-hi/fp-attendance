@@ -1,9 +1,8 @@
 import Joi from 'joi';
 import type { Course } from '@prisma/client';
 
-export const createCourseSchema = Joi.object<Omit<Course, 'id' | 'created_at'>>({
+export const createCourseSchema = Joi.object<Omit<Course, 'id' | 'created_at' | 'staff_id'>>({
   course_name: Joi.string().min(2).max(128).required(),
-  staff_id: Joi.string().min(3).max(128).required(),
   course_code: Joi.string().min(2).max(128).required(),
 });
 

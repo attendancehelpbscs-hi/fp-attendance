@@ -1,4 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
+import type { AuthReq } from '../interfaces/middleware.interface';
+import type { JwtPayload } from 'jsonwebtoken';
 import { createSuccess } from '../helpers/http.helper';
 import createError from 'http-errors';
 import {
@@ -14,11 +16,13 @@ import type { Student } from '@prisma/client';
 import type { PaginationMeta } from '../interfaces/helper.interface';
 import { getStudentCourses } from '../services/student.service';
 
-export const getStudents = async (req: Request, res: Response, next: NextFunction) => {
+export const getStudents = async (req: AuthReq, res: Response, next: NextFunction) => {
   // get students that belongs to single staff
   const { staff_id } = req.params;
   const { per_page, page } = req.query;
+  const user_id = (req.user as JwtPayload).id;
   if (!staff_id) return next(new createError.BadRequest('Staff ID is required'));
+  if (staff_id !== user_id) return next(new createError.Forbidden('Access denied'));
   if (!per_page || !page) return next(new createError.BadRequest('Pagination info is required'));
   try {
     const studentCount = await prisma.student.count({
@@ -96,13 +100,12 @@ export const getSingleStudent = async (req: Request, res: Response, next: NextFu
   }
 };
 
-export const createStudent = async (req: Request, res: Response, next: NextFunction) => {
+export const createStudent = async (req: AuthReq, res: Response, next: NextFunction) => {
   // create student
-  const { name, staff_id, matric_no, fingerprint, courses } = req.body as Omit<Student, 'id' | 'created_at'> & {
+  const { name, matric_no, grade, fingerprint, courses } = req.body as Omit<Student, 'id' | 'created_at' | 'staff_id'> & {
     courses: string[];
   };
-
-  if (!staff_id) return next(new createError.BadRequest('No staff ID provided'));
+  const staff_id = (req.user as JwtPayload).id;
 
   if (!matric_no) {
     return next(createError(400, 'The matric_no field is required.'));
@@ -122,7 +125,7 @@ export const createStudent = async (req: Request, res: Response, next: NextFunct
         ),
       );
     }
-    const newStudent = { staff_id, name, matric_no, fingerprint, created_at: new Date() };
+    const newStudent = { staff_id, name, matric_no, grade, fingerprint, created_at: new Date() };
     const savedStudent = await saveStudentToDb(newStudent);
     await saveStudentCoursesToDb(courses.map((course_id) => ({ course_id, student_id: savedStudent.id })));
     const studentCourses = await getStudentCourses(savedStudent.id);

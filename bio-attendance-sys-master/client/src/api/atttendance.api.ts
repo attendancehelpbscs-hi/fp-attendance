@@ -9,6 +9,7 @@ import type {
   MarkAttendanceInput,
   MarkAttendanceResult,
   GetAttendanceListResult,
+  GetReportsResult,
 } from '../interfaces/api.interface';
 import { useBaseMutation, useBaseQuery } from '../helpers/store.helper';
 import { DeleteAttendanceResult } from '../interfaces/api.interface';
@@ -31,3 +32,12 @@ export const useMarkAttendance = useBaseMutation<MarkAttendanceResult, BaseError
 );
 export const useGetAttendanceList = (attendance_id: string) =>
   useBaseQuery<GetAttendanceListResult, BaseError>(`/api/attendance/${attendance_id}/students`);
+
+export const useGetReports = (staffId: string, grade?: string, section?: string, dateRange?: string) => {
+  const queryParams = new URLSearchParams();
+  if (grade) queryParams.append('grade', grade);
+  if (section) queryParams.append('section', section);
+  if (dateRange) queryParams.append('dateRange', dateRange);
+
+  return useBaseQuery<GetReportsResult, BaseError>(`/api/reports/${staffId}?${queryParams.toString()}`);
+};

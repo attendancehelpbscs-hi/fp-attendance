@@ -41,6 +41,7 @@ const AddStudent: FC<{
     staff_id: staffInfo?.id as string,
     name: '',
     matric_no: '',
+    grade: '',
     fingerprint: '',
     courses: [],
   });
@@ -56,7 +57,7 @@ const AddStudent: FC<{
     per_page,
   )({ queryKey: ['availablecourses', page], keepPreviousData: true });
   const defaultStudentInput = () =>
-    setStudentInput((prev) => ({ ...prev, name: '', matric_no: '', courses: [], fingerprint: '' }));
+    setStudentInput((prev) => ({ ...prev, name: '', matric_no: '', grade: '', courses: [], fingerprint: '' }));
   const { isLoading, mutate: addStudent } = useAddStudent({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['students'] });
@@ -86,6 +87,7 @@ const AddStudent: FC<{
         ...prev,
         name: activeStudent.name,
         matric_no: activeStudent.matric_no,
+        grade: activeStudent.grade,
         fingerprint: activeStudent.fingerprint,
         courses: activeStudent.courses?.map((course) => course.id),
       }));
@@ -169,7 +171,7 @@ const AddStudent: FC<{
               {simpleValidator.current.message('name', studentInput.name, 'required|alpha_num_space|between:2,128')}
             </FormControl>
             <FormControl marginTop="1rem">
-              <FormLabel>Matric Number</FormLabel>
+              <FormLabel>Matric Number (or ID Number)</FormLabel>
               <Input
                 type="text"
                 name="matric_no"
@@ -184,6 +186,23 @@ const AddStudent: FC<{
               )}
             </FormControl>
             <FormControl marginTop="1rem">
+              <FormLabel>Grade</FormLabel>
+              <Input
+                type="number"
+                name="grade"
+                required
+                value={studentInput.grade}
+                onChange={handleInputChange}
+                min="1"
+                max="6"
+              />
+              {simpleValidator.current.message(
+                'grade',
+                studentInput.grade,
+                'required|numeric|between:1,6',
+              )}
+            </FormControl>
+            <FormControl marginTop="1rem">
               <FormLabel>Fingerprint</FormLabel>
               {deviceConnected && <Text>NB: Fingerprint scanner is connected</Text>}
               <Box shadow="xs" h={240} w={240} margin="1rem auto 0" border="1px solid rgba(0, 0, 0, 0.04)">
@@ -192,20 +211,18 @@ const AddStudent: FC<{
               {simpleValidator.current.message('fingerprint', studentInput.fingerprint, 'required|between:2,500000')}
             </FormControl>
             <FormControl marginTop="1rem">
-              <FormLabel>Courses</FormLabel>
+              <FormLabel>Section</FormLabel>
               <Select
-                // defaultValue={[courses[2], courses[1]]}
-                value={studentInput.courses?.map((courseId) => ({
-                  value: courseId,
-                  label: courses?.find((course) => course.value === courseId)?.label,
-                }))}
-                isMulti
-                name="colors"
+                value={studentInput.courses && studentInput.courses.length > 0 ? {
+                  value: studentInput.courses[0],
+                  label: courses?.find((course) => course.value === studentInput.courses[0])?.label,
+                } : null}
+                name="section"
                 options={courses}
-                className="basic-multi-select"
+                className="basic-single-select"
                 classNamePrefix="select"
                 onChange={(newValue) =>
-                  setStudentInput((prev) => ({ ...prev, courses: newValue.map((val) => val.value) }))
+                  setStudentInput((prev) => ({ ...prev, courses: newValue ? [newValue.value] : [] }))
                 }
               />
             </FormControl>

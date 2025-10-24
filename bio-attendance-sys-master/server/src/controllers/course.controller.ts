@@ -1,4 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
+import type { AuthReq } from '../interfaces/middleware.interface';
+import type { JwtPayload } from 'jsonwebtoken';
 import { createSuccess } from '../helpers/http.helper';
 import createError from 'http-errors';
 import { checkIfCourseExists, removeCourseFromDb, saveCourseToDb, updateCourseInDb } from '../services/course.service';
@@ -6,11 +8,13 @@ import { prisma } from '../db/prisma-client';
 import type { Course } from '@prisma/client';
 import type { PaginationMeta } from '../interfaces/helper.interface';
 
-export const getCourses = async (req: Request, res: Response, next: NextFunction) => {
+export const getCourses = async (req: AuthReq, res: Response, next: NextFunction) => {
   // get courses that belongs to single staff
   const { staff_id } = req.params;
   const { per_page, page } = req.query;
+  const user_id = (req.user as JwtPayload).id;
   if (!staff_id) return next(new createError.BadRequest('Staff ID is required'));
+  if (staff_id !== user_id) return next(new createError.Forbidden('Access denied'));
   if (!per_page || !page) return next(new createError.BadRequest('Pagination info is required'));
   try {
     const courseCount = await prisma.course.count({
@@ -57,11 +61,10 @@ export const getSingleCourse = async (req: Request, res: Response, next: NextFun
   }
 };
 
-export const createCourse = async (req: Request, res: Response, next: NextFunction) => {
+export const createCourse = async (req: AuthReq, res: Response, next: NextFunction) => {
   // create course
-  const { staff_id, course_name, course_code } = req.body as Omit<Course, 'id' | 'created_at'>;
-
-  if (!staff_id) return next(new createError.BadRequest('No staff ID provided'));
+  const { course_name, course_code } = req.body as Omit<Course, 'id' | 'created_at' | 'staff_id'>;
+  const staff_id = (req.user as JwtPayload).id;
 
   if (!course_code) {
     return next(createError(400, 'The course_code field is required.'));

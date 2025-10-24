@@ -17,6 +17,7 @@ import {
   AlertIcon,
   AlertTitle,
   AlertDescription,
+  Select,
 } from '@chakra-ui/react';
 import { InfoIcon } from '@chakra-ui/icons';
 import { Flex } from '@chakra-ui/react';
@@ -44,6 +45,8 @@ const MarkAttendance: FC<{
   const [markInput, setMarkInput] = useState<MarkAttendanceInput>({
     student_id: '',
     attendance_id: '',
+    time_type: 'IN',
+    section: '',
   });
   const [deviceConnected, setDeviceConnected] = useState<boolean>(false);
   const [fingerprints, setFingerprints] = useState<{ newFingerprint: string }>({
@@ -58,7 +61,7 @@ const MarkAttendance: FC<{
   });
 
   const defaultMarkInput = () => {
-    setMarkInput((prev) => ({ ...prev, student_id: '' }));
+    setMarkInput((prev) => ({ ...prev, student_id: '', time_type: 'IN', section: '' }));
     setFingerprints((prev) => ({ ...prev, newFingerprint: '' }));
     setIdentifiedStudent(null);
     setIdentificationStatus('idle');
@@ -107,11 +110,15 @@ const MarkAttendance: FC<{
       const { student_id, confidence } = res.data;
       setConfidence(confidence);
 
-      if (student_id && confidence > 10) { // Adjusted threshold based on algorithm performance
+      if (student_id && confidence > 6) { // Adjusted threshold to accept legitimate matches
         const student = studentFingerprintsData.data?.data?.students?.find((s: StudentFingerprint) => s.id === student_id);
         if (student) {
           setIdentifiedStudent(student);
-          setMarkInput((prev) => ({ ...prev, student_id: student_id }));
+          setMarkInput((prev) => ({
+            ...prev,
+            student_id: student_id,
+            section: student.grade, // Use grade as section for now
+          }));
           setIdentificationStatus('success');
           toast.success(`Student identified: ${student.name} (${student.matric_no})`);
         } else {
@@ -234,6 +241,7 @@ const MarkAttendance: FC<{
                     <AlertTitle>Student Identified!</AlertTitle>
                     <AlertDescription>
                       {identifiedStudent.name} ({identifiedStudent.matric_no})<br />
+                      Grade: {identifiedStudent.grade}<br />
                       Confidence: {confidence.toFixed(2)}%
                     </AlertDescription>
                   </Box>
@@ -254,6 +262,19 @@ const MarkAttendance: FC<{
 
               {simpleValidator.current.message('fingerprint', fingerprints.newFingerprint, 'required|min:2')}
               {simpleValidator.current.message('student', markInput.student_id, 'required|between:2,128')}
+              {simpleValidator.current.message('section', markInput.section, 'required|min:1')}
+            </FormControl>
+
+            <FormControl marginTop="1rem">
+              <FormLabel>Time Type</FormLabel>
+              <Select
+                value={markInput.time_type}
+                onChange={(e) => setMarkInput((prev) => ({ ...prev, time_type: e.target.value as 'IN' | 'OUT' }))}
+                disabled={identificationStatus !== 'success'}
+              >
+                <option value="IN">Check In</option>
+                <option value="OUT">Check Out</option>
+              </Select>
             </FormControl>
 
             <Button

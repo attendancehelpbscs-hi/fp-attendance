@@ -20,6 +20,8 @@ import staffRoute from './routes/staff.route';
 import courseRoute from './routes/course.route';
 import studentRoute from './routes/student.route';
 import attendanceRoute from './routes/attendance.route';
+import auditRoute from './routes/audit.route';
+import reportsRoute from './routes/reports.route';
 
 config();
 
@@ -93,6 +95,8 @@ config();
   app.use(constants.apiBase, courseRoute);
   app.use(constants.apiBase, studentRoute);
   app.use(constants.apiBase, attendanceRoute);
+  app.use(constants.apiBase, auditRoute);
+  app.use(`${constants.apiBase}/reports`, reportsRoute);
 
   const httpServer = createServer(app);
 

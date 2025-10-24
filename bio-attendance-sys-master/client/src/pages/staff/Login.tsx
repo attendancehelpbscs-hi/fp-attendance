@@ -1,7 +1,8 @@
 import { useState, useRef } from 'react';
 import type { FC, ChangeEventHandler, FormEventHandler } from 'react';
-import { Card, CardHeader, Heading, FormControl, FormLabel, Input, Button, Link, Text } from '@chakra-ui/react';
+import { Card, CardHeader, Heading, FormControl, FormLabel, Input, Button, Link, Text, InputGroup, InputRightElement, IconButton } from '@chakra-ui/react';
 import { Link as RouterLink } from 'react-router-dom';
+import { ViewIcon, ViewOffIcon } from '@chakra-ui/icons';
 import '../../styles/Staff.scss';
 import type { LoginStaffInput } from '../../interfaces/api.interface';
 import { useLoginStaff } from '../../api/staff.api';
@@ -14,6 +15,7 @@ const Login: FC = () => {
     email: '',
     password: '',
   });
+  const [showPassword, setShowPassword] = useState<boolean>(false);
   const [, forceUpdate] = useState<boolean>(false);
   const login = useStore.use.loginStaff();
   const { isLoading, mutate: loginStaff } = useLoginStaff({
@@ -74,7 +76,24 @@ const Login: FC = () => {
           </FormControl>
           <FormControl marginTop="1rem">
             <FormLabel>Password</FormLabel>
-            <Input type="password" value={loginInput.password} name="password" required onChange={handleInputChange} />
+            <InputGroup>
+              <Input
+                type={showPassword ? 'text' : 'password'}
+                value={loginInput.password}
+                name="password"
+                required
+                onChange={handleInputChange}
+              />
+              <InputRightElement>
+                <IconButton
+                  variant="ghost"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  icon={showPassword ? <ViewOffIcon /> : <ViewIcon />}
+                  onClick={() => setShowPassword(!showPassword)}
+                  size="sm"
+                />
+              </InputRightElement>
+            </InputGroup>
             {simpleValidator.current.message('password', loginInput.password, 'required|between:4,15')}
           </FormControl>
           <Button

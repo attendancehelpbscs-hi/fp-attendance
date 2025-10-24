@@ -10,6 +10,8 @@ import ManageCourses from './pages/staff/ManageCourses';
 import ManageStudents from './pages/staff/ManageStudents';
 import Settings from './pages/staff/Settings';
 import ManageAttendance from './pages/staff/ManageAttendance';
+import Reports from './pages/staff/Reports';
+import Help from './pages/staff/Help';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from './lib/query-client';
 import useStore from './store/store';
@@ -78,6 +80,22 @@ function App() {
       element: (
         <AuthLayout routeType="auth">
           <Settings />
+        </AuthLayout>
+      ),
+    },
+    {
+      path: '/staff/reports',
+      element: (
+        <AuthLayout routeType="auth">
+          <Reports />
+        </AuthLayout>
+      ),
+    },
+    {
+      path: '/staff/help',
+      element: (
+        <AuthLayout routeType="auth">
+          <Help />
         </AuthLayout>
       ),
     },

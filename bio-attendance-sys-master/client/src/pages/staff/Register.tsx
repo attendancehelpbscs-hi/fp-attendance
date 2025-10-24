@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react';
 import type { FC, ChangeEventHandler, FormEventHandler } from 'react';
-import { Card, CardHeader, Heading, FormControl, FormLabel, Input, Button, Link, Text } from '@chakra-ui/react';
+import { Card, CardHeader, Heading, FormControl, FormLabel, Input, Button, Link, Text, InputGroup, InputRightElement, IconButton } from '@chakra-ui/react';
 import { Link as RouterLink } from 'react-router-dom';
+import { ViewIcon, ViewOffIcon } from '@chakra-ui/icons';
 import '../../styles/Staff.scss';
 import SimpleReactValidator from 'simple-react-validator';
 import type { RegisterStaffInput } from '../../interfaces/api.interface';
@@ -16,6 +17,8 @@ const Register: FC = () => {
     password: '',
     retype_password: '',
   });
+  const [showPassword, setShowPassword] = useState<boolean>(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState<boolean>(false);
   const loginStaff = useStore.use.loginStaff();
   const [, forceUpdate] = useState<boolean>(false);
   const { isLoading, mutate: registerStaff } = useRegisterStaff({
@@ -81,24 +84,46 @@ const Register: FC = () => {
           </FormControl>
           <FormControl marginTop="1rem">
             <FormLabel>Password</FormLabel>
-            <Input
-              type="password"
-              name="password"
-              value={registerInput.password}
-              onChange={handleInputChange}
-              required
-            />
+            <InputGroup>
+              <Input
+                type={showPassword ? 'text' : 'password'}
+                name="password"
+                value={registerInput.password}
+                onChange={handleInputChange}
+                required
+              />
+              <InputRightElement>
+                <IconButton
+                  variant="ghost"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  icon={showPassword ? <ViewOffIcon /> : <ViewIcon />}
+                  onClick={() => setShowPassword(!showPassword)}
+                  size="sm"
+                />
+              </InputRightElement>
+            </InputGroup>
             {simpleValidator.current.message('password', registerInput.password, 'required|between:4,15')}
           </FormControl>
           <FormControl marginTop="1rem">
             <FormLabel>Confirm Password</FormLabel>
-            <Input
-              type="password"
-              name="retype_password"
-              value={registerInput.retype_password}
-              onChange={handleInputChange}
-              required
-            />
+            <InputGroup>
+              <Input
+                type={showConfirmPassword ? 'text' : 'password'}
+                name="retype_password"
+                value={registerInput.retype_password}
+                onChange={handleInputChange}
+                required
+              />
+              <InputRightElement>
+                <IconButton
+                  variant="ghost"
+                  aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                  icon={showConfirmPassword ? <ViewOffIcon /> : <ViewIcon />}
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  size="sm"
+                />
+              </InputRightElement>
+            </InputGroup>
             {simpleValidator.current.message(
               'password',
               registerInput.retype_password,

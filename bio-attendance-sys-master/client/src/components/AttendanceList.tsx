@@ -52,7 +52,11 @@ const AttendanceList: FC<{ isOpen: boolean; onClose: () => void; attendance: Att
                 <ListItem display="flex" gap="1rem" alignItems="center">
                   <CheckIcon color="green.500" />
                   <Text>
-                    {student?.student?.name} ({student?.student?.matric_no})
+                    {student?.student?.name} ({student?.student?.matric_no}) - {student?.student?.grade}
+                    <br />
+                    <Text as="span" fontSize="sm" color="gray.600">
+                      {student?.time_type} - Section: {student?.section}
+                    </Text>
                   </Text>
                 </ListItem>
               ))}

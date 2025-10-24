@@ -10,13 +10,6 @@ export const fetchOneAttendance = (attendanceId: string): Promise<Attendance> =>
         where: {
           id: attendanceId,
         },
-        include: {
-          course: {
-            select: {
-              course_name: true,
-            },
-          },
-        },
       });
       if (!attendance) throw new createError.NotFound('Attendance not found');
       resolve(attendance);
@@ -39,7 +32,7 @@ export const saveAttendanceToDb = (attendance: Omit<Attendance, 'id'>): Promise<
   });
 };
 
-export const markStudentAttendance = (studentAttendanceInfo: StudentAttendance): Promise<StudentAttendance> => {
+export const markStudentAttendance = (studentAttendanceInfo: { attendance_id: string; student_id: string; time_type: 'IN' | 'OUT'; section: string }): Promise<StudentAttendance> => {
   return new Promise<StudentAttendance>(async (resolve, reject) => {
     try {
       const studentAttendance = await prisma.studentAttendance.create({
@@ -67,7 +60,7 @@ export const removeAllStudentAttendance = (attendance_id: string): Promise<Prism
   });
 };
 
-export const checkIfStudentIsMarked = (studentAttendanceInfo: StudentAttendance): Promise<boolean> => {
+export const checkIfStudentIsMarked = (studentAttendanceInfo: { attendance_id: string; student_id: string }): Promise<boolean> => {
   return new Promise<boolean>(async (resolve, reject) => {
     try {
       const studentAttendance = await prisma.studentAttendance.findFirst({

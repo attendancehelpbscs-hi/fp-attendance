@@ -67,7 +67,7 @@ const ManageCourses: FC = () => {
     <WithStaffLayout>
       <Flex justifyContent="space-between" alignItems="center" marginTop="2rem">
         <Heading fontSize={25} fontWeight={600}>
-          Manage Course
+          Manage Section
         </Heading>
         <IconButton
           bg="var(--bg-primary)"
@@ -92,8 +92,8 @@ const ManageCourses: FC = () => {
             <Thead>
               <Tr>
                 <Th>S/N</Th>
-                <Th>Course Title</Th>
-                <Th>Course Name</Th>
+                <Th>Teacher Name</Th>
+                <Th>Section</Th>
                 <Th>Action</Th>
               </Tr>
             </Thead>

@@ -89,6 +89,7 @@ export interface Student {
   staff_id: string;
   name: string;
   matric_no: string;
+  grade: string;
   fingerprint: string;
   courses: Course[];
   created_at: string;
@@ -98,6 +99,7 @@ export interface AddStudentInput {
   staff_id: string;
   name: string;
   matric_no: string;
+  grade: string;
   fingerprint: string;
   courses: string[];
 }
@@ -125,6 +127,7 @@ export interface StudentFingerprint {
   id: string;
   name: string;
   matric_no: string;
+  grade: string;
   fingerprint: string;
 }
 
@@ -137,16 +140,13 @@ export type GetStudentsFingerprintsResult = BaseResult<{
 export interface Attendance {
   id: string;
   staff_id: string;
-  course_id: string;
   name: string;
   date: string;
-  course: Omit<Course, 'created_at' | 'staff_id'>;
   created_at: string;
 }
 
 export interface AddAttendanceInput {
   staff_id: string;
-  course_id: string;
   name: string;
   date: string;
 }
@@ -173,6 +173,8 @@ export type UpdateAttendanceResult = BaseResult<{
 export interface MarkAttendanceInput {
   attendance_id: string;
   student_id: string;
+  time_type: 'IN' | 'OUT';
+  section: string;
 }
 
 export type MarkAttendanceResult = BaseResult<{
@@ -183,6 +185,29 @@ export type GetAttendanceListResult = BaseResult<{
   attendanceList: Array<{
     student_id: string;
     attendance_id: string;
+    time_type: 'IN' | 'OUT';
+    section: string;
     student: Student;
   }>;
+}>;
+
+export interface AttendanceReportData {
+  date: string;
+  grade: string;
+  section: string;
+  present: number;
+  absent: number;
+  rate: number;
+}
+
+export interface AttendanceSummary {
+  totalStudents: number;
+  averageRate: number;
+  lowAttendanceCount: number;
+  perfectAttendanceCount: number;
+}
+
+export type GetReportsResult = BaseResult<{
+  reports: AttendanceReportData[];
+  summary: AttendanceSummary;
 }>;

@@ -4,11 +4,11 @@ import type { Attendance, StudentAttendance } from '@prisma/client';
 export const addStudentToAttendanceSchema = Joi.object<StudentAttendance>({
   attendance_id: Joi.string().min(3).max(128).required(),
   student_id: Joi.string().min(3).max(128).required(),
+  time_type: Joi.string().valid('IN', 'OUT').required(),
+  section: Joi.string().min(1).max(10).required(),
 });
 
-export const createAttendanceSchema = Joi.object<Omit<Attendance, 'id' | 'created_at'>>({
-  staff_id: Joi.string().min(3).max(128).required(),
-  course_id: Joi.string().min(3).max(128).required(),
+export const createAttendanceSchema = Joi.object<Omit<Attendance, 'id' | 'created_at' | 'staff_id'>>({
   name: Joi.string().min(3).max(128).required(),
   date: Joi.string().min(3).max(128).required(),
 });
@@ -16,7 +16,6 @@ export const createAttendanceSchema = Joi.object<Omit<Attendance, 'id' | 'create
 export const updateAttendanceSchema = Joi.object<Partial<Attendance>>({
   id: Joi.string().min(3).max(128).required(),
   staff_id: Joi.string().min(3).max(128),
-  course_id: Joi.string().min(3).max(128),
   name: Joi.string().min(3).max(128),
   date: Joi.string().min(3).max(128),
 });

@@ -16,7 +16,7 @@ import requests
 import logging
 
 UPLOAD_FOLDER = 'fingerprints'
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'BMP'}
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'BMP', 'bmp'}
 
 def get_fingerprint_match_score(fingerprint1_path, fingerprint2_path):
     try:
@@ -43,15 +43,16 @@ def get_fingerprint_match_score(fingerprint1_path, fingerprint2_path):
 
         matches = flann.knnMatch(des1, des2, k=2)
 
-        # Apply ratio test (Lowe's ratio test) - adjusted threshold for better matching
+        # Apply ratio test (Lowe's ratio test) - balanced threshold for accurate matching
         match_points = []
         for match in matches:
             if len(match) == 2:
                 p, q = match
-                if p.distance < 0.9 * q.distance:  # Less strict ratio for more matches
+                if p.distance < 0.8 * q.distance:  # Balanced ratio for accuracy
                     match_points.append(p)
 
-        keypoints = max(len(keypoints_1), len(keypoints_2))
+        # Use average keypoints for more stable scoring
+        keypoints = (len(keypoints_1) + len(keypoints_2)) / 2
         if keypoints == 0:
             return 0.0
 
@@ -86,7 +87,7 @@ def identify_fingerprint(scanned_fingerprint_path, students_fingerprints):
                 continue
 
             # Save temporary file for comparison
-            temp_path = f"temp_{student['id']}.jpeg"
+            temp_path = f"temp_{student['id']}.png"
             cv2.imwrite(temp_path, stored_fingerprint)
 
             # Compare fingerprints
@@ -110,14 +111,15 @@ def identify_fingerprint(scanned_fingerprint_path, students_fingerprints):
 
     logging.info(f"Identification complete. Best match: {best_match}")
 
-    # Only return a match if confidence is above 20%
-    if best_match['confidence'] < 20:
+    # Only return a match if confidence is above 6%
+    if best_match['confidence'] < 6:
         logging.info("Confidence too low, returning no match")
         return {
             'student_id': None,
             'confidence': 0.0
         }
 
+    logging.info(f"Returning best match with confidence: {best_match['confidence']:.2f}%")
     return best_match
 
 def allowed_file(filename):
@@ -249,7 +251,7 @@ def create_app(test_config=None ):
                     }), 400
 
                 if file and allowed_file(file.filename):
-                    scanned_path = os.path.join(app.config['UPLOAD_FOLDER'], "scanned_fingerprint.jpeg")
+                    scanned_path = os.path.join(app.config['UPLOAD_FOLDER'], "scanned_fingerprint.png")
                     file.save(scanned_path)
                     logging.info(f"Saved scanned fingerprint to: {scanned_path}")
 
