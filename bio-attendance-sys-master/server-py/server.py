@@ -43,15 +43,15 @@ def get_fingerprint_match_score(fingerprint1_path, fingerprint2_path):
 
         matches = flann.knnMatch(des1, des2, k=2)
 
-        # Apply ratio test (Lowe's ratio test) - increased threshold for stricter matching
+        # Apply ratio test (Lowe's ratio test) - adjusted threshold for better matching
         match_points = []
         for match in matches:
             if len(match) == 2:
                 p, q = match
-                if p.distance < 0.8 * q.distance:  # Stricter ratio for better accuracy
+                if p.distance < 0.9 * q.distance:  # Less strict ratio for more matches
                     match_points.append(p)
 
-        keypoints = min(len(keypoints_1), len(keypoints_2))
+        keypoints = max(len(keypoints_1), len(keypoints_2))
         if keypoints == 0:
             return 0.0
 
@@ -109,6 +109,15 @@ def identify_fingerprint(scanned_fingerprint_path, students_fingerprints):
             continue
 
     logging.info(f"Identification complete. Best match: {best_match}")
+
+    # Only return a match if confidence is above 20%
+    if best_match['confidence'] < 20:
+        logging.info("Confidence too low, returning no match")
+        return {
+            'student_id': None,
+            'confidence': 0.0
+        }
+
     return best_match
 
 def allowed_file(filename):
@@ -203,7 +212,7 @@ def create_app(test_config=None ):
 
                 # Get students' fingerprints from Node.js backend
                 try:
-                    backend_url = "http://localhost:3000"  # Adjust if different
+                    backend_url = "http://localhost:5005"  # Adjust if different
                     logging.info(f"Fetching fingerprints for staff_id: {staff_id}")
                     response = requests.get(f"{backend_url}/api/students/fingerprints/{staff_id}")
                     if response.status_code != 200:

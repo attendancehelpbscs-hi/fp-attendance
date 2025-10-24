@@ -107,7 +107,7 @@ const MarkAttendance: FC<{
       const { student_id, confidence } = res.data;
       setConfidence(confidence);
 
-      if (student_id && confidence > 1) { // Lower threshold for match
+      if (student_id && confidence > 10) { // Adjusted threshold based on algorithm performance
         const student = studentFingerprintsData.data?.data?.students?.find((s: StudentFingerprint) => s.id === student_id);
         if (student) {
           setIdentifiedStudent(student);
