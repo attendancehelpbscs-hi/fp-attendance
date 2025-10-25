@@ -31,6 +31,7 @@ export function useBaseQuery<
   return (useQueryOptions: Omit<UseQueryOptions<TQueryFnData, TError, TData, TQueryKey>, 'queryFn'> = {}) =>
     useQuery<TQueryFnData, TError, TData, TQueryKey>({
       ...useQueryOptions,
+      queryKey: [url] as unknown as TQueryKey,
       queryFn: async () => (await axiosClient.get(url)).data,
     });
 }

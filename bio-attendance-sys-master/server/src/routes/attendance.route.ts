@@ -26,7 +26,7 @@ attendanceRoute.get('/attendance/:attendance_id/students', getAttendanceList);
 @description 	get attendances
 @access 		Private
 */
-attendanceRoute.get('/attendances/staff/:staff_id', joiValidate(paginateInputSchema, 'query'), auth as any, getAttendances);
+attendanceRoute.get('/attendances/staff/:staff_id', joiValidate(paginateInputSchema, 'query'), auth, getAttendances);
 
 /*
 @route 			GET /api/attendance/:id/staff/:staff_id (get attendances by a staff)
@@ -40,27 +40,27 @@ attendanceRoute.get('/attendance/:id', getSingleAttendance);
 @description 	add new attendance
 @access 		Private
 */
-attendanceRoute.post('/attendance/student', auth as any, joiValidate(addStudentToAttendanceSchema), addStudentToAttendance);
+attendanceRoute.post('/attendance/student', auth, joiValidate(addStudentToAttendanceSchema), addStudentToAttendance);
 
 /*
 @route 			POST /api/attendance (create attendance)
 @description 	add new attendance
 @access 		Private
 */
-attendanceRoute.post('/attendance', joiValidate(createAttendanceSchema), auth as any, createAttendance);
+attendanceRoute.post('/attendance', joiValidate(createAttendanceSchema), auth, createAttendance);
 
 /*
 @route 			PUT /api/attendance (update attendance)
 @description update attendance
 @access 		Private
 */
-attendanceRoute.put('/attendance/:id', joiValidate(updateAttendanceSchema), auth as any, updateAttendance);
+attendanceRoute.put('/attendance/:id', joiValidate(updateAttendanceSchema), auth, updateAttendance);
 
 /*
 @route 			DELETE /api/attendance (delete attendance)
 @description 	delete attendance
 @access 		Private
 */
-attendanceRoute.delete('/attendance/:id', auth as any, deleteAttendance);
+attendanceRoute.delete('/attendance/:id', auth, deleteAttendance);
 
 export default attendanceRoute;

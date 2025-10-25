@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE `studentattendance` ADD COLUMN `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    ALTER COLUMN `section` DROP DEFAULT,
+    ALTER COLUMN `time_type` DROP DEFAULT;

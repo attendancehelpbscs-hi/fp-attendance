@@ -49,7 +49,7 @@ export const getAttendanceReports = async (staff_id: string, filters: { grade?: 
       // Initialize groups for all grades and sections
       const gradeSectionMap: Record<string, number> = {};
       allStudents.forEach(student => {
-        const key = `${student.grade}-${student.grade}`; // Using grade as section for now
+        const key = `${student.grade}-${student.grade}`; // Using grade as section
         if (!gradeSectionMap[key]) {
           gradeSectionMap[key] = 0;
         }

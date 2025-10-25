@@ -55,7 +55,7 @@ const AttendanceList: FC<{ isOpen: boolean; onClose: () => void; attendance: Att
                     {student?.student?.name} ({student?.student?.matric_no}) - {student?.student?.grade}
                     <br />
                     <Text as="span" fontSize="sm" color="gray.600">
-                      {student?.time_type} - Section: {student?.section}
+                      {student?.time_type} - Section: {student?.section} - Time: {dayjs(student?.created_at).format('HH:mm:ss')}
                     </Text>
                   </Text>
                 </ListItem>

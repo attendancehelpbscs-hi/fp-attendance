@@ -5,12 +5,13 @@ export const addStudentToAttendanceSchema = Joi.object<StudentAttendance>({
   attendance_id: Joi.string().min(3).max(128).required(),
   student_id: Joi.string().min(3).max(128).required(),
   time_type: Joi.string().valid('IN', 'OUT').required(),
-  section: Joi.string().min(1).max(10).required(),
+  section: Joi.string().min(1).max(10),
 });
 
-export const createAttendanceSchema = Joi.object<Omit<Attendance, 'id' | 'created_at' | 'staff_id'>>({
+export const createAttendanceSchema = Joi.object<Pick<Attendance, 'name' | 'date' | 'staff_id'>>({
   name: Joi.string().min(3).max(128).required(),
   date: Joi.string().min(3).max(128).required(),
+  staff_id: Joi.string().min(3).max(128).required(),
 });
 
 export const updateAttendanceSchema = Joi.object<Partial<Attendance>>({

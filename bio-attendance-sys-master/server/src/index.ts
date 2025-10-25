@@ -1,3 +1,4 @@
+/// <reference path="./types/express.d.ts" />
 import { createServer } from 'http';
 import express from 'express';
 import type { Application, Request, Response /*, NextFunction */ } from 'express';

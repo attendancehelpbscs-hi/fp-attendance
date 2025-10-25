@@ -1,5 +1,4 @@
 import type { Request, Response, NextFunction } from 'express';
-import type { AuthReq } from '../interfaces/middleware.interface';
 import type { JwtPayload } from 'jsonwebtoken';
 import { createSuccess } from '../helpers/http.helper';
 import createError from 'http-errors';
@@ -16,7 +15,7 @@ import type { Student } from '@prisma/client';
 import type { PaginationMeta } from '../interfaces/helper.interface';
 import { getStudentCourses } from '../services/student.service';
 
-export const getStudents = async (req: AuthReq, res: Response, next: NextFunction) => {
+export const getStudents = async (req: Request, res: Response, next: NextFunction) => {
   // get students that belongs to single staff
   const { staff_id } = req.params;
   const { per_page, page } = req.query;
@@ -100,15 +99,18 @@ export const getSingleStudent = async (req: Request, res: Response, next: NextFu
   }
 };
 
-export const createStudent = async (req: AuthReq, res: Response, next: NextFunction) => {
+export const createStudent = async (req: Request, res: Response, next: NextFunction) => {
   // create student
-  const { name, matric_no, grade, fingerprint, courses } = req.body as Omit<Student, 'id' | 'created_at' | 'staff_id'> & {
+  const { name, matric_no, grade, fingerprint, courses, staff_id } = req.body as Pick<Student, 'name' | 'matric_no' | 'grade' | 'fingerprint' | 'staff_id'> & {
     courses: string[];
   };
-  const staff_id = (req.user as JwtPayload).id;
+  const user_id = (req.user as JwtPayload).id;
 
   if (!matric_no) {
     return next(createError(400, 'The matric_no field is required.'));
+  }
+  if (staff_id !== user_id) {
+    return next(createError(403, 'Access denied'));
   }
   try {
     const courseExists = await checkIfStudentExists(matric_no, staff_id);
@@ -181,10 +183,25 @@ export const getStudentsFingerprints = async (req: Request, res: Response, next:
         id: true,
         name: true,
         matric_no: true,
+        grade: true,
         fingerprint: true,
+        courses: {
+          select: {
+            course: {
+              select: {
+                course_code: true,
+                course_name: true,
+              },
+            },
+          },
+        },
       },
     });
-    return createSuccess(res, 200, 'Students fingerprints fetched successfully', { students });
+    const studentsWithCourses = students.map(student => ({
+      ...student,
+      courses: student.courses.map(sc => sc.course),
+    }));
+    return createSuccess(res, 200, 'Students fingerprints fetched successfully', { students: studentsWithCourses });
   } catch (err) {
     return next(err);
   }

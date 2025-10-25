@@ -19,7 +19,7 @@ const studentRoute = Router();
 @description 	get students
 @access 		Private
 */
-studentRoute.get('/students/staff/:staff_id', joiValidate(paginateInputSchema, 'query'), auth as any, getStudents);
+studentRoute.get('/students/staff/:staff_id', joiValidate(paginateInputSchema, 'query'), auth, getStudents);
 
 /*
 @route 			GET /api/student/:id/staff/:staff_id (get students by a staff)
@@ -33,27 +33,27 @@ studentRoute.get('/student/:id', getSingleStudent);
 @description 	add new student
 @access 		Private
 */
-studentRoute.post('/student', joiValidate(createStudentSchema), auth as any, createStudent);
+studentRoute.post('/student', joiValidate(createStudentSchema), auth, createStudent);
 
 /*
 @route 			PUT /api/student (update student)
 @description update student
 @access 		Private
 */
-studentRoute.put('/student/:id', joiValidate(updateStudentSchema), auth as any, updateStudent);
+studentRoute.put('/student/:id', joiValidate(updateStudentSchema), auth, updateStudent);
 
 /*
 @route 			DELETE /api/student (delete student)
 @description 	delete student
 @access 		Private
 */
-studentRoute.delete('/student/:id', auth as any, deleteStudent);
+studentRoute.delete('/student/:id', auth, deleteStudent);
 
 /*
 @route 			GET /api/students/fingerprints/:staff_id (get students fingerprints for identification)
 @description 	get students fingerprints
-@access 		Private
+@access 		Public
 */
-studentRoute.get('/students/fingerprints/:staff_id', auth as any, getStudentsFingerprints);
+studentRoute.get('/students/fingerprints/:staff_id', getStudentsFingerprints);
 
 export default studentRoute;

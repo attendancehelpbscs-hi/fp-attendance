@@ -117,7 +117,7 @@ const MarkAttendance: FC<{
           setMarkInput((prev) => ({
             ...prev,
             student_id: student_id,
-            section: student.grade, // Use grade as section for now
+            section: student.courses.length > 0 ? student.courses[0].course_code : student.grade, // Use first course code as section, fallback to grade
           }));
           setIdentificationStatus('success');
           toast.success(`Student identified: ${student.name} (${student.matric_no})`);
@@ -262,7 +262,7 @@ const MarkAttendance: FC<{
 
               {simpleValidator.current.message('fingerprint', fingerprints.newFingerprint, 'required|min:2')}
               {simpleValidator.current.message('student', markInput.student_id, 'required|between:2,128')}
-              {simpleValidator.current.message('section', markInput.section, 'required|min:1')}
+              {simpleValidator.current.message('section', markInput.section, 'min:1')}
             </FormControl>
 
             <FormControl marginTop="1rem">

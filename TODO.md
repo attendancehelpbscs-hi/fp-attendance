@@ -1,5 +1,4 @@
-- [x] Fix foreign key constraint errors in course, student, and attendance creation by using authenticated user's ID instead of req.body.staff_id
-- [x] Update createCourse controller to use req.user.id for staff_id
-- [x] Update createStudent controller to use req.user.id for staff_id
-- [x] Update createAttendance controller to use req.user.id for staff_id
-- [x] Add security checks in getCourses, getStudents, getAttendances to ensure staff_id matches authenticated user
+- Fix Joi validation for update course and student: remove id from schema since id is in URL params
+- Fix Joi validation for reports: validate optional grade, section, dateRange instead of page/per_page
+- Check client-side data sending for course and student creation
+- Fix React Query queryKey warning if present

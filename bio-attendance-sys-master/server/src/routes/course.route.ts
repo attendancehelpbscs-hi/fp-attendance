@@ -18,7 +18,7 @@ const courseRoute = Router();
 @description 	get courses
 @access 		Private
 */
-courseRoute.get('/courses/staff/:staff_id', joiValidate(paginateInputSchema, 'query'), auth as any, getCourses);
+courseRoute.get('/courses/staff/:staff_id', joiValidate(paginateInputSchema, 'query'), auth, getCourses);
 
 /*
 @route 			GET /api/course/:id/staff/:staff_id (get courses by a staff)
@@ -32,20 +32,20 @@ courseRoute.get('/course/:id', getSingleCourse);
 @description 	add new course
 @access 		Private
 */
-courseRoute.post('/course', joiValidate(createCourseSchema), auth as any, createCourse);
+courseRoute.post('/course', joiValidate(createCourseSchema), auth, createCourse);
 
 /*
 @route 			PUT /api/course (update course)
 @description update course
 @access 		Private
 */
-courseRoute.put('/course/:id', joiValidate(updateCourseSchema), auth as any, updateCourse);
+courseRoute.put('/course/:id', joiValidate(updateCourseSchema), auth, updateCourse);
 
 /*
 @route 			DELETE /api/course (delete course)
 @description 	delete course
 @access 		Private
 */
-courseRoute.delete('/course/:id', auth as any, deleteCourse);
+courseRoute.delete('/course/:id', auth, deleteCourse);
 
 export default courseRoute;

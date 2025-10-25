@@ -129,6 +129,7 @@ export interface StudentFingerprint {
   matric_no: string;
   grade: string;
   fingerprint: string;
+  courses: Course[];
 }
 
 export type GetStudentsFingerprintsResult = BaseResult<{

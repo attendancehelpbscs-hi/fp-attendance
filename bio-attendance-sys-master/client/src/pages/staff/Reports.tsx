@@ -76,7 +76,9 @@ const Reports: FC = () => {
     selectedGrade === 'all' ? undefined : selectedGrade,
     selectedSection === 'all' ? undefined : selectedSection,
     selectedDateRange
-  )();
+  )({
+    queryKey: ['reports', staffInfo?.id, selectedGrade, selectedSection, selectedDateRange],
+  });
 
   // Use real data from API
   const attendanceData = reportsData?.data?.reports || [];

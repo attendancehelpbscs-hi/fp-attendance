@@ -1,5 +1,4 @@
 import type { Request, Response, NextFunction } from 'express';
-import type { AuthReq } from '../interfaces/middleware.interface';
 import type { JwtPayload } from 'jsonwebtoken';
 import { createSuccess } from '../helpers/http.helper';
 import createError from 'http-errors';
@@ -15,7 +14,7 @@ import type { Attendance, StudentAttendance } from '@prisma/client';
 import type { PaginationMeta } from '../interfaces/helper.interface';
 import { markStudentAttendance, fetchAttendanceStudents, checkIfStudentIsMarked } from '../services/attendance.service';
 
-export const getAttendances = async (req: AuthReq, res: Response, next: NextFunction) => {
+export const getAttendances = async (req: Request, res: Response, next: NextFunction) => {
   // get attendances that belongs to single staff
   const { staff_id } = req.params;
   const { per_page, page } = req.query;
@@ -106,10 +105,14 @@ export const addStudentToAttendance = async (req: Request, res: Response, next: 
   }
 };
 
-export const createAttendance = async (req: AuthReq, res: Response, next: NextFunction) => {
+export const createAttendance = async (req: Request, res: Response, next: NextFunction) => {
   // create attendance
-  const { name, date } = req.body as Omit<Attendance, 'id' | 'created_at' | 'course_id' | 'staff_id'>;
-  const staff_id = (req.user as JwtPayload).id;
+  const { name, date, staff_id } = req.body as Pick<Attendance, 'name' | 'date' | 'staff_id'>;
+  const user_id = (req.user as JwtPayload).id;
+
+  if (staff_id !== user_id) {
+    return next(createError(403, 'Access denied'));
+  }
 
   try {
     const newAttendance = { staff_id, name, date, created_at: new Date() };
