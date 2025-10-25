@@ -11,6 +11,7 @@ import type {
   GetAttendanceListResult,
   GetReportsResult,
   GetGradesAndSectionsResult,
+  GetStudentReportsResult,
 } from '../interfaces/api.interface';
 import { useBaseMutation, useBaseQuery } from '../helpers/store.helper';
 import { DeleteAttendanceResult } from '../interfaces/api.interface';
@@ -45,3 +46,13 @@ export const useGetReports = (staffId: string, grade?: string, section?: string,
 
 export const useGetGradesAndSections = (staffId: string) =>
   useBaseQuery<GetGradesAndSectionsResult, BaseError>(`/api/reports/${staffId}/filters`);
+
+export const useGetStudentReports = (staffId: string, studentId?: string, startDate?: string, endDate?: string, dateRange?: string) => {
+  const queryParams = new URLSearchParams();
+  if (studentId) queryParams.append('student_id', studentId);
+  if (startDate) queryParams.append('startDate', startDate);
+  if (endDate) queryParams.append('endDate', endDate);
+  if (dateRange) queryParams.append('dateRange', dateRange);
+
+  return useBaseQuery<GetStudentReportsResult, BaseError>(`/api/reports/${staffId}/students?${queryParams.toString()}`);
+};

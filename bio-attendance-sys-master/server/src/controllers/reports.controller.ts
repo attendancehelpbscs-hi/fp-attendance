@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import { createSuccess } from '../helpers/http.helper';
 import createError from 'http-errors';
-import { getAttendanceReports, getAttendanceSummary, getUniqueGradesAndSections, getPreviousPeriodReports } from '../services/reports.service';
+import { getAttendanceReports, getAttendanceSummary, getUniqueGradesAndSections, getPreviousPeriodReports, getStudentAttendanceReports, getStudentAttendanceSummary } from '../services/reports.service';
 
 export const getReports = async (req: Request, res: Response, next: NextFunction) => {
   const { staff_id } = req.params;
@@ -39,6 +39,32 @@ export const getGradesAndSections = async (req: Request, res: Response, next: Ne
     const data = await getUniqueGradesAndSections(staff_id);
 
     return createSuccess(res, 200, 'Grades and sections fetched successfully', data);
+  } catch (err) {
+    return next(err);
+  }
+};
+
+export const getStudentReports = async (req: Request, res: Response, next: NextFunction) => {
+  const { staff_id } = req.params;
+  const { student_id, startDate, endDate, dateRange } = req.query;
+
+  if (!staff_id) return next(new createError.BadRequest('Staff ID is required'));
+
+  try {
+    const filters = {
+      student_id: student_id as string,
+      startDate: startDate as string,
+      endDate: endDate as string,
+      dateRange: dateRange as string,
+    };
+
+    const reports = await getStudentAttendanceReports(staff_id, filters);
+    const summary = await getStudentAttendanceSummary(staff_id, filters);
+
+    return createSuccess(res, 200, 'Student reports fetched successfully', {
+      reports,
+      summary,
+    });
   } catch (err) {
     return next(err);
   }

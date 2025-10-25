@@ -218,3 +218,34 @@ export type GetGradesAndSectionsResult = BaseResult<{
   grades: string[];
   sections: string[];
 }>;
+
+export interface StudentAttendanceReportData {
+  date: string;
+  student_id: string;
+  student_name: string;
+  matric_no: string;
+  grade: string;
+  section: string;
+  status: 'present' | 'absent';
+  time_type: 'IN' | 'OUT' | null;
+  created_at: string;
+}
+
+export interface StudentAttendanceSummary {
+  student_id: string;
+  student_name: string;
+  matric_no: string;
+  grade: string;
+  section: string;
+  total_days: number;
+  present_days: number;
+  absent_days: number;
+  attendance_rate: number;
+  period_start: string;
+  period_end: string;
+}
+
+export type GetStudentReportsResult = BaseResult<{
+  reports: StudentAttendanceReportData[];
+  summary: StudentAttendanceSummary[];
+}>;

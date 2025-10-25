@@ -133,7 +133,7 @@ export const getAttendanceReports = async (staff_id: string, filters: { grade?: 
       });
 
       // Count present students by grade and section from StudentAttendance
-      studentAttendances.forEach(sa => {
+      studentAttendances.forEach((sa: { student: { grade: string }; section: string }) => {
         const student = sa.student;
         const section = sa.section;
         const key = `${student.grade}-${section}`;
@@ -259,6 +259,206 @@ export const getPreviousPeriodReports = async (staff_id: string, filters: { grad
       lowAttendanceCount,
       perfectAttendanceCount,
     };
+  } catch (err) {
+    throw err;
+  }
+};
+
+export interface StudentAttendanceReportData {
+  date: string;
+  student_id: string;
+  student_name: string;
+  matric_no: string;
+  grade: string;
+  section: string;
+  status: 'present' | 'absent';
+  time_type: 'IN' | 'OUT' | null;
+  created_at: string;
+}
+
+export interface StudentAttendanceSummary {
+  student_id: string;
+  student_name: string;
+  matric_no: string;
+  grade: string;
+  section: string;
+  total_days: number;
+  present_days: number;
+  absent_days: number;
+  attendance_rate: number;
+  period_start: string;
+  period_end: string;
+}
+
+export const getStudentAttendanceReports = async (
+  staff_id: string,
+  filters: { student_id?: string; startDate?: string; endDate?: string; dateRange?: string }
+): Promise<StudentAttendanceReportData[]> => {
+  try {
+    // Calculate date range
+    let startDateStr: string | undefined;
+    let endDateStr: string | undefined;
+
+    if (filters.startDate && filters.endDate) {
+      startDateStr = filters.startDate;
+      endDateStr = filters.endDate;
+    } else if (filters.dateRange) {
+      const now = new Date();
+      switch (filters.dateRange) {
+        case 'today':
+          startDateStr = now.toISOString().split('T')[0];
+          endDateStr = now.toISOString().split('T')[0];
+          break;
+        case '7days':
+          startDateStr = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+          break;
+        case '30days':
+          startDateStr = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+          break;
+        case '90days':
+          startDateStr = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+          break;
+        case 'month':
+          startDateStr = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+          endDateStr = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+          break;
+        default:
+          break;
+      }
+    }
+
+    // Get all attendances for the staff within date range
+    const attendances = await prisma.attendance.findMany({
+      where: {
+        staff_id,
+        ...(startDateStr && { date: { gte: startDateStr } }),
+        ...(endDateStr && { date: { lte: endDateStr } }),
+      },
+      include: {
+        students: {
+          include: {
+            student: true,
+          },
+        },
+      },
+    });
+
+    const reportData: StudentAttendanceReportData[] = [];
+
+    // Get all students for this staff to include absent days
+    const allStudents = await prisma.student.findMany({
+      where: { staff_id },
+      include: {
+        courses: true,
+      },
+    });
+
+    // Create a map of attendance dates
+    const attendanceDates = new Set(attendances.map(a => a.date));
+
+    // For each attendance date, process student attendance
+    for (const attendance of attendances) {
+      const studentAttendances = attendance.students;
+
+      // Create a map of present students for this date
+      const presentStudentsMap = new Map<string, any>();
+      studentAttendances.forEach((sa: any) => {
+        presentStudentsMap.set(sa.student_id, sa);
+      });
+
+      // For each student, check if they were present or absent
+      for (const student of allStudents) {
+        const studentAttendance = presentStudentsMap.get(student.id);
+
+        if (studentAttendance) {
+          // Student was present
+          reportData.push({
+            date: attendance.date,
+            student_id: student.id,
+            student_name: student.name,
+            matric_no: student.matric_no,
+            grade: student.grade,
+            section: studentAttendance.section,
+            status: 'present',
+            time_type: studentAttendance.time_type,
+            created_at: studentAttendance.created_at.toISOString(),
+          });
+        } else {
+          // Student was absent - only include if they should have been present (filter by student_id if specified)
+          if (!filters.student_id || student.id === filters.student_id) {
+            reportData.push({
+              date: attendance.date,
+              student_id: student.id,
+              student_name: student.name,
+              matric_no: student.matric_no,
+              grade: student.grade,
+              section: '', // No section for absent students
+              status: 'absent',
+              time_type: null,
+              created_at: attendance.created_at.toISOString(),
+            });
+          }
+        }
+      }
+    }
+
+    // Apply student filter
+    let filteredData = reportData;
+    if (filters.student_id) {
+      filteredData = reportData.filter(item => item.student_id === filters.student_id);
+    }
+
+    // Sort by date descending
+    return filteredData.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  } catch (err) {
+    throw err;
+  }
+};
+
+export const getStudentAttendanceSummary = async (
+  staff_id: string,
+  filters: { student_id?: string; startDate?: string; endDate?: string; dateRange?: string }
+): Promise<StudentAttendanceSummary[]> => {
+  try {
+    const reportData = await getStudentAttendanceReports(staff_id, filters);
+
+    // Group by student
+    const studentGroups = reportData.reduce((acc: Record<string, StudentAttendanceReportData[]>, item) => {
+      if (!acc[item.student_id]) acc[item.student_id] = [];
+      acc[item.student_id].push(item);
+      return acc;
+    }, {});
+
+    const summaries: StudentAttendanceSummary[] = [];
+
+    for (const [studentId, records] of Object.entries(studentGroups)) {
+      const student = records[0]; // Get student info from first record
+      const totalDays = records.length;
+      const presentDays = records.filter(r => r.status === 'present').length;
+      const absentDays = records.filter(r => r.status === 'absent').length;
+      const attendanceRate = totalDays > 0 ? (presentDays / totalDays) * 100 : 0;
+
+      // Calculate period
+      const dates = records.map(r => new Date(r.date));
+      const periodStart = new Date(Math.min(...dates.map(d => d.getTime()))).toISOString().split('T')[0];
+      const periodEnd = new Date(Math.max(...dates.map(d => d.getTime()))).toISOString().split('T')[0];
+
+      summaries.push({
+        student_id: studentId,
+        student_name: student.student_name,
+        matric_no: student.matric_no,
+        grade: student.grade,
+        section: student.section,
+        total_days: totalDays,
+        present_days: presentDays,
+        absent_days: absentDays,
+        attendance_rate: Math.round(attendanceRate * 100) / 100,
+        period_start: periodStart,
+        period_end: periodEnd,
+      });
+    }
+
+    return summaries.sort((a, b) => a.student_name.localeCompare(b.student_name));
   } catch (err) {
     throw err;
   }

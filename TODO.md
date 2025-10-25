@@ -1,20 +1,16 @@
-# Reports Page Fixes TODO
+# TODO: Fix Student Update 422 Error
 
-## Backend Updates (reports.service.ts)
-- [x] Modify `getAttendanceReports` to include all grade-sections from StudentAttendance, even with 0 attendance
-- [x] Add a new function `getPreviousPeriodReports` to calculate data for the previous equivalent period
-- [x] Update `getAttendanceSummary` to handle empty data scenarios properly
+## Current Issue
+- 422 Unprocessable Entity error when updating student via `/api/student/{id}`
+- Joi validation fails due to mismatch between schema (optional) and controller expectations (required)
 
-## Frontend Updates (Reports.tsx)
-- [ ] Replace hardcoded comparative values with dynamic data from new API response
-- [ ] Add a search input field above the detailed attendance table for filtering rows
-- [ ] Add sorting functionality to table columns (Date, Grade, Section, Present, Absent, Rate)
-- [ ] Ensure filter options are unique and remove any duplicates
+## Steps to Complete
+- [ ] Update `updateStudentSchema` in `bio-attendance-sys-master/server/src/joi/student.joi.ts` to make `courses` and `fingerprint` required
+- [ ] Test student update functionality to ensure no more 422 errors
+- [ ] Verify client sends required fields in update requests
 
-## API Updates (reports.controller.ts)
-- [x] Update controller to include previous period data in response
-
-## Testing
-- [ ] Test backend logic to ensure all students/grade-sections are included even with 0 attendance
-- [ ] Test frontend to verify dynamic comparative data, search, and sorting work correctly
-- [ ] Verify filters are unique and data populates properly
+## Status
+- [x] Analysis completed
+- [x] Plan approved by user
+- [x] Implementation completed - Updated updateStudentSchema to require fingerprint and courses, added .unknown(true) to allow extra fields like id and url
+- [ ] Testing required - Verify student update works without 422 errors
