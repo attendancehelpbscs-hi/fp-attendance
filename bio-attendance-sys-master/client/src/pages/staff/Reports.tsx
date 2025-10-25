@@ -29,7 +29,11 @@ import {
   VStack,
   HStack,
   Divider,
+  Input,
+  InputGroup,
+  InputLeftElement,
 } from '@chakra-ui/react';
+import { SearchIcon } from '@chakra-ui/icons';
 import { DownloadIcon, ChevronDownIcon } from '@chakra-ui/icons';
 import {
   BarChart,
@@ -46,7 +50,7 @@ import {
   Pie,
   Cell,
 } from 'recharts';
-import { useGetReports } from '../../api/atttendance.api';
+import { useGetReports, useGetGradesAndSections } from '../../api/atttendance.api';
 import useStore from '../../store/store';
 
 // Type declarations to fix TypeScript issues
@@ -70,6 +74,8 @@ const Reports: FC = () => {
   const [selectedGrade, setSelectedGrade] = useState<string>('all');
   const [selectedSection, setSelectedSection] = useState<string>('all');
   const [selectedDateRange, setSelectedDateRange] = useState<string>('7days');
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [sortConfig, setSortConfig] = useState<{ key: keyof AttendanceReportData; direction: 'asc' | 'desc' } | null>(null);
 
   const { data: reportsData, isLoading, error } = useGetReports(
     staffInfo?.id || '',
@@ -80,17 +86,50 @@ const Reports: FC = () => {
     queryKey: ['reports', staffInfo?.id, selectedGrade, selectedSection, selectedDateRange],
   });
 
+  const { data: filtersData } = useGetGradesAndSections(staffInfo?.id || '')({
+    queryKey: ['grades-sections', staffInfo?.id],
+  });
+
   // Use real data from API
   const attendanceData = reportsData?.data?.reports || [];
+  const availableGrades = [...new Set(filtersData?.data?.grades || [])]; // Ensure unique grades
+  const availableSections = [...new Set(filtersData?.data?.sections || [])]; // Ensure unique sections
 
-  // Filtered data based on selections
-  const filteredData = useMemo(() => {
-    return attendanceData.filter((item: any) => {
+  // Filtered and searched data
+  const filteredAndSearchedData = useMemo(() => {
+    let data = attendanceData.filter((item: any) => {
       const gradeMatch = selectedGrade === 'all' || item.grade === selectedGrade;
       const sectionMatch = selectedSection === 'all' || item.section === selectedSection;
       return gradeMatch && sectionMatch;
     });
-  }, [selectedGrade, selectedSection]);
+
+    if (searchTerm) {
+      data = data.filter((item: any) =>
+        item.date.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.grade.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.section.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    return data;
+  }, [attendanceData, selectedGrade, selectedSection, searchTerm]);
+
+  // Sorted data
+  const sortedData = useMemo(() => {
+    if (!sortConfig) return filteredAndSearchedData;
+
+    return [...filteredAndSearchedData].sort((a, b) => {
+      const aValue = a[sortConfig.key];
+      const bValue = b[sortConfig.key];
+
+      if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [filteredAndSearchedData, sortConfig]);
+
+  // Use sortedData for calculations
+  const filteredData = sortedData;
 
   // Calculate summary stats from filtered data
   const summaryStats = useMemo(() => {
@@ -173,18 +212,18 @@ const Reports: FC = () => {
             <Text fontWeight="bold" marginBottom="0.5rem">Grade</Text>
             <Select value={selectedGrade} onChange={(e) => setSelectedGrade(e.target.value)} placeholder="All Grades">
               <option value="all">All Grades</option>
-              <option value="Grade 1">Grade 1</option>
-              <option value="Grade 2">Grade 2</option>
-              <option value="Grade 3">Grade 3</option>
+              {availableGrades.map(grade => (
+                <option key={grade} value={grade}>{grade}</option>
+              ))}
             </Select>
           </GridItem>
           <GridItem>
             <Text fontWeight="bold" marginBottom="0.5rem">Section</Text>
             <Select value={selectedSection} onChange={(e) => setSelectedSection(e.target.value)} placeholder="All Sections">
               <option value="all">All Sections</option>
-              <option value="A">Section A</option>
-              <option value="B">Section B</option>
-              <option value="C">Section C</option>
+              {availableSections.map(section => (
+                <option key={section} value={section}>{section}</option>
+              ))}
             </Select>
           </GridItem>
           <GridItem>
@@ -469,16 +508,61 @@ const Reports: FC = () => {
       <Card>
         <Box padding="1rem">
           <Heading size="md" marginBottom="1rem">Detailed Attendance Report</Heading>
+
+          {/* Search Input */}
+          <Box marginBottom="1rem">
+            <InputGroup>
+              <InputLeftElement pointerEvents="none">
+                <SearchIcon color="gray.300" />
+              </InputLeftElement>
+              <Input
+                placeholder="Search by date, grade, or section..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </InputGroup>
+          </Box>
+
           <TableContainer>
             <Table variant="simple">
               <Thead>
                 <Tr>
-                  <Th>Date</Th>
-                  <Th>Grade</Th>
-                  <Th>Section</Th>
-                  <Th>Present</Th>
-                  <Th>Absent</Th>
-                  <Th>Attendance Rate</Th>
+                  <Th
+                    cursor="pointer"
+                    onClick={() => setSortConfig(sortConfig?.key === 'date' && sortConfig.direction === 'asc' ? { key: 'date', direction: 'desc' } : { key: 'date', direction: 'asc' })}
+                  >
+                    Date {sortConfig?.key === 'date' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                  </Th>
+                  <Th
+                    cursor="pointer"
+                    onClick={() => setSortConfig(sortConfig?.key === 'grade' && sortConfig.direction === 'asc' ? { key: 'grade', direction: 'desc' } : { key: 'grade', direction: 'asc' })}
+                  >
+                    Grade {sortConfig?.key === 'grade' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                  </Th>
+                  <Th
+                    cursor="pointer"
+                    onClick={() => setSortConfig(sortConfig?.key === 'section' && sortConfig.direction === 'asc' ? { key: 'section', direction: 'desc' } : { key: 'section', direction: 'asc' })}
+                  >
+                    Section {sortConfig?.key === 'section' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                  </Th>
+                  <Th
+                    cursor="pointer"
+                    onClick={() => setSortConfig(sortConfig?.key === 'present' && sortConfig.direction === 'asc' ? { key: 'present', direction: 'desc' } : { key: 'present', direction: 'asc' })}
+                  >
+                    Present {sortConfig?.key === 'present' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                  </Th>
+                  <Th
+                    cursor="pointer"
+                    onClick={() => setSortConfig(sortConfig?.key === 'absent' && sortConfig.direction === 'asc' ? { key: 'absent', direction: 'desc' } : { key: 'absent', direction: 'asc' })}
+                  >
+                    Absent {sortConfig?.key === 'absent' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                  </Th>
+                  <Th
+                    cursor="pointer"
+                    onClick={() => setSortConfig(sortConfig?.key === 'rate' && sortConfig.direction === 'asc' ? { key: 'rate', direction: 'desc' } : { key: 'rate', direction: 'asc' })}
+                  >
+                    Attendance Rate {sortConfig?.key === 'rate' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                  </Th>
                 </Tr>
               </Thead>
               <Tbody>

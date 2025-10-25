@@ -10,6 +10,7 @@ import type {
   MarkAttendanceResult,
   GetAttendanceListResult,
   GetReportsResult,
+  GetGradesAndSectionsResult,
 } from '../interfaces/api.interface';
 import { useBaseMutation, useBaseQuery } from '../helpers/store.helper';
 import { DeleteAttendanceResult } from '../interfaces/api.interface';
@@ -41,3 +42,6 @@ export const useGetReports = (staffId: string, grade?: string, section?: string,
 
   return useBaseQuery<GetReportsResult, BaseError>(`/api/reports/${staffId}?${queryParams.toString()}`);
 };
+
+export const useGetGradesAndSections = (staffId: string) =>
+  useBaseQuery<GetGradesAndSectionsResult, BaseError>(`/api/reports/${staffId}/filters`);

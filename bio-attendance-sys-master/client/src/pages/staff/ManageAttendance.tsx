@@ -25,6 +25,12 @@ import {
   AlertIcon,
   AlertTitle,
   AlertDescription,
+  AlertDialog,
+  AlertDialogBody,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogContent,
+  AlertDialogOverlay,
 } from '@chakra-ui/react';
 import { fingerprintControl } from '../../lib/fingerprint';
 import AddAttendance from '../../components/AddAttendance';
@@ -50,6 +56,9 @@ const ManageAttendance: FC = () => {
   const [activeAttendance3, setActiveAttendance3] = useState<Attendance | null>(null);
   const [scannerConnected, setScannerConnected] = useState<boolean>(false);
   const [scannerStatus, setScannerStatus] = useState<string>('Checking...');
+  const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
+  const [attendanceToDelete, setAttendanceToDelete] = useState<Attendance | null>(null);
+  const cancelRef = useRef<HTMLButtonElement>(null);
   const { data, error, isLoading, isError } = useGetAttendances(
     staffInfo?.id as string,
     page,
@@ -225,8 +234,8 @@ const ManageAttendance: FC = () => {
                         _hover={{ color: 'white', background: '#d10d0d' }}
                         aria-label="Delete attendance session"
                         onClick={() => {
-                          toastRef.current = toast.loading('Deleting attendance session...');
-                          deleteAttendance({ url: `/${attendance.id}` });
+                          setAttendanceToDelete(attendance);
+                          onDeleteOpen();
                         }}
                         icon={<DeleteIcon />}
                       />
@@ -291,6 +300,45 @@ const ManageAttendance: FC = () => {
         activeAttendance={activeAttendance2}
       />
       <AttendanceList isOpen={isOpen} onClose={onClose} attendance={activeAttendance3} />
+
+      <AlertDialog
+        isOpen={isDeleteOpen}
+        leastDestructiveRef={cancelRef}
+        onClose={onDeleteClose}
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent>
+            <AlertDialogHeader fontSize="lg" fontWeight="bold">
+              Delete Attendance Session
+            </AlertDialogHeader>
+
+            <AlertDialogBody>
+              Are you sure you want to delete the attendance session "{attendanceToDelete?.name}" for {dayjs(attendanceToDelete?.date).format('DD/MM/YYYY')}?
+              This action cannot be undone and will remove all associated attendance records.
+            </AlertDialogBody>
+
+            <AlertDialogFooter>
+              <Button ref={cancelRef} onClick={onDeleteClose}>
+                Cancel
+              </Button>
+              <Button
+                colorScheme="red"
+                onClick={() => {
+                  if (attendanceToDelete) {
+                    toastRef.current = toast.loading('Deleting attendance session...');
+                    deleteAttendance({ url: `/${attendanceToDelete.id}` });
+                    setAttendanceToDelete(null);
+                    onDeleteClose();
+                  }
+                }}
+                ml={3}
+              >
+                Delete
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
     </WithStaffLayout>
   );
 };

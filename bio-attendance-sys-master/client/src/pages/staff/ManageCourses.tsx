@@ -16,12 +16,19 @@ import {
   Spinner,
   Box,
   Text,
+  AlertDialog,
+  AlertDialogBody,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogContent,
+  AlertDialogOverlay,
+  Button,
+  useDisclosure,
 } from '@chakra-ui/react';
 import AddCourse from '../../components/AddCourse';
 import { PlusSquareIcon, EditIcon, DeleteIcon } from '@chakra-ui/icons';
 import { useGetCourses, useDeleteCourse } from '../../api/course.api';
 import useStore from '../../store/store';
-import { Button } from '@chakra-ui/react';
 import { toast } from 'react-hot-toast';
 import { queryClient } from '../../lib/query-client';
 import { Course } from '../../interfaces/api.interface';
@@ -32,6 +39,9 @@ const ManageCourses: FC = () => {
   const [page, setPage] = useState<number>(1);
   const [per_page] = useState<number>(10);
   const [activeCourse, setActiveCourse] = useState<Course | null>(null);
+  const { isOpen, onOpen, onClose } = useDisclosure();
+  const [courseToDelete, setCourseToDelete] = useState<Course | null>(null);
+  const cancelRef = useRef<HTMLButtonElement>(null);
   const { data, error, isLoading, isError } = useGetCourses(
     staffInfo?.id as string,
     page,
@@ -119,8 +129,8 @@ const ManageCourses: FC = () => {
                         _hover={{ color: 'white', background: '#d10d0d' }}
                         aria-label="Delete course"
                         onClick={() => {
-                          toastRef.current = toast.loading('Deleting course...');
-                          deleteCourse({ url: `/${course.id}` });
+                          setCourseToDelete(course);
+                          onOpen();
                         }}
                         icon={<DeleteIcon />}
                       />
@@ -171,6 +181,45 @@ const ManageCourses: FC = () => {
         activeCourse={activeCourse}
         setActiveCourse={(course) => setActiveCourse(course)}
       />
+
+      <AlertDialog
+        isOpen={isOpen}
+        leastDestructiveRef={cancelRef}
+        onClose={onClose}
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent>
+            <AlertDialogHeader fontSize="lg" fontWeight="bold">
+              Delete Course
+            </AlertDialogHeader>
+
+            <AlertDialogBody>
+              Are you sure you want to delete the course "{courseToDelete?.course_name}" ({courseToDelete?.course_code})?
+              This action cannot be undone and will remove all associated data.
+            </AlertDialogBody>
+
+            <AlertDialogFooter>
+              <Button ref={cancelRef} onClick={onClose}>
+                Cancel
+              </Button>
+              <Button
+                colorScheme="red"
+                onClick={() => {
+                  if (courseToDelete) {
+                    toastRef.current = toast.loading('Deleting course...');
+                    deleteCourse({ url: `/${courseToDelete.id}` });
+                    setCourseToDelete(null);
+                    onClose();
+                  }
+                }}
+                ml={3}
+              >
+                Delete
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
     </WithStaffLayout>
   );
 };

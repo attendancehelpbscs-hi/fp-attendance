@@ -213,3 +213,8 @@ export type GetReportsResult = BaseResult<{
   reports: AttendanceReportData[];
   summary: AttendanceSummary;
 }>;
+
+export type GetGradesAndSectionsResult = BaseResult<{
+  grades: string[];
+  sections: string[];
+}>;

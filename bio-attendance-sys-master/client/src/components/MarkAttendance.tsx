@@ -18,6 +18,8 @@ import {
   AlertTitle,
   AlertDescription,
   Select,
+  Switch,
+  HStack,
 } from '@chakra-ui/react';
 import { InfoIcon } from '@chakra-ui/icons';
 import { Flex } from '@chakra-ui/react';
@@ -55,6 +57,7 @@ const MarkAttendance: FC<{
   const [identifiedStudent, setIdentifiedStudent] = useState<StudentFingerprint | null>(null);
   const [identificationStatus, setIdentificationStatus] = useState<'idle' | 'scanning' | 'identifying' | 'success' | 'error'>('idle');
   const [confidence, setConfidence] = useState<number>(0);
+  const [continuousMode, setContinuousMode] = useState<boolean>(false);
   const [, forceUpdate] = useState<boolean>(false);
   const studentFingerprintsData = useGetStudentsFingerprints(staffInfo?.id as string)({
     queryKey: ['studentsfingerprints', staffInfo?.id],
@@ -70,9 +73,14 @@ const MarkAttendance: FC<{
 
   const { isLoading, mutate: markAttendance } = useMarkAttendance({
     onSuccess: () => {
-      closeDrawer();
-      toast.success('Student marked successfully');
-      defaultMarkInput();
+      if (continuousMode) {
+        toast.success('Student marked successfully - Ready for next scan');
+        defaultMarkInput();
+      } else {
+        closeDrawer();
+        toast.success('Student marked successfully');
+        defaultMarkInput();
+      }
     },
     onError: (err) => {
       toast.error((err.response?.data?.message as string) ?? 'An error occured');
@@ -117,10 +125,24 @@ const MarkAttendance: FC<{
           setMarkInput((prev) => ({
             ...prev,
             student_id: student_id,
-            section: student.courses.length > 0 ? student.courses[0].course_code : student.grade, // Use first course code as section, fallback to grade
+            section: (student.courses.length > 0 ? student.courses[0].course_code : student.grade).slice(0, 10), // Truncate to max 10 characters
           }));
           setIdentificationStatus('success');
           toast.success(`Student identified: ${student.name} (${student.matric_no})`);
+
+          // Auto-mark if continuous mode is enabled
+          if (continuousMode) {
+            const autoMarkInput = {
+              ...markInput,
+              student_id: student_id,
+              section: (student.courses.length > 0 ? student.courses[0].course_code : student.grade).slice(0, 10),
+            };
+            // Use setTimeout to ensure state is updated before marking
+            setTimeout(() => markAttendance(autoMarkInput), 0);
+          } else {
+            // Reset time_type to 'IN' only if not in continuous mode
+            setMarkInput((prev) => ({ ...prev, time_type: 'IN' }));
+          }
         } else {
           setIdentificationStatus('error');
           toast.error('Student not found in records');
@@ -210,6 +232,20 @@ const MarkAttendance: FC<{
         <DrawerCloseButton />
         <DrawerHeader>Mark Student</DrawerHeader>
         <DrawerBody>
+          <FormControl marginTop="1rem" marginBottom="1rem">
+            <HStack justifyContent="space-between">
+              <FormLabel marginBottom="0">Continuous Mode</FormLabel>
+              <Switch
+                isChecked={continuousMode}
+                onChange={(e) => setContinuousMode(e.target.checked)}
+                colorScheme="blue"
+              />
+            </HStack>
+            <Text fontSize="sm" color="gray.600">
+              Enable to automatically mark attendance after each successful scan without closing the drawer.
+            </Text>
+          </FormControl>
+
           <form className="login-form" method="post" action="#" onSubmit={handleAddAttendance}>
             <FormControl marginTop="1rem">
               <FormLabel>Fingerprint Identification</FormLabel>
@@ -270,7 +306,6 @@ const MarkAttendance: FC<{
               <Select
                 value={markInput.time_type}
                 onChange={(e) => setMarkInput((prev) => ({ ...prev, time_type: e.target.value as 'IN' | 'OUT' }))}
-                disabled={identificationStatus !== 'success'}
               >
                 <option value="IN">Check In</option>
                 <option value="OUT">Check Out</option>

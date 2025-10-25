@@ -31,6 +31,12 @@ import {
   ModalCloseButton,
   ModalBody,
   useDisclosure,
+  AlertDialog,
+  AlertDialogBody,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogContent,
+  AlertDialogOverlay,
 } from '@chakra-ui/react';
 import AddStudent from '../../components/AddStudent';
 import useStore from '../../store/store';
@@ -51,6 +57,9 @@ const ManageStudents: FC = () => {
   const [sortBy, setSortBy] = useState<string>('name');
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [selectedStudentForHistory, setSelectedStudentForHistory] = useState<Student | null>(null);
+  const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
+  const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
+  const cancelRef = useRef<HTMLButtonElement>(null);
 
   const { data, error, isLoading, isError } = useGetStudents(
     staffInfo?.id as string,
@@ -214,8 +223,8 @@ const ManageStudents: FC = () => {
                         _hover={{ color: 'white', background: '#d10d0d' }}
                         aria-label="Delete student"
                         onClick={() => {
-                          toastRef.current = toast.loading('Deleting student...');
-                          deleteStudent({ url: `/${student.id}` });
+                          setStudentToDelete(student);
+                          onDeleteOpen();
                         }}
                         icon={<DeleteIcon />}
                       />
@@ -296,6 +305,45 @@ const ManageStudents: FC = () => {
           </ModalBody>
         </ModalContent>
       </Modal>
+
+      <AlertDialog
+        isOpen={isDeleteOpen}
+        leastDestructiveRef={cancelRef}
+        onClose={onDeleteClose}
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent>
+            <AlertDialogHeader fontSize="lg" fontWeight="bold">
+              Delete Student
+            </AlertDialogHeader>
+
+            <AlertDialogBody>
+              Are you sure you want to delete the student "{studentToDelete?.name}" (ID: {studentToDelete?.matric_no})?
+              This action cannot be undone and will remove all associated attendance records.
+            </AlertDialogBody>
+
+            <AlertDialogFooter>
+              <Button ref={cancelRef} onClick={onDeleteClose}>
+                Cancel
+              </Button>
+              <Button
+                colorScheme="red"
+                onClick={() => {
+                  if (studentToDelete) {
+                    toastRef.current = toast.loading('Deleting student...');
+                    deleteStudent({ url: `/${studentToDelete.id}` });
+                    setStudentToDelete(null);
+                    onDeleteClose();
+                  }
+                }}
+                ml={3}
+              >
+                Delete
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
     </WithStaffLayout>
   );
 };
