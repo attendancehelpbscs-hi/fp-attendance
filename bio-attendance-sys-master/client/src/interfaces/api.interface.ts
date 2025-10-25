@@ -188,6 +188,7 @@ export type GetAttendanceListResult = BaseResult<{
     attendance_id: string;
     time_type: 'IN' | 'OUT';
     section: string;
+    created_at: string;
     student: Student;
   }>;
 }>;
