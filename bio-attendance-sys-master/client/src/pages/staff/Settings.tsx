@@ -202,6 +202,9 @@ const Settings: FC = () => {
                         <NumberDecrementStepper />
                       </NumberInputStepper>
                     </NumberInput>
+                    <Text fontSize="sm" color="gray.600" marginTop="0.5rem">
+                      Students arriving within this grace period will be marked as present. Late marking will apply after this period.
+                    </Text>
                   </FormControl>
                   <FormControl display="flex" alignItems="center">
                     <FormLabel mb="0">Enable Late Marking</FormLabel>

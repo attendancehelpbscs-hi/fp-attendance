@@ -9,15 +9,15 @@ export function useBaseMutation<TRes = unknown, TError = unknown, TData = unknow
 ) {
   return (useMutationOptions: Omit<UseMutationOptions<TRes, TError, TData, TContext>, 'mutationFn'> = {}) =>
     useMutation<TRes, TError, TData, TContext>(
-      async (data) =>
-        method === 'delete'
-          ? (await axiosClient[method](url + ((data as TData & { url?: string })?.url || ''))).data
-          : (
-              await axiosClient[method](
-                url + ((data as TData & { url?: string })?.url || ''),
-                removeObjectProps(data as { [k: string]: unknown }, ['url']),
-              )
-            ).data,
+      async (data) => {
+        const dynamicUrl = (data as TData & { staffId?: string; studentId?: string })?.staffId && (data as TData & { staffId?: string; studentId?: string })?.studentId
+          ? `/api/reports/${(data as TData & { staffId: string; studentId: string }).staffId}/students/${(data as TData & { staffId: string; studentId: string }).studentId}/mark-attendance`
+          : url + ((data as TData & { url?: string })?.url || '');
+        const payload = removeObjectProps(data as { [k: string]: unknown }, ['staffId', 'studentId', 'url']);
+        return method === 'delete'
+          ? (await axiosClient[method](dynamicUrl)).data
+          : (await axiosClient[method](dynamicUrl, payload)).data;
+      },
       useMutationOptions,
     );
 }

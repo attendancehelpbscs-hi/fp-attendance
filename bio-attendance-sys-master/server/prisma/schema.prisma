@@ -24,16 +24,17 @@ datasource db {
 
 // MODELS
 model Staff {
-  id         String     @id @default(uuid())
-  name       String
-  email      String     @unique
-  password   String
-  created_at DateTime
-  courses     Course[]
-  students    Student[]
-  attendances Attendance[]
-  auditLogs   AuditLog[]
-  tokens      Token[]
+  id                   String     @id @default(uuid())
+  name                 String
+  email                String     @unique
+  password             String
+  grace_period_minutes Int        @default(15)
+  created_at           DateTime
+  courses              Course[]
+  students             Student[]
+  attendances          Attendance[]
+  auditLogs            AuditLog[]
+  tokens               Token[]
 }
 
 model Student {
@@ -79,13 +80,14 @@ model StudentCourse {
 }
 
 model StudentAttendance {
-  student        Student     @relation(fields: [student_id], references: [id])
+  student        Student         @relation(fields: [student_id], references: [id])
   student_id     String
-  attendance     Attendance  @relation(fields: [attendance_id], references: [id])
+  attendance     Attendance      @relation(fields: [attendance_id], references: [id])
   attendance_id  String
   time_type      TimeType
   section        String
-  created_at     DateTime    @default(now())
+  status         AttendanceStatus @default(present)
+  created_at     DateTime         @default(now())
 
   @@id([student_id, attendance_id])
 }
@@ -93,6 +95,12 @@ model StudentAttendance {
 enum TimeType {
   IN
   OUT
+}
+
+enum AttendanceStatus {
+  present
+  late
+  absent
 }
 
 model Token {

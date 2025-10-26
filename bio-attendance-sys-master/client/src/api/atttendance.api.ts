@@ -12,6 +12,9 @@ import type {
   GetReportsResult,
   GetGradesAndSectionsResult,
   GetStudentReportsResult,
+  MarkStudentAttendanceInput,
+  MarkStudentAttendanceResult,
+  GetDashboardStatsResult,
 } from '../interfaces/api.interface';
 import { useBaseMutation, useBaseQuery } from '../helpers/store.helper';
 import { DeleteAttendanceResult } from '../interfaces/api.interface';
@@ -35,11 +38,11 @@ export const useMarkAttendance = useBaseMutation<MarkAttendanceResult, BaseError
 export const useGetAttendanceList = (attendance_id: string) =>
   useBaseQuery<GetAttendanceListResult, BaseError>(`/api/attendance/${attendance_id}/students`);
 
-export const useGetReports = (staffId: string, grade?: string, section?: string, dateRange?: string) => {
+export const useGetReports = (staffId: string, options: { grade?: string; section?: string; dateRange?: string } = {}) => {
   const queryParams = new URLSearchParams();
-  if (grade) queryParams.append('grade', grade);
-  if (section) queryParams.append('section', section);
-  if (dateRange) queryParams.append('dateRange', dateRange);
+  if (options.grade) queryParams.append('grade', options.grade);
+  if (options.section) queryParams.append('section', options.section);
+  if (options.dateRange) queryParams.append('dateRange', options.dateRange);
 
   return useBaseQuery<GetReportsResult, BaseError>(`/api/reports/${staffId}?${queryParams.toString()}`);
 };
@@ -56,3 +59,28 @@ export const useGetStudentReports = (staffId: string, studentId?: string, startD
 
   return useBaseQuery<GetStudentReportsResult, BaseError>(`/api/reports/${staffId}/students?${queryParams.toString()}`);
 };
+
+export const useGetSectionsForGrade = (staffId: string, grade: string) =>
+  useBaseQuery<{ sections: string[] }, BaseError>(`/api/reports/${staffId}/grades/${grade}/sections`);
+
+export const useGetStudentsForGradeAndSection = (staffId: string, grade: string, section: string) =>
+  useBaseQuery<{ students: { id: string; name: string; matric_no: string; grade: string; section: string }[] }, BaseError>(`/api/reports/${staffId}/grades/${grade}/sections/${section}/students`);
+
+export const useGetStudentDetailedReport = (staffId: string, studentId: string) =>
+  useBaseQuery<{
+    student: { id: string; name: string; matric_no: string; grade: string };
+    attendanceRecords: { date: string; status: 'present' | 'absent'; time_type: 'IN' | 'OUT' | null; section: string; created_at: string }[];
+    summaries: {
+      weekly: { total_days: number; present_days: number; absent_days: number; attendance_rate: number };
+      monthly: { total_days: number; present_days: number; absent_days: number; attendance_rate: number };
+      yearly: { total_days: number; present_days: number; absent_days: number; attendance_rate: number };
+    };
+  }, BaseError>(`/api/reports/${staffId}/students/${studentId}/details`);
+
+export const useMarkStudentAttendance = useBaseMutation<MarkStudentAttendanceResult, BaseError, MarkStudentAttendanceInput & { staffId: string; studentId: string }>(
+  '',
+  'post'
+);
+
+export const useGetDashboardStats = (staffId: string) =>
+  useBaseQuery<GetDashboardStatsResult, BaseError>(`/api/reports/${staffId}/dashboard`);

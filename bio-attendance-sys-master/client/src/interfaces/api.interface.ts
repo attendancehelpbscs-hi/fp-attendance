@@ -226,7 +226,7 @@ export interface StudentAttendanceReportData {
   matric_no: string;
   grade: string;
   section: string;
-  status: 'present' | 'absent';
+  status: 'present' | 'late' | 'absent';
   time_type: 'IN' | 'OUT' | null;
   created_at: string;
 }
@@ -249,3 +249,22 @@ export type GetStudentReportsResult = BaseResult<{
   reports: StudentAttendanceReportData[];
   summary: StudentAttendanceSummary[];
 }>;
+
+export interface MarkStudentAttendanceInput {
+  dates: string[];
+  status: 'late' | 'absent';
+  section: string;
+}
+
+export type MarkStudentAttendanceResult = BaseResult<{
+  marked: number;
+}>;
+
+export interface DashboardStats {
+  totalStudents: number;
+  presentToday: number;
+  absentToday: number;
+  attendanceRate: number;
+}
+
+export type GetDashboardStatsResult = BaseResult<DashboardStats>;

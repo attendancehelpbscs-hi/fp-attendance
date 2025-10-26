@@ -1,16 +1,23 @@
-# TODO: Fix Student Update 422 Error
+# TODO List for Dashboard Integration
 
-## Current Issue
-- 422 Unprocessable Entity error when updating student via `/api/student/{id}`
-- Joi validation fails due to mismatch between schema (optional) and controller expectations (required)
+## 1. Backend Changes
+- [x] Add new service function `getDashboardStats` in `reports.service.ts` to calculate today's attendance stats (totalStudents, presentToday, absentToday, attendanceRate)
+- [x] Add new controller function `getDashboardStats` in `reports.controller.ts`
+- [x] Add new route `/api/reports/:staff_id/dashboard` in `reports.route.ts`
+- [x] Update Joi validation for the new route in `reports.joi.ts`
 
-## Steps to Complete
-- [ ] Update `updateStudentSchema` in `bio-attendance-sys-master/server/src/joi/student.joi.ts` to make `courses` and `fingerprint` required
-- [ ] Test student update functionality to ensure no more 422 errors
-- [ ] Verify client sends required fields in update requests
+## 2. Frontend API Changes
+- [x] Add new API hook `useGetDashboardStats` in `atttendance.api.ts`
+- [x] Update API interfaces in `api.interface.ts` for dashboard stats
 
-## Status
-- [x] Analysis completed
-- [x] Plan approved by user
-- [x] Implementation completed - Updated updateStudentSchema to require fingerprint and courses, added .unknown(true) to allow extra fields like id and url
-- [ ] Testing required - Verify student update works without 422 errors
+## 3. UI Changes
+- [x] Modify `Header.tsx` to include navigation menu for authenticated users (Dashboard, Manage Students, etc.)
+- [x] Update `Home.tsx` to fetch real data using the new API hook when authenticated
+- [x] Replace mock stats with real data from API
+- [x] Ensure dashboard is accessible via menu link
+
+## 4. Testing
+- [ ] Test the new API endpoint
+- [ ] Test dashboard data loading
+- [ ] Test navigation menu functionality
+- [ ] Verify authentication requirements

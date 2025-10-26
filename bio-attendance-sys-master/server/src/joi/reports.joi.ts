@@ -12,3 +12,7 @@ export const getStudentReportsSchema = Joi.object({
   endDate: Joi.string().optional(),
   dateRange: Joi.string().optional(),
 });
+
+export const getDashboardStatsSchema = Joi.object({
+  // No query params needed for dashboard stats
+});

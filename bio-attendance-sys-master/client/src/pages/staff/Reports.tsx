@@ -59,7 +59,8 @@ import {
   Pie,
   Cell,
 } from 'recharts';
-import { useGetReports, useGetGradesAndSections, useGetStudentReports } from '../../api/atttendance.api';
+import { useGetReports, useGetGradesAndSections, useGetStudentReports, useGetSectionsForGrade, useGetStudentsForGradeAndSection, useGetStudentDetailedReport, useMarkStudentAttendance } from '../../api/atttendance.api';
+import { useToast } from '@chakra-ui/react';
 import useStore from '../../store/store';
 import type { AttendanceReportData, StudentAttendanceReportData, StudentAttendanceSummary } from '../../interfaces/api.interface';
 
@@ -97,6 +98,15 @@ const Reports: FC = () => {
   const [studentSearchTerm, setStudentSearchTerm] = useState<string>('');
   const [studentSortConfig, setStudentSortConfig] = useState<{ key: keyof StudentAttendanceReportData; direction: 'asc' | 'desc' } | null>(null);
   const [studentCurrentPage, setStudentCurrentPage] = useState<number>(1);
+  const [selectedStudent, setSelectedStudent] = useState<any>(null);
+
+  // Manual attendance marking states
+  const [markAttendanceDates, setMarkAttendanceDates] = useState<Date[]>([]);
+  const [markAttendanceStatus, setMarkAttendanceStatus] = useState<'late' | 'absent'>('absent');
+  const [markAttendanceSection, setMarkAttendanceSection] = useState<string>('');
+  const [markAttendanceGracePeriod, setMarkAttendanceGracePeriod] = useState<number>(15);
+
+  const toast = useToast();
 
   // Reset to first page when filters change
   useEffect(() => {
@@ -108,12 +118,11 @@ const Reports: FC = () => {
     setStudentCurrentPage(1);
   }, [selectedStatus, startDate, endDate, studentSearchTerm]);
 
-  const { data: reportsData, isLoading, error } = useGetReports(
-    staffInfo?.id || '',
-    selectedGrade === 'all' ? undefined : selectedGrade,
-    selectedSection === 'all' ? undefined : selectedSection,
-    selectedDateRange
-  )({
+  const { data: reportsData, isLoading, error } = useGetReports(staffInfo?.id || '', {
+    grade: selectedGrade === 'all' ? undefined : selectedGrade,
+    section: selectedSection === 'all' ? undefined : selectedSection,
+    dateRange: selectedDateRange,
+  })({
     queryKey: ['reports', staffInfo?.id, selectedGrade, selectedSection, selectedDateRange],
   });
 
@@ -129,6 +138,29 @@ const Reports: FC = () => {
   )({
     queryKey: ['student-reports', staffInfo?.id, startDate, endDate],
   });
+
+  const { data: sectionsForGradeData } = useGetSectionsForGrade(staffInfo?.id || '', selectedGrade)({
+    queryKey: ['sections-for-grade', staffInfo?.id, selectedGrade],
+  });
+
+  const { data: studentsForGradeAndSectionData } = useGetStudentsForGradeAndSection(staffInfo?.id || '', selectedGrade, selectedSection)({
+    queryKey: ['students-for-grade-section', staffInfo?.id, selectedGrade, selectedSection],
+  });
+
+  const { mutate: markStudentAttendance } = useMarkStudentAttendance();
+
+  const { data: studentDetailedReportData, isLoading: studentDetailedLoading } = useGetStudentDetailedReport(
+    staffInfo?.id || '',
+    selectedStudent?.id || '',
+    startDate ? startDate.toISOString().split('T')[0] : undefined,
+    endDate ? endDate.toISOString().split('T')[0] : undefined
+  )({
+    queryKey: ['student-detailed-report', staffInfo?.id, selectedStudent?.id, startDate, endDate],
+    enabled: !!selectedStudent?.id,
+  });
+
+  const sectionsForGrade = sectionsForGradeData?.sections || [];
+  const studentsForGradeAndSection = studentsForGradeAndSectionData?.students || [];
 
   // Use real data from API
   const attendanceData = reportsData?.data?.reports || [];
@@ -391,7 +423,9 @@ const Reports: FC = () => {
                   <VStack align="stretch" spacing={1}>
                     <Select value={selectedSection} onChange={(e) => setSelectedSection(e.target.value)} placeholder="All Sections">
                       <option value="all">All Sections</option>
-                      {availableSections.map(section => (
+                      {selectedGrade !== 'all' ? sectionsForGrade.map(section => (
+                        <option key={section} value={section}>{section}</option>
+                      )) : availableSections.map(section => (
                         <option key={section} value={section}>{section}</option>
                       ))}
                     </Select>
@@ -514,7 +548,11 @@ const Reports: FC = () => {
                     cx="50%"
                     cy="50%"
                     labelLine={false}
-                  label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    label={(entry: any) => {
+                      const total = attendanceRateData.reduce((sum: number, item: any) => sum + item.value, 0);
+                      const percent = total > 0 ? (entry.value / total) * 100 : 0;
+                      return `${entry.name} ${percent.toFixed(0)}%`;
+                    }}
                     outerRadius={80}
                     fill="#8884d8"
                     dataKey="value"
@@ -760,140 +798,181 @@ const Reports: FC = () => {
           </TabPanel>
 
           <TabPanel>
-            {/* Student Reports */}
+            {/* Student Reports - Hierarchical Structure */}
             <Card marginBottom="2rem" padding="1rem">
-              <Grid templateColumns={{ base: '1fr', md: 'repeat(4, 1fr)' }} gap={4} alignItems="end">
-                <GridItem>
-                  <Text fontWeight="bold" marginBottom="0.5rem">Status</Text>
-                  <Select value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value)} placeholder="All">
-                    <option value="all">All</option>
-                    <option value="present">Present</option>
-                    <option value="late">Late</option>
-                    <option value="absent">Absent</option>
-                  </Select>
-                </GridItem>
-                <GridItem>
-                  <Text fontWeight="bold" marginBottom="0.5rem">Start Date</Text>
-                  <DatePicker
-                    selected={startDate}
-                    onChange={(date) => setStartDate(date)}
-                    dateFormat="yyyy-MM-dd"
-                    placeholderText="Select start date"
-                    customInput={<Input />}
-                  />
-                </GridItem>
-                <GridItem>
-                  <Text fontWeight="bold" marginBottom="0.5rem">End Date</Text>
-                  <DatePicker
-                    selected={endDate}
-                    onChange={(date) => setEndDate(date)}
-                    dateFormat="yyyy-MM-dd"
-                    placeholderText="Select end date"
-                    customInput={<Input />}
-                  />
-                </GridItem>
-                <GridItem>
-                  <Text fontWeight="bold" marginBottom="0.5rem">Search</Text>
-                  <InputGroup>
-                    <InputLeftElement pointerEvents="none">
-                      <SearchIcon color="gray.300" />
-                    </InputLeftElement>
-                    <Input
-                      placeholder="Search by date, name, or status..."
-                      value={studentSearchTerm}
-                      onChange={(e) => setStudentSearchTerm(e.target.value)}
-                    />
-                  </InputGroup>
-                </GridItem>
-              </Grid>
-            </Card>
-
-            {/* Student Attendance Table */}
-            <Card>
-              <Box padding="1rem">
-                <Heading size="md" marginBottom="1rem">Student Attendance Report</Heading>
-
-                <TableContainer>
-                  <Table variant="simple">
-                    <Thead>
-                      <Tr>
-                        <Th
-                          cursor="pointer"
-                          onClick={() => setStudentSortConfig(studentSortConfig?.key === 'date' && studentSortConfig.direction === 'asc' ? { key: 'date', direction: 'desc' } : { key: 'date', direction: 'asc' })}
-                        >
-                          Date {studentSortConfig?.key === 'date' && (studentSortConfig.direction === 'asc' ? '↑' : '↓')}
-                        </Th>
-                        <Th
-                          cursor="pointer"
-                          onClick={() => setStudentSortConfig(studentSortConfig?.key === 'student_name' && studentSortConfig.direction === 'asc' ? { key: 'student_name', direction: 'desc' } : { key: 'student_name', direction: 'asc' })}
-                        >
-                          Student Name {studentSortConfig?.key === 'student_name' && (studentSortConfig.direction === 'asc' ? '↑' : '↓')}
-                        </Th>
-                        <Th
-                          cursor="pointer"
-                          onClick={() => setStudentSortConfig(studentSortConfig?.key === 'grade' && studentSortConfig.direction === 'asc' ? { key: 'grade', direction: 'desc' } : { key: 'grade', direction: 'asc' })}
-                        >
-                          Grade {studentSortConfig?.key === 'grade' && (studentSortConfig.direction === 'asc' ? '↑' : '↓')}
-                        </Th>
-                        <Th
-                          cursor="pointer"
-                          onClick={() => setStudentSortConfig(studentSortConfig?.key === 'section' && studentSortConfig.direction === 'asc' ? { key: 'section', direction: 'desc' } : { key: 'section', direction: 'asc' })}
-                        >
-                          Section {studentSortConfig?.key === 'section' && (studentSortConfig.direction === 'asc' ? '↑' : '↓')}
-                        </Th>
-                        <Th
-                          cursor="pointer"
-                          onClick={() => setStudentSortConfig(studentSortConfig?.key === 'status' && studentSortConfig.direction === 'asc' ? { key: 'status', direction: 'desc' } : { key: 'status', direction: 'asc' })}
-                        >
-                          Status {studentSortConfig?.key === 'status' && (studentSortConfig.direction === 'asc' ? '↑' : '↓')}
-                        </Th>
-                      </Tr>
-                    </Thead>
-                    <Tbody>
-                      {studentPaginatedData.map((row, index) => (
-                        <Tr key={index}>
-                          <Td>{row.date}</Td>
-                          <Td>{row.student_name}</Td>
-                          <Td>{row.grade}</Td>
-                          <Td>{row.section}</Td>
-                          <Td color={row.status === 'present' ? 'green.500' : 'red.500'}>{row.status}</Td>
-                        </Tr>
-                      ))}
-                    </Tbody>
-                  </Table>
-                </TableContainer>
-
-                {/* Pagination Controls for Students */}
-                {studentTotalPages > 1 && (
-                  <Box marginTop="1rem" display="flex" justifyContent="center" alignItems="center" gap={2}>
-                    <Button
-                      size="sm"
-                      onClick={() => setStudentCurrentPage(prev => Math.max(prev - 1, 1))}
-                      isDisabled={studentCurrentPage === 1}
-                    >
-                      Previous
-                    </Button>
-                    {Array.from({ length: studentTotalPages }, (_, i) => i + 1).map(page => (
+              <VStack spacing={6} align="stretch">
+                {/* Grades Selection */}
+                <Box>
+                  <Text fontWeight="bold" marginBottom="1rem" fontSize="lg">Select Grade</Text>
+                  <Grid templateColumns={{ base: 'repeat(2, 1fr)', md: 'repeat(6, 1fr)' }} gap={4}>
+                    {availableGrades.map(grade => (
                       <Button
-                        key={page}
-                        size="sm"
-                        colorScheme={studentCurrentPage === page ? 'blue' : 'gray'}
-                        onClick={() => setStudentCurrentPage(page)}
+                        key={grade}
+                        colorScheme={selectedGrade === grade ? 'blue' : 'gray'}
+                        variant={selectedGrade === grade ? 'solid' : 'outline'}
+                        onClick={() => {
+                          setSelectedGrade(grade);
+                          setSelectedSection('');
+                          setSelectedStudent(null);
+                        }}
+                        size="lg"
+                        height="50px"
                       >
-                        {page}
+                        Grade {grade}
                       </Button>
                     ))}
-                    <Button
-                      size="sm"
-                      onClick={() => setStudentCurrentPage(prev => Math.min(prev + 1, studentTotalPages))}
-                      isDisabled={studentCurrentPage === studentTotalPages}
-                    >
-                      Next
-                    </Button>
+                  </Grid>
+                </Box>
+
+                {/* Sections for Selected Grade */}
+                {selectedGrade && (
+                  <Box>
+                    <Text fontWeight="bold" marginBottom="1rem" fontSize="lg">Select Section</Text>
+                    <Grid templateColumns={{ base: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }} gap={4}>
+                      {sectionsForGrade.map(section => (
+                        <Button
+                          key={section}
+                          colorScheme={selectedSection === section ? 'green' : 'gray'}
+                          variant={selectedSection === section ? 'solid' : 'outline'}
+                          onClick={() => {
+                            setSelectedSection(section);
+                            setSelectedStudent(null);
+                          }}
+                          size="lg"
+                          height="50px"
+                        >
+                          Section {section}
+                        </Button>
+                      ))}
+                    </Grid>
                   </Box>
                 )}
-              </Box>
+
+                {/* Students for Selected Grade and Section */}
+                {selectedGrade && selectedSection && (
+                  <Box>
+                    <Text fontWeight="bold" marginBottom="1rem" fontSize="lg">Select Student</Text>
+                    <Grid templateColumns={{ base: 'repeat(1, 1fr)', md: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' }} gap={4}>
+                      {studentsForGradeAndSection.map(student => (
+                        <Button
+                          key={student.id}
+                          colorScheme={selectedStudent?.id === student.id ? 'purple' : 'gray'}
+                          variant={selectedStudent?.id === student.id ? 'solid' : 'outline'}
+                          onClick={() => setSelectedStudent(student)}
+                          size="md"
+                          height="auto"
+                          padding="1rem"
+                          whiteSpace="normal"
+                          textAlign="left"
+                        >
+                          <VStack align="start" spacing={1}>
+                            <Text fontWeight="bold">{student.name}</Text>
+                            <Text fontSize="sm" color="gray.600">Matric: {student.matric_no}</Text>
+                          </VStack>
+                        </Button>
+                      ))}
+                    </Grid>
+                  </Box>
+                )}
+
+                {/* Manual Attendance Marking */}
+                {selectedStudent && (
+                  <Card padding="1rem" marginTop="1rem">
+                    <VStack spacing={4} align="stretch">
+                      <Heading size="md">Mark Attendance for {selectedStudent.name}</Heading>
+
+                      <Grid templateColumns={{ base: '1fr', md: 'repeat(3, 1fr)' }} gap={4} alignItems="end">
+                        <GridItem>
+                          <Text fontWeight="bold" marginBottom="0.5rem">Select Dates</Text>
+                          <DatePicker
+                            selected={null}
+                            onChange={(date) => {
+                              if (date) {
+                                setMarkAttendanceDates(prev => [...prev, date]);
+                              }
+                            }}
+                            placeholderText="Click to select dates"
+                            dateFormat="yyyy-MM-dd"
+                            isClearable
+                            inline
+                          />
+                          {markAttendanceDates.length > 0 && (
+                            <Box marginTop="0.5rem">
+                              <Text fontSize="sm" fontWeight="bold">Selected Dates:</Text>
+                              <HStack spacing={2} wrap="wrap">
+                                {markAttendanceDates.map((date, index) => (
+                                  <Button
+                                    key={index}
+                                    size="xs"
+                                    colorScheme="red"
+                                    variant="outline"
+                                    onClick={() => setMarkAttendanceDates(prev => prev.filter((_, i) => i !== index))}
+                                  >
+                                    {date.toLocaleDateString()} ×
+                                  </Button>
+                                ))}
+                              </HStack>
+                            </Box>
+                          )}
+                        </GridItem>
+
+                        <GridItem>
+                          <Text fontWeight="bold" marginBottom="0.5rem">Status</Text>
+                          <Select
+                            value={markAttendanceStatus}
+                            onChange={(e) => setMarkAttendanceStatus(e.target.value as 'late' | 'absent')}
+                          >
+                            <option value="absent">Absent</option>
+                            <option value="late">Late</option>
+                          </Select>
+                        </GridItem>
+
+                        <GridItem>
+                          <Button
+                            colorScheme="blue"
+                            onClick={() => {
+                              if (selectedStudent && markAttendanceDates.length > 0) {
+                                markStudentAttendance({
+                                  staffId: staffInfo?.id || '',
+                                  studentId: selectedStudent.id,
+                                  dates: markAttendanceDates.map(date => date.toISOString().split('T')[0]),
+                                  status: markAttendanceStatus,
+                                  section: selectedStudent.section || markAttendanceSection,
+                                }, {
+                                  onSuccess: () => {
+                                    toast({
+                                      title: 'Attendance marked successfully',
+                                      status: 'success',
+                                      duration: 3000,
+                                      isClosable: true,
+                                    });
+                                    setMarkAttendanceDates([]);
+                                  },
+                                  onError: (error) => {
+                                    toast({
+                                      title: 'Failed to mark attendance',
+                                      description: error.message || 'An error occurred',
+                                      status: 'error',
+                                      duration: 3000,
+                                      isClosable: true,
+                                    });
+                                  },
+                                });
+                              }
+                            }}
+                            isDisabled={markAttendanceDates.length === 0}
+                          >
+                            Mark Attendance
+                          </Button>
+                        </GridItem>
+                      </Grid>
+                    </VStack>
+                  </Card>
+                )}
+              </VStack>
             </Card>
+
+
           </TabPanel>
         </TabPanels>
       </Tabs>

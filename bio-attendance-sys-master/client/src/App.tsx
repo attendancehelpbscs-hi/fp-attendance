@@ -24,79 +24,97 @@ function App() {
   const router = createBrowserRouter([
     {
       path: '/',
-      element: <Home />,
-      errorElement: <NotFound />,
+      element: <WithMainLayout><Home /></WithMainLayout>,
+      errorElement: <WithMainLayout><NotFound /></WithMainLayout>,
     },
     {
       path: '/staff/login',
       element: (
-        <AuthLayout routeType="noauth">
-          <Login />
-        </AuthLayout>
+        <WithMainLayout>
+          <AuthLayout routeType="noauth">
+            <Login />
+          </AuthLayout>
+        </WithMainLayout>
       ),
     },
     {
       path: '/staff/register',
       element: (
-        <AuthLayout routeType="noauth">
-          <Register />
-        </AuthLayout>
+        <WithMainLayout>
+          <AuthLayout routeType="noauth">
+            <Register />
+          </AuthLayout>
+        </WithMainLayout>
       ),
     },
     {
       path: '/staff/profile',
       element: (
-        <AuthLayout routeType="auth">
-          <Profile />
-        </AuthLayout>
+        <WithMainLayout>
+          <AuthLayout routeType="auth">
+            <Profile />
+          </AuthLayout>
+        </WithMainLayout>
       ),
     },
     {
       path: '/staff/manage/courses',
       element: (
-        <AuthLayout routeType="auth">
-          <ManageCourses />
-        </AuthLayout>
+        <WithMainLayout>
+          <AuthLayout routeType="auth">
+            <ManageCourses />
+          </AuthLayout>
+        </WithMainLayout>
       ),
     },
     {
       path: '/staff/manage/attendance',
       element: (
-        <AuthLayout routeType="auth">
-          <ManageAttendance />
-        </AuthLayout>
+        <WithMainLayout>
+          <AuthLayout routeType="auth">
+            <ManageAttendance />
+          </AuthLayout>
+        </WithMainLayout>
       ),
     },
     {
       path: '/staff/manage/students',
       element: (
-        <AuthLayout routeType="auth">
-          <ManageStudents />
-        </AuthLayout>
+        <WithMainLayout>
+          <AuthLayout routeType="auth">
+            <ManageStudents />
+          </AuthLayout>
+        </WithMainLayout>
       ),
     },
     {
       path: '/staff/settings',
       element: (
-        <AuthLayout routeType="auth">
-          <Settings />
-        </AuthLayout>
+        <WithMainLayout>
+          <AuthLayout routeType="auth">
+            <Settings />
+          </AuthLayout>
+        </WithMainLayout>
       ),
     },
     {
       path: '/staff/reports',
       element: (
-        <AuthLayout routeType="auth">
-          <Reports />
-        </AuthLayout>
+        <WithMainLayout>
+          <AuthLayout routeType="auth">
+            <Reports />
+          </AuthLayout>
+        </WithMainLayout>
       ),
     },
     {
       path: '/staff/help',
       element: (
-        <AuthLayout routeType="auth">
-          <Help />
-        </AuthLayout>
+        <WithMainLayout>
+          <AuthLayout routeType="auth">
+            <Help />
+          </AuthLayout>
+        </WithMainLayout>
       ),
     },
   ]);
@@ -111,9 +129,7 @@ function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <WithMainLayout>
-        <RouterProvider router={router} />
-      </WithMainLayout>
+      <RouterProvider router={router} />
       <Toaster />
       <ReactQueryDevtools initialIsOpen={false} />
     </QueryClientProvider>

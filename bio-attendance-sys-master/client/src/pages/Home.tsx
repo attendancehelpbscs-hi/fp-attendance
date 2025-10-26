@@ -4,18 +4,29 @@ import { Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { fingerprintControl } from '../lib/fingerprint';
 import { getAuditLogs } from '../api/audit.api';
+import { useGetDashboardStats } from '../api/atttendance.api';
+import useStore from '../store/store';
 
 const Home: FC = () => {
   const [scannerConnected, setScannerConnected] = useState<boolean>(false);
   const [scannerStatus, setScannerStatus] = useState<string>('Checking...');
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
 
-  // Mock data for demonstration - in real app, fetch from API
-  const stats = {
-    totalStudents: 150,
-    presentToday: 142,
-    absentToday: 8,
-    attendanceRate: 94.7
+  const isAuthenticated = useStore.use.isAuthenticated();
+  const staffInfo = useStore.use.staffInfo();
+
+  // Fetch dashboard stats if authenticated
+  const dashboardQuery = useGetDashboardStats(
+    isAuthenticated && staffInfo?.id ? staffInfo.id : ''
+  );
+  const { data: dashboardData, isLoading: statsLoading } = dashboardQuery();
+
+  // Use real data if available, otherwise fallback to mock data
+  const stats = dashboardData?.data || {
+    totalStudents: 0,
+    presentToday: 0,
+    absentToday: 0,
+    attendanceRate: 0
   };
 
   useEffect(() => {
@@ -89,52 +100,62 @@ const Home: FC = () => {
       </Card>
 
       {/* Quick Stats Dashboard */}
-      <Grid templateColumns={{ base: '1fr', md: 'repeat(4, 1fr)' }} gap={6} marginBottom="2rem">
-        <GridItem>
-          <Card>
-            <CardHeader padding="1rem">
-              <Stat>
-                <StatLabel>Total Students</StatLabel>
-                <StatNumber>{stats.totalStudents}</StatNumber>
-              </Stat>
-            </CardHeader>
-          </Card>
-        </GridItem>
-        <GridItem>
-          <Card>
-            <CardHeader padding="1rem">
-              <Stat>
-                <StatLabel>Present Today</StatLabel>
-                <StatNumber color="green.500">{stats.presentToday}</StatNumber>
-                <StatHelpText>
-                  <StatArrow type="increase" />
-                  {stats.attendanceRate}%
-                </StatHelpText>
-              </Stat>
-            </CardHeader>
-          </Card>
-        </GridItem>
-        <GridItem>
-          <Card>
-            <CardHeader padding="1rem">
-              <Stat>
-                <StatLabel>Absent Today</StatLabel>
-                <StatNumber color="red.500">{stats.absentToday}</StatNumber>
-              </Stat>
-            </CardHeader>
-          </Card>
-        </GridItem>
-        <GridItem>
-          <Card>
-            <CardHeader padding="1rem">
-              <Stat>
-                <StatLabel>Attendance Rate</StatLabel>
-                <StatNumber>{stats.attendanceRate}%</StatNumber>
-              </Stat>
-            </CardHeader>
-          </Card>
-        </GridItem>
-      </Grid>
+      {isAuthenticated ? (
+        <Grid templateColumns={{ base: '1fr', md: 'repeat(4, 1fr)' }} gap={6} marginBottom="2rem">
+          <GridItem>
+            <Card>
+              <CardHeader padding="1rem">
+                <Stat>
+                  <StatLabel>Total Students</StatLabel>
+                  <StatNumber>{statsLoading ? '...' : stats.totalStudents}</StatNumber>
+                </Stat>
+              </CardHeader>
+            </Card>
+          </GridItem>
+          <GridItem>
+            <Card>
+              <CardHeader padding="1rem">
+                <Stat>
+                  <StatLabel>Present Today</StatLabel>
+                  <StatNumber color="green.500">{statsLoading ? '...' : stats.presentToday}</StatNumber>
+                  <StatHelpText>
+                    <StatArrow type="increase" />
+                    {statsLoading ? '...' : `${stats.attendanceRate}%`}
+                  </StatHelpText>
+                </Stat>
+              </CardHeader>
+            </Card>
+          </GridItem>
+          <GridItem>
+            <Card>
+              <CardHeader padding="1rem">
+                <Stat>
+                  <StatLabel>Absent Today</StatLabel>
+                  <StatNumber color="red.500">{statsLoading ? '...' : stats.absentToday}</StatNumber>
+                </Stat>
+              </CardHeader>
+            </Card>
+          </GridItem>
+          <GridItem>
+            <Card>
+              <CardHeader padding="1rem">
+                <Stat>
+                  <StatLabel>Attendance Rate</StatLabel>
+                  <StatNumber>{statsLoading ? '...' : `${stats.attendanceRate}%`}</StatNumber>
+                </Stat>
+              </CardHeader>
+            </Card>
+          </GridItem>
+        </Grid>
+      ) : (
+        <Card marginBottom="2rem" maxW="600px" marginX="auto">
+          <CardHeader padding="1rem" textAlign="center">
+            <Text fontSize="lg" color="gray.600">
+              Login to view attendance statistics and manage the system
+            </Text>
+          </CardHeader>
+        </Card>
+      )}
 
       {/* Recent Activity / Audit Logs */}
       <Card maxW={800} margin="2rem auto" marginBottom="2rem">
