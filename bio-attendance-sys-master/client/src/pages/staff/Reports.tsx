@@ -132,9 +132,10 @@ const Reports: FC = () => {
 
   const { data: studentReportsData, isLoading: studentReportsLoading, error: studentReportsError } = useGetStudentReports(
     staffInfo?.id || '',
-    undefined,
-    startDate ? startDate.toISOString().split('T')[0] : undefined,
-    endDate ? endDate.toISOString().split('T')[0] : undefined
+    {
+      startDate: startDate ? startDate.toISOString().split('T')[0] : undefined,
+      endDate: endDate ? endDate.toISOString().split('T')[0] : undefined,
+    }
   )({
     queryKey: ['student-reports', staffInfo?.id, startDate, endDate],
   });
