@@ -8,11 +8,14 @@ import {
   updateAttendanceInDb,
   fetchOneAttendance,
   removeAllStudentAttendance,
+  markStudentAttendance,
+  fetchAttendanceStudents,
+  checkIfStudentIsMarked,
+  manualMarkStudentAttendance,
 } from '../services/attendance.service';
 import { prisma } from '../db/prisma-client';
 import type { Attendance, StudentAttendance } from '@prisma/client';
 import type { PaginationMeta } from '../interfaces/helper.interface';
-import { markStudentAttendance, fetchAttendanceStudents, checkIfStudentIsMarked } from '../services/attendance.service';
 
 export const getAttendances = async (req: Request, res: Response, next: NextFunction) => {
   // get attendances that belongs to single staff
@@ -78,6 +81,7 @@ export const getSingleAttendance = async (req: Request, res: Response, next: Nex
 export const addStudentToAttendance = async (req: Request, res: Response, next: NextFunction) => {
   // create attendance
   const { attendance_id, student_id, time_type, section } = req.body as { attendance_id: string; student_id: string; time_type: 'IN' | 'OUT'; section: string };
+  const user_id = (req.user as JwtPayload).id;
 
   if (!attendance_id || !student_id || !time_type || !section) return next(new createError.BadRequest('Attendance ID, student ID, time type, and section are required'));
 
@@ -96,9 +100,48 @@ export const addStudentToAttendance = async (req: Request, res: Response, next: 
         ),
       );
     }
-    await markStudentAttendance({ attendance_id, student_id, time_type, section });
+
+    // Get staff settings for attendance rules
+    const staff = await prisma.staff.findUnique({
+      where: { id: user_id },
+      select: { grace_period_minutes: true, school_start_time: true, late_threshold_hours: true }
+    });
+
+    if (!staff) return next(new createError.NotFound('Staff not found'));
+
+    // Determine status based on current time and settings
+    const currentTime = new Date();
+    const { determineAttendanceStatus } = await import('../services/attendance.service');
+    const status = determineAttendanceStatus(currentTime, staff.school_start_time, staff.grace_period_minutes, staff.late_threshold_hours);
+
+    await markStudentAttendance({ attendance_id, student_id, time_type, section, status });
     return createSuccess(res, 200, 'Attendance created successfully', {
       marked: true,
+      status,
+    });
+  } catch (err) {
+    return next(err);
+  }
+};
+
+export const manualMarkAttendance = async (req: Request, res: Response, next: NextFunction) => {
+  const { student_ids, attendance_id, dates, section } = req.body as { student_ids: string[]; attendance_id: string; dates: string[]; section?: string };
+  const user_id = (req.user as JwtPayload).id;
+  const status: 'present' = 'present'; // Always present in simplified system
+
+  if (!student_ids || !attendance_id || !dates) return next(new createError.BadRequest('Student IDs, attendance ID, and dates are required'));
+  if (!Array.isArray(student_ids) || student_ids.length === 0) return next(new createError.BadRequest('Student IDs must be a non-empty array'));
+  if (!Array.isArray(dates) || dates.length === 0) return next(new createError.BadRequest('Dates must be a non-empty array'));
+
+  try {
+    // Verify attendance belongs to the staff member
+    const attendance = await fetchOneAttendance(attendance_id);
+    if (attendance.staff_id !== user_id) return next(new createError.Forbidden('Access denied'));
+
+    const markedRecords = await manualMarkStudentAttendance({ student_ids, attendance_id, status, dates, section });
+    return createSuccess(res, 200, 'Manual attendance marked successfully', {
+      marked: markedRecords.length,
+      skipped: student_ids.length * dates.length - markedRecords.length,
     });
   } catch (err) {
     return next(err);

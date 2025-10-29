@@ -15,6 +15,7 @@ import type {
   MarkStudentAttendanceInput,
   MarkStudentAttendanceResult,
   GetDashboardStatsResult,
+  ManualMarkAttendanceInput,
 } from '../interfaces/api.interface';
 import { useBaseMutation, useBaseQuery } from '../helpers/store.helper';
 import { DeleteAttendanceResult } from '../interfaces/api.interface';
@@ -33,6 +34,10 @@ export const useUpdateAttendance = useBaseMutation<UpdateAttendanceResult, BaseE
 );
 export const useMarkAttendance = useBaseMutation<MarkAttendanceResult, BaseError, MarkAttendanceInput>(
   '/api/attendance/student',
+  'post',
+);
+export const useManualMarkAttendance = useBaseMutation<{ marked: number; skipped: number }, BaseError, ManualMarkAttendanceInput>(
+  '/api/attendance/manual',
   'post',
 );
 export const useGetAttendanceList = (attendance_id: string) =>
@@ -82,10 +87,11 @@ export const useGetStudentDetailedReport = (staffId: string, studentId: string, 
   }, BaseError>(`/api/reports/${staffId}/students/${studentId}/details?${queryParams.toString()}`);
 };
 
-export const useMarkStudentAttendance = useBaseMutation<MarkStudentAttendanceResult, BaseError, MarkStudentAttendanceInput & { staffId: string; studentId: string }>(
-  '',
-  'post'
-);
+export const useMarkStudentAttendance = () =>
+  useBaseMutation<MarkStudentAttendanceResult, BaseError, MarkStudentAttendanceInput & { staffId: string; studentId: string }>(
+    '/api/reports/:staff_id/students/:student_id/mark-attendance',
+    'post'
+  );
 
 export const useGetDashboardStats = (staffId: string) =>
   useBaseQuery<GetDashboardStatsResult, BaseError>(`/api/reports/${staffId}/dashboard`);

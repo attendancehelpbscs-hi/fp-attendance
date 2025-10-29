@@ -5,11 +5,13 @@ import {
   updateAttendance,
   deleteAttendance,
   getSingleAttendance,
+  addStudentToAttendance,
+  getAttendanceList,
+  manualMarkAttendance,
 } from '../controllers/attendance.controller';
 import { addStudentToAttendanceSchema, createAttendanceSchema, updateAttendanceSchema } from '../joi/attendance.joi';
 import joiValidate from '../middlewares/joi.middleware';
 import { paginateInputSchema } from '../joi/helper.joi';
-import { addStudentToAttendance, getAttendanceList } from '../controllers/attendance.controller';
 import auth from '../middlewares/auth.middleware';
 
 const attendanceRoute = Router();
@@ -41,6 +43,13 @@ attendanceRoute.get('/attendance/:id', getSingleAttendance);
 @access 		Private
 */
 attendanceRoute.post('/attendance/student', auth, joiValidate(addStudentToAttendanceSchema), addStudentToAttendance);
+
+/*
+@route 			POST /api/attendance/manual (manual mark attendance)
+@description 	manually mark attendance for multiple students
+@access 		Private
+*/
+attendanceRoute.post('/attendance/manual', auth, manualMarkAttendance);
 
 /*
 @route 			POST /api/attendance (create attendance)

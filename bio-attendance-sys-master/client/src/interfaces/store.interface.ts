@@ -5,6 +5,12 @@ export interface StaffInfo {
   created_at: string;
 }
 
+export interface StaffSettings {
+  grace_period_minutes: number;
+  school_start_time: string;
+  late_threshold_hours: number;
+}
+
 export interface Tokens {
   accessToken: string;
   refreshToken: string;
@@ -14,6 +20,7 @@ export interface State {
   // states
   count: number;
   staffInfo: StaffInfo | null;
+  staffSettings: StaffSettings | null;
   tokens: Tokens | null;
   isAuthenticated: boolean;
   // actions
@@ -21,4 +28,5 @@ export interface State {
   decrement: () => void;
   loginStaff: (data: Tokens & { staff: StaffInfo }) => void;
   logoutStaff: () => void;
+  setStaffSettings: (settings: StaffSettings) => void;
 }

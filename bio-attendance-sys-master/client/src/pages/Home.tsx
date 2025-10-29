@@ -99,63 +99,7 @@ const Home: FC = () => {
         </CardHeader>
       </Card>
 
-      {/* Quick Stats Dashboard */}
-      {isAuthenticated ? (
-        <Grid templateColumns={{ base: '1fr', md: 'repeat(4, 1fr)' }} gap={6} marginBottom="2rem">
-          <GridItem>
-            <Card>
-              <CardHeader padding="1rem">
-                <Stat>
-                  <StatLabel>Total Students</StatLabel>
-                  <StatNumber>{statsLoading ? '...' : stats.totalStudents}</StatNumber>
-                </Stat>
-              </CardHeader>
-            </Card>
-          </GridItem>
-          <GridItem>
-            <Card>
-              <CardHeader padding="1rem">
-                <Stat>
-                  <StatLabel>Present Today</StatLabel>
-                  <StatNumber color="green.500">{statsLoading ? '...' : stats.presentToday}</StatNumber>
-                  <StatHelpText>
-                    <StatArrow type="increase" />
-                    {statsLoading ? '...' : `${stats.attendanceRate}%`}
-                  </StatHelpText>
-                </Stat>
-              </CardHeader>
-            </Card>
-          </GridItem>
-          <GridItem>
-            <Card>
-              <CardHeader padding="1rem">
-                <Stat>
-                  <StatLabel>Absent Today</StatLabel>
-                  <StatNumber color="red.500">{statsLoading ? '...' : stats.absentToday}</StatNumber>
-                </Stat>
-              </CardHeader>
-            </Card>
-          </GridItem>
-          <GridItem>
-            <Card>
-              <CardHeader padding="1rem">
-                <Stat>
-                  <StatLabel>Attendance Rate</StatLabel>
-                  <StatNumber>{statsLoading ? '...' : `${stats.attendanceRate}%`}</StatNumber>
-                </Stat>
-              </CardHeader>
-            </Card>
-          </GridItem>
-        </Grid>
-      ) : (
-        <Card marginBottom="2rem" maxW="600px" marginX="auto">
-          <CardHeader padding="1rem" textAlign="center">
-            <Text fontSize="lg" color="gray.600">
-              Login to view attendance statistics and manage the system
-            </Text>
-          </CardHeader>
-        </Card>
-      )}
+
 
       {/* Recent Activity / Audit Logs */}
       <Card maxW={800} margin="2rem auto" marginBottom="2rem">

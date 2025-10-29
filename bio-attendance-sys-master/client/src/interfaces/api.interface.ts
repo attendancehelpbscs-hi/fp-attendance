@@ -1,127 +1,24 @@
-import type { StaffInfo, Tokens } from '../interfaces/store.interface';
-import { AxiosError } from 'axios';
-
-export interface PaginationMeta {
-  per_page: number;
-  page: number;
-  total_pages: number;
-  total_items: number;
+export interface MarkAttendanceInput {
+  student_id: string;
+  attendance_id: string;
+  time_type: 'IN' | 'OUT';
+  section: string;
 }
 
-/* STAFF */
-export interface RegisterStaffInput {
-  name: string;
-  email: string;
-  password: string;
-  retype_password: string;
+export interface ManualMarkAttendanceInput {
+  student_ids: string[];
+  attendance_id: string;
+  dates: string[];
+  section?: string;
 }
 
-export interface BaseResult<TData> {
-  message: string;
-  status: 'sucess';
-  statusCode: number;
-  data: TData;
-}
-
-export type BaseError = AxiosError<{
-  message: string;
-  status: string;
-  statusCode: number;
-}>;
-
-export type RegisterStaffResult = BaseResult<{
-  staff: Tokens & {
-    staff: StaffInfo;
-  };
-}>;
-
-export interface LoginStaffInput {
-  email: string;
-  password: string;
-}
-
-export type LoginStaffResult = RegisterStaffResult;
-
-/* COURSE */
-
-export interface Course {
+export interface Attendance {
   id: string;
+  name: string;
+  date: string;
   staff_id: string;
-  course_name: string;
-  course_code: string;
   created_at: string;
 }
-
-export interface AddCourseInput {
-  staff_id: string;
-  course_name: string;
-  course_code: string;
-}
-
-export type AddCourseResult = BaseResult<{
-  course: Course;
-}>;
-
-export type GetCoursesResult = BaseResult<{
-  courses: Course[];
-  meta: PaginationMeta;
-}>;
-
-export type DeleteCourseResult = BaseResult<{
-  deleted: boolean;
-}>;
-
-export interface UpdateCourseInput {
-  id: string;
-  staff_id: string;
-  course_name: string;
-  course_code: string;
-  url: string;
-}
-
-export type UpdateCourseResult = BaseResult<{
-  course: Course;
-}>;
-
-/* STUDENT */
-export interface Student {
-  id: string;
-  staff_id: string;
-  name: string;
-  matric_no: string;
-  grade: string;
-  fingerprint: string;
-  courses: Course[];
-  created_at: string;
-}
-
-export interface AddStudentInput {
-  staff_id: string;
-  name: string;
-  matric_no: string;
-  grade: string;
-  fingerprint: string;
-  courses: string[];
-}
-
-export type AddStudentResult = BaseResult<{
-  student: Student;
-}>;
-
-export type GetStudentsResult = BaseResult<{
-  students: Student[];
-  meta: PaginationMeta;
-}>;
-
-export type DeleteStudentResult = BaseResult<{
-  deleted: boolean;
-}>;
-
-export type UpdateStudentInput = AddStudentInput & { id: string; url: string };
-
-export type UpdateStudentResult = BaseResult<{
-  student: Student;
-}>;
 
 export interface StudentFingerprint {
   id: string;
@@ -132,66 +29,11 @@ export interface StudentFingerprint {
   courses: Course[];
 }
 
-export type GetStudentsFingerprintsResult = BaseResult<{
-  students: StudentFingerprint[];
-}>;
-
-/* ATTENDANCE */
-
-export interface Attendance {
+export interface Course {
   id: string;
-  staff_id: string;
-  name: string;
-  date: string;
-  created_at: string;
+  course_name: string;
+  course_code: string;
 }
-
-export interface AddAttendanceInput {
-  staff_id: string;
-  name: string;
-  date: string;
-}
-
-export type AddAttendanceResult = BaseResult<{
-  attendance: Attendance;
-}>;
-
-export type GetAttendancesResult = BaseResult<{
-  attendances: Attendance[];
-  meta: PaginationMeta;
-}>;
-
-export type DeleteAttendanceResult = BaseResult<{
-  deleted: boolean;
-}>;
-
-export type UpdateAttendanceInput = AddAttendanceInput & { id: string; url: string };
-
-export type UpdateAttendanceResult = BaseResult<{
-  attendance: Attendance;
-}>;
-
-export interface MarkAttendanceInput {
-  attendance_id: string;
-  student_id: string;
-  time_type: 'IN' | 'OUT';
-  section: string;
-}
-
-export type MarkAttendanceResult = BaseResult<{
-  marked: boolean;
-}>;
-
-export type GetAttendanceListResult = BaseResult<{
-  attendanceList: Array<{
-    student_id: string;
-    attendance_id: string;
-    time_type: 'IN' | 'OUT';
-    section: string;
-    created_at: string;
-    student: Student;
-  }>;
-}>;
 
 export interface AttendanceReportData {
   date: string;
@@ -202,69 +44,243 @@ export interface AttendanceReportData {
   rate: number;
 }
 
-export interface AttendanceSummary {
-  totalStudents: number;
-  averageRate: number;
-  lowAttendanceCount: number;
-  perfectAttendanceCount: number;
-}
-
-export type GetReportsResult = BaseResult<{
-  reports: AttendanceReportData[];
-  summary: AttendanceSummary;
-}>;
-
-export type GetGradesAndSectionsResult = BaseResult<{
-  grades: string[];
-  sections: string[];
-}>;
-
 export interface StudentAttendanceReportData {
-  date: string;
   student_id: string;
   student_name: string;
   matric_no: string;
   grade: string;
+  date: string;
+  status: 'present';
   section: string;
-  status: 'present' | 'late' | 'absent';
-  time_type: 'IN' | 'OUT' | null;
-  created_at: string;
 }
 
 export interface StudentAttendanceSummary {
+  weekly: {
+    present_days: number;
+    total_days: number;
+    attendance_rate: number;
+  };
+  monthly: {
+    present_days: number;
+    total_days: number;
+    attendance_rate: number;
+  };
+  yearly: {
+    present_days: number;
+    total_days: number;
+    attendance_rate: number;
+  };
+}
+
+export interface StudentDetailedReport {
+  student: {
+    id: string;
+    name: string;
+    matric_no: string;
+    grade: string;
+  };
+  summaries: StudentAttendanceSummary;
+  attendanceRecords: {
+    date: string;
+    status: 'present';
+    time_type: 'IN' | 'OUT' | null;
+    section: string;
+    created_at: string;
+  }[];
+}
+
+// Additional interfaces for API responses
+export interface AddAttendanceInput {
+  name: string;
+  date: string;
+  staff_id: string;
+}
+
+export interface AddAttendanceResult {
+  attendance: Attendance;
+}
+
+export interface BaseError {
+  message: string;
+  errorType?: string;
+  response?: {
+    data?: {
+      message?: string;
+    };
+  };
+}
+
+export interface GetAttendancesResult {
+  data: {
+    attendances: Attendance[];
+    meta: {
+      total_items: number;
+      total_pages: number;
+      page: number;
+      per_page: number;
+    };
+  };
+}
+
+export interface UpdateAttendanceInput {
+  id: string;
+  name?: string;
+  date?: string;
+}
+
+export interface UpdateAttendanceResult {
+  attendance: Attendance;
+}
+
+export interface MarkAttendanceResult {
+  marked: boolean;
+}
+
+export interface GetAttendanceListResult {
+  data: {
+    attendanceList: {
+      id: string;
+      student: {
+        id: string;
+        name: string;
+        matric_no: string;
+        grade: string;
+      };
+      time_type: 'IN' | 'OUT';
+      section: string;
+      status: 'present' | 'late' | 'absent';
+      created_at: string;
+    }[];
+  };
+}
+
+export interface GetReportsResult {
+  data: {
+    reports: AttendanceReportData[];
+    summary: any;
+    previousPeriodSummary: any;
+  };
+}
+
+export interface GetGradesAndSectionsResult {
+  data: {
+    grades: string[];
+    sections: string[];
+  };
+}
+
+export interface GetStudentReportsResult {
+  data: {
+    reports: StudentAttendanceReportData[];
+    summary: any;
+  };
+}
+
+export interface MarkStudentAttendanceInput {
   student_id: string;
-  student_name: string;
+  date: string;
+  status: 'present';
+  section: string;
+}
+
+export interface MarkStudentAttendanceResult {
+  marked: boolean;
+}
+
+export interface GetDashboardStatsResult {
+  data: {
+    totalStudents: number;
+    presentToday: number;
+    attendanceRate: number;
+  };
+}
+
+export interface DeleteAttendanceResult {
+  deleted: boolean;
+}
+
+export interface Student {
+  id: string;
+  name: string;
   matric_no: string;
   grade: string;
   section: string;
-  total_days: number;
-  present_days: number;
-  absent_days: number;
-  attendance_rate: number;
-  period_start: string;
-  period_end: string;
+  fingerprint: string;
+  courses: Course[];
 }
 
-export type GetStudentReportsResult = BaseResult<{
-  reports: StudentAttendanceReportData[];
-  summary: StudentAttendanceSummary[];
-}>;
-
-export interface MarkStudentAttendanceInput {
-  dates: string[];
-  status: 'late' | 'absent';
-  section: string;
+// Staff-related interfaces
+export interface RegisterStaffInput {
+  name: string;
+  email: string;
+  password: string;
 }
 
-export type MarkStudentAttendanceResult = BaseResult<{
-  marked: number;
-}>;
-
-export interface DashboardStats {
-  totalStudents: number;
-  presentToday: number;
-  absentToday: number;
-  attendanceRate: number;
+export interface RegisterStaffResult {
+  accessToken: string;
+  refreshToken: string;
+  staff: {
+    id: string;
+    name: string;
+    email: string;
+    created_at: string;
+  };
 }
 
-export type GetDashboardStatsResult = BaseResult<DashboardStats>;
+export interface LoginStaffInput {
+  email: string;
+  password: string;
+}
+
+export interface LoginStaffResult {
+  accessToken: string;
+  refreshToken: string;
+  staff: {
+    id: string;
+    name: string;
+    email: string;
+    created_at: string;
+  };
+}
+
+export interface StaffSettings {
+  grace_period_minutes: number;
+  school_start_time: string;
+  late_threshold_hours: number;
+}
+
+export interface UpdateStaffSettingsInput {
+  grace_period_minutes?: number;
+  school_start_time?: string;
+  late_threshold_hours?: number;
+}
+
+export interface UpdateStaffSettingsResult {
+  settings: StaffSettings;
+}
+
+export interface GetStaffSettingsResult {
+  settings: StaffSettings;
+}
+
+export interface BackupDataResult {
+  message: string;
+}
+
+export interface ClearAuditLogsResult {
+  message: string;
+}
+
+export interface UpdateStaffProfileInput {
+  name?: string;
+  password?: string;
+  confirmPassword?: string;
+}
+
+export interface UpdateStaffProfileResult {
+  staff: {
+    id: string;
+    name: string;
+    email: string;
+  };
+}

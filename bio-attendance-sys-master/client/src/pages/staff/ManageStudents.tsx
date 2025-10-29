@@ -42,9 +42,11 @@ import AddStudent from '../../components/AddStudent';
 import useStore from '../../store/store';
 import { PlusSquareIcon, EditIcon, DeleteIcon, SearchIcon, ViewIcon } from '@chakra-ui/icons';
 import { useGetStudents, useDeleteStudent } from '../../api/student.api';
+import { useGetStudentReports } from '../../api/atttendance.api';
 import { toast } from 'react-hot-toast';
 import { queryClient } from '../../lib/query-client';
 import { Student } from '../../interfaces/api.interface';
+import type { Student as StudentType } from '../../interfaces/api.interface';
 
 const ManageStudents: FC = () => {
   const staffInfo = useStore.use.staffInfo();
@@ -69,6 +71,16 @@ const ManageStudents: FC = () => {
     queryKey: ['students', page],
     keepPreviousData: true,
   });
+
+  const { data: studentReportData, isLoading: isReportLoading, error: reportError } = useGetStudentReports(
+    staffInfo?.id as string,
+    {
+      studentId: selectedStudentForHistory?.id as string,
+    }
+  )({
+    queryKey: ['student-reports', selectedStudentForHistory?.id],
+    enabled: !!selectedStudentForHistory?.id,
+  });
   const toastRef = useRef<string>('');
   const { mutate: deleteStudent } = useDeleteStudent({
     onSuccess: () => {
@@ -91,13 +103,13 @@ const ManageStudents: FC = () => {
   }, [activeStudent]);
 
   // Filter and sort students
-  const filteredStudents = data?.data?.students?.filter((student) => {
+  const filteredStudents = data?.data?.students?.filter((student: StudentType) => {
     const matchesSearch = student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          student.matric_no.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          student.grade.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesGrade = !gradeFilter || student.grade === gradeFilter;
     return matchesSearch && matchesGrade;
-  }).sort((a, b) => {
+  }).sort((a: StudentType, b: StudentType) => {
     if (sortBy === 'name-asc') return a.name.localeCompare(b.name);
     if (sortBy === 'name-desc') return b.name.localeCompare(a.name);
     if (sortBy === 'matric_no') return a.matric_no.localeCompare(b.matric_no);
@@ -180,7 +192,7 @@ const ManageStudents: FC = () => {
               </Tr>
             </Thead>
             <Tbody>
-              {filteredStudents.map((student, idx) => (
+              {filteredStudents.map((student: StudentType, idx: number) => (
                 <Tr key={idx}>
                   <Td>{(page - 1) * per_page + (idx + 1)}</Td>
                   <Td>{student.name}</Td>
@@ -288,18 +300,92 @@ const ManageStudents: FC = () => {
                 <Text fontSize="lg" marginBottom="1rem">
                   Student ID: {selectedStudentForHistory.matric_no}
                 </Text>
-                <Text fontSize="md" color="gray.600" marginBottom="1rem">
-                  Note: Detailed attendance history will be implemented with backend API integration.
-                  This modal shows the structure for displaying individual student attendance records.
+                <Text fontSize="sm" color="gray.600" marginBottom="1rem">
+                  Note: For comprehensive reports on all students, please visit the Reports and Analytics section.
                 </Text>
-                {/* Placeholder for attendance history - will be populated with real data */}
-                <Box border="1px solid #e2e8f0" borderRadius="md" padding="1rem">
-                  <Text fontWeight="bold">Recent Attendance:</Text>
-                  <Text>No attendance records available yet.</Text>
-                  <Text fontSize="sm" color="gray.500" marginTop="0.5rem">
-                    This will show dates, courses, and attendance status.
-                  </Text>
-                </Box>
+
+                {isReportLoading ? (
+                  <Box display="flex" justifyContent="center" padding="2rem">
+                    <Spinner />
+                    <Text marginLeft="1rem">Loading attendance data...</Text>
+                  </Box>
+                ) : reportError ? (
+                  <Box padding="1rem" border="1px solid #e53e3e" borderRadius="md" backgroundColor="#fed7d7">
+                    <Text color="#c53030">Error loading attendance data: {reportError?.response?.data?.message}</Text>
+                  </Box>
+                ) : studentReportData ? (
+                  <Box>
+                    {/* Attendance Summary */}
+                    <Box marginBottom="2rem">
+                      <Text fontSize="lg" fontWeight="bold" marginBottom="1rem">Attendance Summary</Text>
+                      <Flex gap={4} flexWrap="wrap">
+                        <Card minW="200px">
+                          <CardBody>
+                            <Text fontSize="sm" color="gray.600">Total Records</Text>
+                            <Text fontSize="2xl" fontWeight="bold">{studentReportData.data?.reports?.length ?? 0}</Text>
+                          </CardBody>
+                        </Card>
+                        <Card minW="200px">
+                          <CardBody>
+                            <Text fontSize="sm" color="gray.600">Present Days</Text>
+                            <Text fontSize="2xl" fontWeight="bold">{studentReportData.data?.reports?.filter(r => r.status === 'present').length ?? 0}</Text>
+                          </CardBody>
+                        </Card>
+                        <Card minW="200px">
+                          <CardBody>
+                            <Text fontSize="sm" color="gray.600">Attendance Rate</Text>
+                            <Text fontSize="2xl" fontWeight="bold">
+                              {studentReportData.data?.reports?.length > 0
+                                ? Math.round((studentReportData.data.reports.filter(r => r.status === 'present').length / studentReportData.data.reports.length) * 100)
+                                : 0}%
+                            </Text>
+                          </CardBody>
+                        </Card>
+                      </Flex>
+                    </Box>
+
+                    {/* Recent Attendance Records */}
+                    <Box>
+                      <Text fontSize="lg" fontWeight="bold" marginBottom="1rem">Recent Attendance Records</Text>
+                      {studentReportData.data?.reports && studentReportData.data.reports.length > 0 ? (
+                        <Table variant="simple" size="sm">
+                          <Thead>
+                            <Tr>
+                              <Th>Date</Th>
+                              <Th>Status</Th>
+                              <Th>Time Type</Th>
+                              <Th>Section</Th>
+                              <Th>Created At</Th>
+                            </Tr>
+                          </Thead>
+                          <Tbody>
+                            {studentReportData.data.reports.slice(0, 10).map((record: any, idx: number) => (
+                              <Tr key={idx}>
+                                <Td>{new Date(record.date).toLocaleDateString()}</Td>
+                                <Td>
+                                  <Badge colorScheme={record.status === 'present' ? 'green' : record.status === 'late' ? 'yellow' : 'red'}>
+                                    {record.status}
+                                  </Badge>
+                                </Td>
+                                <Td>{record.time_type || 'N/A'}</Td>
+                                <Td>{record.section}</Td>
+                                <Td>{record.created_at ? new Date(record.created_at).toLocaleString() : 'N/A'}</Td>
+                              </Tr>
+                            ))}
+                          </Tbody>
+                        </Table>
+                      ) : (
+                        <Box border="1px solid #e2e8f0" borderRadius="md" padding="1rem">
+                          <Text>No attendance records found for this student.</Text>
+                        </Box>
+                      )}
+                    </Box>
+                  </Box>
+                ) : (
+                  <Box border="1px solid #e2e8f0" borderRadius="md" padding="1rem">
+                    <Text>No attendance data available.</Text>
+                  </Box>
+                )}
               </Box>
             )}
           </ModalBody>

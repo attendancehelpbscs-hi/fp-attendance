@@ -49,42 +49,105 @@ import { DownloadIcon, DeleteIcon, ViewIcon } from '@chakra-ui/icons';
 import useStore from '../../store/store';
 import { toast } from 'react-hot-toast';
 import { getAuditLogs } from '../../api/audit.api';
+import { useBackupData, useClearAuditLogs, useUpdateStaffProfile } from '../../api/staff.api';
+
 
 const Settings: FC = () => {
   const staffInfo = useStore.use.staffInfo();
-  const [schoolName, setSchoolName] = useState('Bula South Central Elementary School');
-  const [schoolLogo, setSchoolLogo] = useState('');
-  const [gracePeriod, setGracePeriod] = useState(5);
-  const [lateMarking, setLateMarking] = useState(true);
-  const [encryptionEnabled, setEncryptionEnabled] = useState(true);
+  const staffSettings = useStore.use.staffSettings();
+  const setStaffSettings = useStore.use.setStaffSettings();
+
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const { isOpen: isBackupOpen, onOpen: onBackupOpen, onClose: onBackupClose } = useDisclosure();
   const { isOpen: isClearLogsOpen, onOpen: onClearLogsOpen, onClose: onClearLogsClose } = useDisclosure();
   const { isOpen: isViewLogsOpen, onOpen: onViewLogsOpen, onClose: onViewLogsClose } = useDisclosure();
+  const { isOpen: isProfileUpdateOpen, onOpen: onProfileUpdateOpen, onClose: onProfileUpdateClose } = useDisclosure();
 
-  const handleBackup = () => {
-    // Mock backup functionality
-    toast.success('Data backup initiated successfully');
-    onBackupClose();
+  const backupMutation = useBackupData();
+  const clearLogsMutation = useClearAuditLogs();
+  const updateProfileMutation = useUpdateStaffProfile();
+
+
+
+  const handleBackup = async () => {
+    try {
+      await backupMutation.mutateAsync({});
+      toast.success('Data backup completed successfully');
+      onBackupClose();
+    } catch (error) {
+      toast.error('Failed to backup data');
+      console.error('Backup error:', error);
+    }
   };
 
-  const handleClearLogs = () => {
-    // Mock clear logs functionality
-    toast.success('System logs cleared successfully');
-    onClearLogsClose();
+  const handleClearLogs = async () => {
+    try {
+      await clearLogsMutation.mutateAsync({});
+      toast.success('System logs cleared successfully');
+      onClearLogsClose();
+      // Refresh audit logs
+      const response = await getAuditLogs();
+      setAuditLogs(response.data.logs);
+    } catch (error) {
+      toast.error('Failed to clear logs');
+      console.error('Clear logs error:', error);
+    }
   };
 
-  const handleSaveProfile = () => {
-    toast.success('Profile updated successfully');
+  const [profileName, setProfileName] = useState(staffInfo?.name || '');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+
+  const handleSaveProfile = async () => {
+    // Validate passwords match
+    if (newPassword && newPassword !== confirmNewPassword) {
+      toast.error('Passwords do not match');
+      return;
+    }
+
+    // Validate at least one field is provided
+    if (!profileName.trim() && !newPassword) {
+      toast.error('Please provide at least name or password to update');
+      return;
+    }
+
+    // Show confirmation modal
+    onProfileUpdateOpen();
   };
 
-  const handleSaveSchoolInfo = () => {
-    toast.success('School information updated successfully');
+  const confirmProfileUpdate = async () => {
+    try {
+      const updateData: any = {};
+      if (profileName.trim()) updateData.name = profileName.trim();
+      if (newPassword) {
+        updateData.password = newPassword;
+        updateData.confirmPassword = confirmNewPassword;
+      }
+
+      await updateProfileMutation.mutateAsync(updateData);
+
+      // Update local state
+      if (profileName.trim()) {
+        useStore.setState((state) => ({
+          staffInfo: state.staffInfo ? { ...state.staffInfo, name: profileName.trim() } : null,
+        }));
+      }
+
+      // Clear password fields
+      setNewPassword('');
+      setConfirmNewPassword('');
+
+      onProfileUpdateClose();
+      toast.success('Profile updated successfully');
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Failed to update profile');
+      console.error('Profile update error:', error);
+    }
   };
 
-  const handleSaveRules = () => {
-    toast.success('Attendance rules updated successfully');
-  };
+
+
+
 
   useEffect(() => {
     const fetchAuditLogs = async () => {
@@ -109,11 +172,8 @@ const Settings: FC = () => {
       <Tabs variant="enclosed" colorScheme="blue">
         <TabList>
           <Tab>Profile</Tab>
-          <Tab>School Info</Tab>
-          <Tab>Attendance Rules</Tab>
           <Tab>Data & Security</Tab>
           <Tab>Audit Logs</Tab>
-          <Tab>Session Management</Tab>
         </TabList>
 
         <TabPanels>
@@ -125,7 +185,12 @@ const Settings: FC = () => {
                 <VStack spacing={4} align="stretch">
                   <FormControl>
                     <FormLabel>Name</FormLabel>
-                    <Input type="text" value={staffInfo?.name} />
+                    <Input
+                      type="text"
+                      value={profileName}
+                      onChange={(e) => setProfileName(e.target.value)}
+                      placeholder="Enter your name"
+                    />
                   </FormControl>
                   <FormControl>
                     <FormLabel>Email address</FormLabel>
@@ -133,17 +198,28 @@ const Settings: FC = () => {
                   </FormControl>
                   <FormControl>
                     <FormLabel>New Password</FormLabel>
-                    <Input type="password" />
+                    <Input
+                      type="password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Enter new password"
+                    />
                   </FormControl>
                   <FormControl>
                     <FormLabel>Confirm New Password</FormLabel>
-                    <Input type="password" />
+                    <Input
+                      type="password"
+                      value={confirmNewPassword}
+                      onChange={(e) => setConfirmNewPassword(e.target.value)}
+                      placeholder="Confirm new password"
+                    />
                   </FormControl>
                   <Button
                     bg="var(--bg-primary)"
                     color="white"
                     _hover={{ background: 'var(--bg-primary-light)' }}
                     onClick={handleSaveProfile}
+                    isLoading={updateProfileMutation.isLoading}
                   >
                     Save Profile
                   </Button>
@@ -152,114 +228,36 @@ const Settings: FC = () => {
             </Card>
           </TabPanel>
 
-          {/* School Info Tab */}
-          <TabPanel>
-            <Card maxW={500} margin="1rem auto">
-              <Box padding="1rem">
-                <Heading size="md" marginBottom="1rem">School Information</Heading>
-                <VStack spacing={4} align="stretch">
-                  <FormControl>
-                    <FormLabel>School Name</FormLabel>
-                    <Input type="text" value={schoolName} onChange={(e) => setSchoolName(e.target.value)} />
-                  </FormControl>
-                  <FormControl>
-                    <FormLabel>School Logo URL</FormLabel>
-                    <Input type="text" value={schoolLogo} onChange={(e) => setSchoolLogo(e.target.value)} placeholder="Enter logo URL" />
-                  </FormControl>
-                  <FormControl>
-                    <FormLabel>School Address</FormLabel>
-                    <Input type="text" placeholder="Enter school address" />
-                  </FormControl>
-                  <FormControl>
-                    <FormLabel>Contact Number</FormLabel>
-                    <Input type="tel" placeholder="Enter contact number" />
-                  </FormControl>
-                  <Button
-                    bg="var(--bg-primary)"
-                    color="white"
-                    _hover={{ background: 'var(--bg-primary-light)' }}
-                    onClick={handleSaveSchoolInfo}
-                  >
-                    Save School Info
-                  </Button>
-                </VStack>
-              </Box>
-            </Card>
-          </TabPanel>
 
-          {/* Attendance Rules Tab */}
-          <TabPanel>
-            <Card maxW={500} margin="1rem auto">
-              <Box padding="1rem">
-                <Heading size="md" marginBottom="1rem">Attendance Rules</Heading>
-                <VStack spacing={4} align="stretch">
-                  <FormControl>
-                    <FormLabel>Grace Period (minutes)</FormLabel>
-                    <NumberInput value={gracePeriod} onChange={(_, value) => setGracePeriod(value)} min={0} max={60}>
-                      <NumberInputField />
-                      <NumberInputStepper>
-                        <NumberIncrementStepper />
-                        <NumberDecrementStepper />
-                      </NumberInputStepper>
-                    </NumberInput>
-                    <Text fontSize="sm" color="gray.600" marginTop="0.5rem">
-                      Students arriving within this grace period will be marked as present. Late marking will apply after this period.
-                    </Text>
-                  </FormControl>
-                  <FormControl display="flex" alignItems="center">
-                    <FormLabel mb="0">Enable Late Marking</FormLabel>
-                    <Switch isChecked={lateMarking} onChange={(e) => setLateMarking(e.target.checked)} />
-                  </FormControl>
-                  <FormControl>
-                    <FormLabel>Late Threshold (%)</FormLabel>
-                    <NumberInput defaultValue={75} min={0} max={100}>
-                      <NumberInputField />
-                      <NumberInputStepper>
-                        <NumberIncrementStepper />
-                        <NumberDecrementStepper />
-                      </NumberInputStepper>
-                    </NumberInput>
-                  </FormControl>
-                  <Button
-                    bg="var(--bg-primary)"
-                    color="white"
-                    _hover={{ background: 'var(--bg-primary-light)' }}
-                    onClick={handleSaveRules}
-                  >
-                    Save Rules
-                  </Button>
-                </VStack>
-              </Box>
-            </Card>
-          </TabPanel>
+
+
 
           {/* Data & Security Tab */}
           <TabPanel>
             <VStack spacing={4} align="stretch">
               <Card maxW={500} margin="1rem auto">
                 <Box padding="1rem">
-                  <Heading size="md" marginBottom="1rem">Data Encryption</Heading>
-                  <FormControl display="flex" alignItems="center">
-                    <FormLabel mb="0">Enable Data Encryption</FormLabel>
-                    <Switch isChecked={encryptionEnabled} onChange={(e) => setEncryptionEnabled(e.target.checked)} />
-                  </FormControl>
-                  <Text fontSize="sm" color="gray.600" marginTop="0.5rem">
-                    Encrypt sensitive data like fingerprints and personal information.
-                  </Text>
-                </Box>
-              </Card>
-
-              <Card maxW={500} margin="1rem auto">
-                <Box padding="1rem">
                   <Heading size="md" marginBottom="1rem">Data Management</Heading>
-                  <HStack spacing={4}>
-                    <Button leftIcon={<DownloadIcon />} colorScheme="blue" onClick={onBackupOpen}>
-                      Backup Data
-                    </Button>
-                    <Button leftIcon={<DeleteIcon />} colorScheme="red" onClick={onClearLogsOpen}>
-                      Clear Logs
-                    </Button>
-                  </HStack>
+                  <VStack spacing={4} align="stretch">
+                    <Box>
+                      <HStack spacing={4} marginBottom="0.5rem">
+                        <Button leftIcon={<DownloadIcon />} colorScheme="blue" onClick={onBackupOpen} isLoading={backupMutation.isLoading}>
+                          Backup Data
+                        </Button>
+                        <Button leftIcon={<DeleteIcon />} colorScheme="red" onClick={onClearLogsOpen} isLoading={clearLogsMutation.isLoading}>
+                          Clear Logs
+                        </Button>
+                      </HStack>
+                    </Box>
+                    <Box>
+                      <Text fontSize="sm" color="gray.600" marginBottom="0.5rem">
+                        <strong>Backup Data:</strong> Creates a complete backup of all system data (students, staff, attendance records, courses, and settings) as a downloadable JSON file. The backup is also saved on the server for safekeeping.
+                      </Text>
+                      <Text fontSize="sm" color="gray.600">
+                        <strong>Clear Logs:</strong> Permanently deletes all audit logs from the system. This action cannot be undone and should only be used when necessary for privacy or storage reasons.
+                      </Text>
+                    </Box>
+                  </VStack>
                 </Box>
               </Card>
             </VStack>
@@ -299,27 +297,7 @@ const Settings: FC = () => {
             </Card>
           </TabPanel>
 
-          {/* Session Management Tab */}
-          <TabPanel>
-            <Card maxW={500} margin="1rem auto">
-              <Box padding="1rem">
-                <Heading size="md" marginBottom="1rem">User Session Management</Heading>
-                <VStack spacing={4} align="stretch">
-                  <Text>Current active sessions: 1</Text>
-                  <Divider />
-                  <Button colorScheme="red" variant="outline">
-                    Logout All Other Sessions
-                  </Button>
-                  <Button colorScheme="orange" variant="outline">
-                    Force Logout All Users
-                  </Button>
-                  <Text fontSize="sm" color="gray.600">
-                    Use these options carefully as they will affect user access.
-                  </Text>
-                </VStack>
-              </Box>
-            </Card>
-          </TabPanel>
+
         </TabPanels>
       </Tabs>
 
@@ -405,6 +383,40 @@ const Settings: FC = () => {
           <ModalFooter>
             <Button variant="ghost" onClick={onViewLogsClose}>
               Close
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Profile Update Confirmation Modal */}
+      <Modal isOpen={isProfileUpdateOpen} onClose={onProfileUpdateClose}>
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Confirm Profile Update</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <Alert status="warning">
+              <AlertIcon />
+              <Box>
+                <AlertTitle>Warning!</AlertTitle>
+                <AlertDescription>
+                  You are about to update your profile information. This action will modify your account details.
+                  {newPassword && (
+                    <Text mt={2} fontWeight="bold">
+                      Note: Changing your password will require you to log in again with the new password.
+                    </Text>
+                  )}
+                  Are you sure you want to proceed?
+                </AlertDescription>
+              </Box>
+            </Alert>
+          </ModalBody>
+          <ModalFooter>
+            <Button colorScheme="blue" mr={3} onClick={confirmProfileUpdate} isLoading={updateProfileMutation.isLoading}>
+              Yes, Update Profile
+            </Button>
+            <Button variant="ghost" onClick={onProfileUpdateClose}>
+              Cancel
             </Button>
           </ModalFooter>
         </ModalContent>

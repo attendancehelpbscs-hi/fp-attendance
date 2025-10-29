@@ -15,7 +15,7 @@ import {
   Spinner,
 } from '@chakra-ui/react';
 import { CheckIcon } from '@chakra-ui/icons';
-import type { Attendance } from '../interfaces/api.interface';
+import type { Attendance, GetAttendanceListResult } from '../interfaces/api.interface';
 import dayjs from 'dayjs';
 import { useGetAttendanceList } from '../api/atttendance.api';
 
@@ -48,14 +48,14 @@ const AttendanceList: FC<{ isOpen: boolean; onClose: () => void; attendance: Att
             </Box>
           ) : (
             <List spacing={3}>
-              {data.data.attendanceList.map((student) => (
-                <ListItem display="flex" gap="1rem" alignItems="center">
+              {data?.data?.attendanceList.map((student) => (
+                <ListItem key={student.student.id} display="flex" gap="1rem" alignItems="center">
                   <CheckIcon color="green.500" />
                   <Text>
                     {student?.student?.name} ({student?.student?.matric_no}) - {student?.student?.grade}
                     <br />
                     <Text as="span" fontSize="sm" color="gray.600">
-                      {student?.time_type} - Section: {student?.section} - Time: {dayjs(student?.created_at).format('HH:mm:ss')}
+                      {student?.time_type} - Section: {student?.section} - Time: {dayjs(student?.created_at).format('HH:mm:ss')} - Status: Present
                     </Text>
                   </Text>
                 </ListItem>

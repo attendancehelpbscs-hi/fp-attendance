@@ -5,51 +5,84 @@ import type { StudentAttendance } from '@prisma/client';
 export const getAttendanceReports = async (staff_id: string, filters: { grade?: string; section?: string; dateRange?: string }) => {
   try {
     const where: any = {
-      staff_id,
+      student: { staff_id },
     };
 
-    if (filters.grade) where.grade = filters.grade;
+    if (filters.grade) where.student.grade = filters.grade;
     if (filters.section) where.section = filters.section;
 
     // Handle dateRange if provided
-    if (filters.dateRange) {
-      const [startDate, endDate] = filters.dateRange.split(' - ');
-      where.attendances = {
-        some: {
-          attendance: {
-            date: {
-              gte: startDate,
-              lte: endDate,
-            },
-          },
+    if (filters.dateRange && filters.dateRange !== 'all') {
+      let startDate: string;
+      let endDate: string;
+
+      if (filters.dateRange.includes(' - ')) {
+        // It's a date range like "2023-10-01 - 2023-10-07"
+        [startDate, endDate] = filters.dateRange.split(' - ');
+      } else {
+        // It's a period like "7days", "30days", "90days"
+        const now = new Date();
+        endDate = now.toISOString().split('T')[0]; // Today
+
+        if (filters.dateRange === '7days') {
+          const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          startDate = sevenDaysAgo.toISOString().split('T')[0];
+        } else if (filters.dateRange === '30days') {
+          const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          startDate = thirtyDaysAgo.toISOString().split('T')[0];
+        } else if (filters.dateRange === '90days') {
+          const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+          startDate = ninetyDaysAgo.toISOString().split('T')[0];
+        } else {
+          // Default to 7 days if unrecognized
+          const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          startDate = sevenDaysAgo.toISOString().split('T')[0];
+        }
+      }
+
+      where.attendance = {
+        date: {
+          gte: startDate,
+          lte: endDate,
         },
       };
     }
 
-    const students = await prisma.student.findMany({
+    const studentAttendances = await prisma.studentAttendance.findMany({
       where,
       include: {
-        attendances: {
-          include: {
-            attendance: true,
-          },
-        },
+        student: true,
+        attendance: true,
       },
     });
 
-    return students.map(student => ({
-      student_id: student.id,
-      name: student.name,
-      matric_no: student.matric_no,
-      grade: student.grade,
-      attendances: student.attendances.map(sa => ({
-        date: sa.attendance.date,
-        status: sa.status,
-        time_type: sa.time_type,
-        section: sa.section,
-        created_at: sa.created_at,
-      })),
-    }));
+    // Group by date, grade, section
+    const groupedData: Record<string, { present: number; total: number }> = {};
+
+    studentAttendances.forEach(sa => {
+      // Format date as YYYY-MM-DD to avoid ISO timestamp issues
+      const dateStr = sa.attendance.date;
+      const key = `${dateStr}|${sa.student.grade}|${sa.section}`;
+      if (!groupedData[key]) {
+        groupedData[key] = { present: 0, total: 0 };
+      }
+      groupedData[key].total += 1;
+      // All records are now 'present' in simplified system
+      groupedData[key].present += 1;
+    });
+
+    return Object.entries(groupedData).map(([key, counts]) => {
+      const [date, grade, section] = key.split('|');
+      const rate = counts.total > 0 ? (counts.present / counts.total) * 100 : 0;
+      return {
+        date,
+        grade,
+        section,
+        present: counts.present,
+        absent: 0, // Always 0 in simplified system
+        rate: Math.round(rate * 100) / 100, // Round to 2 decimal places
+      };
+    });
   } catch (err) {
     throw err;
   }
@@ -59,14 +92,16 @@ export const getAttendanceSummary = async (staff_id: string, filters: { grade?: 
   try {
     const reports = await getAttendanceReports(staff_id, filters);
 
-    const totalStudents = reports.length;
-    const totalAttendances = reports.reduce((sum, report) => sum + report.attendances.length, 0);
-    const averageAttendance = totalStudents > 0 ? totalAttendances / totalStudents : 0;
+    const totalStudents = reports.reduce((sum, report) => sum + report.present + report.absent, 0);
+    const averageRate = reports.length > 0 ? reports.reduce((sum, report) => sum + report.rate, 0) / reports.length : 0;
+    const lowAttendanceCount = reports.filter(r => r.rate < 75).length;
+    const perfectAttendanceCount = reports.filter(r => r.rate === 100).length;
 
     return {
       totalStudents,
-      totalAttendances,
-      averageAttendance,
+      averageRate,
+      lowAttendanceCount,
+      perfectAttendanceCount,
     };
   } catch (err) {
     throw err;
@@ -124,8 +159,34 @@ export const getStudentAttendanceReports = async (staff_id: string, filters: { s
 
     if (filters.student_id) where.student_id = filters.student_id;
 
-    if (filters.dateRange) {
-      const [startDate, endDate] = filters.dateRange.split(' - ');
+    if (filters.dateRange && filters.dateRange !== 'all') {
+      let startDate: string;
+      let endDate: string;
+
+      if (filters.dateRange.includes(' - ')) {
+        // It's a date range like "2023-10-01 - 2023-10-07"
+        [startDate, endDate] = filters.dateRange.split(' - ');
+      } else {
+        // It's a period like "7days", "30days", "90days"
+        const now = new Date();
+        endDate = now.toISOString().split('T')[0]; // Today
+
+        if (filters.dateRange === '7days') {
+          const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          startDate = sevenDaysAgo.toISOString().split('T')[0];
+        } else if (filters.dateRange === '30days') {
+          const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          startDate = thirtyDaysAgo.toISOString().split('T')[0];
+        } else if (filters.dateRange === '90days') {
+          const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+          startDate = ninetyDaysAgo.toISOString().split('T')[0];
+        } else {
+          // Default to 7 days if unrecognized
+          const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          startDate = sevenDaysAgo.toISOString().split('T')[0];
+        }
+      }
+
       where.attendance = {
         date: {
           gte: startDate,
@@ -174,9 +235,9 @@ export const getStudentAttendanceSummary = async (staff_id: string, filters: { s
 
     const totalDays = reports.length;
     const presentDays = reports.filter(r => r.status === 'present').length;
-    const lateDays = reports.filter(r => r.status === 'late').length;
-    const absentDays = reports.filter(r => r.status === 'absent').length;
-    const attendanceRate = totalDays > 0 ? ((presentDays + lateDays) / totalDays) * 100 : 0;
+    // In simplified system, all days are present days
+    const absentDays = 0;
+    const attendanceRate = totalDays > 0 ? (presentDays / totalDays) * 100 : 0;
 
     return {
       totalDays,
@@ -191,7 +252,7 @@ export const getStudentAttendanceSummary = async (staff_id: string, filters: { s
 
 export const getSectionsForGrade = async (staff_id: string, grade: string): Promise<string[]> => {
   try {
-    const studentAttendances = await prisma.studentAttendance.findMany({
+    const studentCourses = await prisma.studentCourse.findMany({
       where: {
         student: {
           staff_id,
@@ -199,12 +260,16 @@ export const getSectionsForGrade = async (staff_id: string, grade: string): Prom
         },
       },
       select: {
-        section: true,
+        course: {
+          select: {
+            course_code: true,
+          },
+        },
       },
-      distinct: ['section'],
+      distinct: ['course_id'],
     });
 
-    return studentAttendances.map(sa => sa.section).sort();
+    return studentCourses.map(sc => sc.course.course_code).sort();
   } catch (err) {
     throw err;
   }
@@ -216,9 +281,11 @@ export const getStudentsForGradeAndSection = async (staff_id: string, grade: str
       where: {
         staff_id,
         grade,
-        attendances: {
+        courses: {
           some: {
-            section,
+            course: {
+              course_code: section,
+            },
           },
         },
       },
@@ -249,7 +316,7 @@ export interface StudentDetailedReport {
   };
   attendanceRecords: {
     date: string;
-    status: 'present' | 'late' | 'absent';
+    status: 'present';
     time_type: 'IN' | 'OUT' | null;
     section: string;
     created_at: string;
@@ -311,29 +378,29 @@ export const getStudentDetailedReport = async (staff_id: string, student_id: str
 
     // Transform records
     const records = attendanceRecords.map(record => ({
-      date: record.attendance.date,
+      date: record.attendance.date, // Use attendance session date
       status: record.status,
       time_type: record.time_type,
       section: record.section,
       created_at: record.created_at.toISOString(),
     }));
 
-    // Calculate summaries
+    // Calculate summaries based on current date
     const now = new Date();
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth();
     const currentWeek = Math.floor((now.getTime() - new Date(currentYear, 0, 1).getTime()) / (7 * 24 * 60 * 60 * 1000));
 
-    // Weekly summary (last 7 days)
+    // Weekly summary (last 7 days from today)
     const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     const weeklyRecords = records.filter(r => new Date(r.date) >= weekStart);
-    const weeklyPresent = weeklyRecords.filter(r => r.status === 'present' || r.status === 'late').length;
-    const weeklyAbsent = weeklyRecords.filter(r => r.status === 'absent').length;
+    const weeklyPresent = weeklyRecords.filter(r => r.status === 'present').length;
+    const weeklyAbsent = 0; // Always 0 in simplified system
     const weeklySummary = {
       total_days: weeklyRecords.length,
       present_days: weeklyPresent,
       absent_days: weeklyAbsent,
-      attendance_rate: weeklyRecords.length > 0 ? (weeklyPresent / weeklyRecords.length) * 100 : 0,
+      attendance_rate: 0, // Remove percentage calculation
     };
 
     // Monthly summary (current month)
@@ -341,24 +408,24 @@ export const getStudentDetailedReport = async (staff_id: string, student_id: str
       const recordDate = new Date(r.date);
       return recordDate.getFullYear() === currentYear && recordDate.getMonth() === currentMonth;
     });
-    const monthlyPresent = monthlyRecords.filter(r => r.status === 'present' || r.status === 'late').length;
-    const monthlyAbsent = monthlyRecords.filter(r => r.status === 'absent').length;
+    const monthlyPresent = monthlyRecords.filter(r => r.status === 'present').length;
+    const monthlyAbsent = 0; // Always 0 in simplified system
     const monthlySummary = {
       total_days: monthlyRecords.length,
       present_days: monthlyPresent,
       absent_days: monthlyAbsent,
-      attendance_rate: monthlyRecords.length > 0 ? (monthlyPresent / monthlyRecords.length) * 100 : 0,
+      attendance_rate: 0, // Remove percentage calculation
     };
 
     // Yearly summary (current year)
     const yearlyRecords = records.filter(r => new Date(r.date).getFullYear() === currentYear);
-    const yearlyPresent = yearlyRecords.filter(r => r.status === 'present' || r.status === 'late').length;
-    const yearlyAbsent = yearlyRecords.filter(r => r.status === 'absent').length;
+    const yearlyPresent = yearlyRecords.filter(r => r.status === 'present').length;
+    const yearlyAbsent = 0; // Always 0 in simplified system
     const yearlySummary = {
       total_days: yearlyRecords.length,
       present_days: yearlyPresent,
       absent_days: yearlyAbsent,
-      attendance_rate: yearlyRecords.length > 0 ? (yearlyPresent / yearlyRecords.length) * 100 : 0,
+      attendance_rate: 0, // Remove percentage calculation
     };
 
     return {
@@ -384,40 +451,23 @@ export const getDashboardStats = async (staff_id: string) => {
       where: { staff_id },
     });
 
-    // Get today's attendance record
-    const todayAttendance = await prisma.attendance.findFirst({
+    // Count present students for today by finding all student attendances where attendance.date is today
+    const presentToday = await prisma.studentAttendance.count({
       where: {
-        staff_id,
-        date: today,
+        student: { staff_id },
+        attendance: {
+          date: today,
+        },
+        status: 'present',
       },
     });
 
-    let presentToday = 0;
-    let absentToday = 0;
-
-    if (todayAttendance) {
-      // Count present students (present or late)
-      presentToday = await prisma.studentAttendance.count({
-        where: {
-          attendance_id: todayAttendance.id,
-          status: { in: ['present', 'late'] },
-        },
-      });
-
-      // Absent students = total students - present students
-      absentToday = totalStudents - presentToday;
-    } else {
-      // No attendance record for today, all students are absent
-      absentToday = totalStudents;
-    }
-
-    // Calculate attendance rate
+    // Calculate attendance rate based on today's attendance
     const attendanceRate = totalStudents > 0 ? ((presentToday / totalStudents) * 100).toFixed(1) : '0.0';
 
     return {
       totalStudents,
       presentToday,
-      absentToday,
       attendanceRate: parseFloat(attendanceRate),
     };
   } catch (err) {
@@ -429,7 +479,7 @@ export const markStudentAttendance = async (
   staff_id: string,
   student_id: string,
   dates: string[],
-  status: 'late' | 'absent',
+  status: 'present',
   section: string
 ) => {
   try {
@@ -469,12 +519,10 @@ export const markStudentAttendance = async (
       }
 
       // Check if student attendance record exists
-      const existingRecord = await prisma.studentAttendance.findUnique({
+      const existingRecord = await prisma.studentAttendance.findFirst({
         where: {
-          student_id_attendance_id: {
-            student_id,
-            attendance_id: attendance.id,
-          },
+          student_id,
+          attendance_id: attendance.id,
         },
       });
 
@@ -482,10 +530,7 @@ export const markStudentAttendance = async (
         // Update existing record
         const updatedRecord = await prisma.studentAttendance.update({
           where: {
-            student_id_attendance_id: {
-              student_id,
-              attendance_id: attendance.id,
-            },
+            id: existingRecord.id,
           },
           data: {
             status,

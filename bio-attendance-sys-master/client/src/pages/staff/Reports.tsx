@@ -32,18 +32,24 @@ import {
   Input,
   InputGroup,
   InputLeftElement,
-  Tabs,
-  TabList,
-  TabPanels,
-  Tab,
-  TabPanel,
+  Badge,
+  Alert,
+  AlertIcon,
+  AlertTitle,
+  AlertDescription,
+  Progress,
+  Spinner,
+  Center,
+  Flex,
+  Spacer,
 } from '@chakra-ui/react';
 import { SearchIcon } from '@chakra-ui/icons';
-import { DownloadIcon, ChevronDownIcon } from '@chakra-ui/icons';
+import { DownloadIcon, ChevronDownIcon, WarningIcon, CheckCircleIcon, CalendarIcon } from '@chakra-ui/icons';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
 import {
   BarChart,
   Bar,
@@ -58,11 +64,16 @@ import {
   PieChart,
   Pie,
   Cell,
+  AreaChart,
+  Area,
+  ComposedChart,
 } from 'recharts';
 import { useGetReports, useGetGradesAndSections, useGetStudentReports, useGetSectionsForGrade, useGetStudentsForGradeAndSection, useGetStudentDetailedReport, useMarkStudentAttendance } from '../../api/atttendance.api';
 import { useToast } from '@chakra-ui/react';
+import { Tabs, TabList, TabPanels, Tab, TabPanel } from '@chakra-ui/react';
 import useStore from '../../store/store';
-import type { AttendanceReportData, StudentAttendanceReportData, StudentAttendanceSummary } from '../../interfaces/api.interface';
+import type { AttendanceReportData, StudentAttendanceReportData, StudentAttendanceSummary, StudentDetailedReport } from '../../interfaces/api.interface';
+import StudentReportDetail from '../../components/StudentReportDetail';
 
 // Type declarations to fix TypeScript issues
 declare module 'recharts' {
@@ -80,54 +91,94 @@ declare module 'recharts' {
   }
 }
 
+// Report Types
+type ReportType = 'daily-records' | 'student-summary' | 'attendance-trends' | 'attendance-patterns' | 'potential-issues';
+
+const REPORT_TYPES: { value: ReportType; label: string; description: string }[] = [
+  { value: 'daily-records', label: 'Daily Records', description: 'Detailed attendance records with color coding' },
+  { value: 'student-summary', label: 'Student Summary', description: 'Individual student attendance summaries' },
+  { value: 'attendance-trends', label: 'Attendance Trends', description: 'Trends and patterns over time' },
+  { value: 'attendance-patterns', label: 'Attendance Patterns', description: 'Pattern analysis and insights' },
+  { value: 'potential-issues', label: 'Potential Issues', description: 'Students with perfect attendance highlights' },
+];
+
 const Reports: FC = () => {
   const staffInfo = useStore.use.staffInfo();
-  const [selectedGrade, setSelectedGrade] = useState<string>('all');
-  const [selectedSection, setSelectedSection] = useState<string>('all');
-  const [selectedDateRange, setSelectedDateRange] = useState<string>('7days');
+  const [selectedReportType, setSelectedReportType] = useState<ReportType>('daily-records');
+
+  // Unified filter states
+  const [selectedGrade, setSelectedGrade] = useState<string>('');
+  const [selectedSection, setSelectedSection] = useState<string>('');
+  const [selectedDateRange, setSelectedDateRange] = useState<string>('all');
+  const [startDate, setStartDate] = useState<Date | null>(null);
+  const [endDate, setEndDate] = useState<Date | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>('');
-  const [sectionSortOrder, setSectionSortOrder] = useState<'asc' | 'desc'>('asc');
-  const [sortConfig, setSortConfig] = useState<{ key: 'date' | 'grade' | 'section' | 'present' | 'absent' | 'rate'; direction: 'asc' | 'desc' } | null>(null);
+
+  // Sorting and pagination
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const itemsPerPage = 10;
 
-  // Student-specific report states
-  const [selectedStatus, setSelectedStatus] = useState<string>('all');
-  const [startDate, setStartDate] = useState<Date | null>(null);
-  const [endDate, setEndDate] = useState<Date | null>(null);
-  const [studentSearchTerm, setStudentSearchTerm] = useState<string>('');
-  const [studentSortConfig, setStudentSortConfig] = useState<{ key: keyof StudentAttendanceReportData; direction: 'asc' | 'desc' } | null>(null);
-  const [studentCurrentPage, setStudentCurrentPage] = useState<number>(1);
+  // Student-specific states
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
+  const [showStudentDetail, setShowStudentDetail] = useState<boolean>(false);
+
+  // Additional student report states
+  const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const [studentSearchTerm, setStudentSearchTerm] = useState<string>('');
+  const [studentSortConfig, setStudentSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+  const [studentCurrentPage, setStudentCurrentPage] = useState<number>(1);
 
   // Manual attendance marking states
+  const [markAttendanceStatus, setMarkAttendanceStatus] = useState<'present'>('present');
+  const [markAttendanceGracePeriod, setMarkAttendanceGracePeriod] = useState<number>(0);
   const [markAttendanceDates, setMarkAttendanceDates] = useState<Date[]>([]);
-  const [markAttendanceStatus, setMarkAttendanceStatus] = useState<'late' | 'absent'>('absent');
   const [markAttendanceSection, setMarkAttendanceSection] = useState<string>('');
-  const [markAttendanceGracePeriod, setMarkAttendanceGracePeriod] = useState<number>(15);
 
   const toast = useToast();
 
   // Reset to first page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [selectedGrade, selectedSection, selectedDateRange, searchTerm]);
+  }, [selectedGrade, selectedSection, selectedDateRange, searchTerm, selectedReportType]);
 
-  // Reset student page when student filters change
+  // Reset filters when report type changes
   useEffect(() => {
+    setSelectedGrade('');
+    setSelectedSection('');
+    setSearchTerm('');
+    setStartDate(null);
+    setEndDate(null);
+    setCurrentPage(1);
+    setSortConfig(null);
+    setSelectedStudent(null);
+    setShowStudentDetail(false);
+  }, [selectedReportType]);
+
+  // Reset student-specific states when report type changes
+  useEffect(() => {
+    setSelectedStatus('all');
+    setStudentSearchTerm('');
+    setStudentSortConfig(null);
     setStudentCurrentPage(1);
-  }, [selectedStatus, startDate, endDate, studentSearchTerm]);
+    setMarkAttendanceStatus('present');
+    setMarkAttendanceGracePeriod(0);
+    setMarkAttendanceDates([]);
+    setMarkAttendanceSection('');
+  }, [selectedReportType]);
 
   const { data: reportsData, isLoading, error } = useGetReports(staffInfo?.id || '', {
-    grade: selectedGrade === 'all' ? undefined : selectedGrade,
-    section: selectedSection === 'all' ? undefined : selectedSection,
+    grade: selectedGrade || undefined,
+    section: selectedSection || undefined,
     dateRange: selectedDateRange,
   })({
     queryKey: ['reports', staffInfo?.id, selectedGrade, selectedSection, selectedDateRange],
+    enabled: !!staffInfo?.id,
   });
 
   const { data: filtersData } = useGetGradesAndSections(staffInfo?.id || '')({
     queryKey: ['grades-sections', staffInfo?.id],
+    enabled: !!staffInfo?.id,
   });
 
   const { data: studentReportsData, isLoading: studentReportsLoading, error: studentReportsError } = useGetStudentReports(
@@ -135,20 +186,22 @@ const Reports: FC = () => {
     {
       startDate: startDate ? startDate.toISOString().split('T')[0] : undefined,
       endDate: endDate ? endDate.toISOString().split('T')[0] : undefined,
+      dateRange: selectedDateRange,
     }
   )({
-    queryKey: ['student-reports', staffInfo?.id, startDate, endDate],
+    queryKey: ['student-reports', staffInfo?.id, startDate, endDate, selectedDateRange],
+    enabled: !!staffInfo?.id && (selectedReportType === 'student-summary' || selectedReportType === 'potential-issues'),
   });
 
   const { data: sectionsForGradeData } = useGetSectionsForGrade(staffInfo?.id || '', selectedGrade)({
     queryKey: ['sections-for-grade', staffInfo?.id, selectedGrade],
+    enabled: !!selectedGrade && !!staffInfo?.id,
   });
 
   const { data: studentsForGradeAndSectionData } = useGetStudentsForGradeAndSection(staffInfo?.id || '', selectedGrade, selectedSection)({
     queryKey: ['students-for-grade-section', staffInfo?.id, selectedGrade, selectedSection],
+    enabled: !!selectedSection && !!staffInfo?.id,
   });
-
-  const { mutate: markStudentAttendance } = useMarkStudentAttendance();
 
   const { data: studentDetailedReportData, isLoading: studentDetailedLoading } = useGetStudentDetailedReport(
     staffInfo?.id || '',
@@ -157,26 +210,24 @@ const Reports: FC = () => {
     endDate ? endDate.toISOString().split('T')[0] : undefined
   )({
     queryKey: ['student-detailed-report', staffInfo?.id, selectedStudent?.id, startDate, endDate],
-    enabled: !!selectedStudent?.id,
+    enabled: !!selectedStudent?.id && !!staffInfo?.id && showStudentDetail,
+    refetchOnWindowFocus: false, // Prevent unnecessary refetches
   });
 
   const sectionsForGrade = sectionsForGradeData?.sections || [];
   const studentsForGradeAndSection = studentsForGradeAndSectionData?.students || [];
 
-  // Use real data from API
+  // Use real data from API - ensure we have data
   const attendanceData = reportsData?.data?.reports || [];
-  // Hardcode grades 1-6 instead of fetching from API
+  const studentAttendanceData = studentReportsData?.data?.reports || [];
   const availableGrades = ['1', '2', '3', '4', '5', '6'];
-  // Sort sections based on sectionSortOrder
-  const availableSections = [...new Set(filtersData?.data?.sections || [])].sort((a, b) =>
-    sectionSortOrder === 'asc' ? a.localeCompare(b) : b.localeCompare(a)
-  );
+  const availableSections = [...new Set(filtersData?.data?.sections || [])].sort();
 
-  // Filtered and searched data
-  const filteredAndSearchedData = useMemo(() => {
+  // Filtered and searched data for different report types
+  const filteredAttendanceData = useMemo(() => {
     let data = attendanceData.filter((item: any) => {
-      const gradeMatch = selectedGrade === 'all' || item.grade === selectedGrade;
-      const sectionMatch = selectedSection === 'all' || item.section === selectedSection;
+      const gradeMatch = !selectedGrade || item.grade === selectedGrade;
+      const sectionMatch = !selectedSection || item.section === selectedSection;
       return gradeMatch && sectionMatch;
     });
 
@@ -191,85 +242,146 @@ const Reports: FC = () => {
     return data;
   }, [attendanceData, selectedGrade, selectedSection, searchTerm]);
 
+  const filteredStudentData = useMemo(() => {
+    let data = studentAttendanceData.filter((item: any) => {
+      const gradeMatch = !selectedGrade || item.grade === selectedGrade;
+      const sectionMatch = !selectedSection || item.section === selectedSection;
+      const dateMatch = (() => {
+        if (!startDate && !endDate) return true;
+        const itemDateStr = new Date(item.date).toISOString().split('T')[0];
+        const startStr = startDate ? startDate.toISOString().split('T')[0] : null;
+        const endStr = endDate ? endDate.toISOString().split('T')[0] : null;
+        if (startStr && itemDateStr < startStr) return false;
+        if (endStr && itemDateStr > endStr) return false;
+        return true;
+      })();
+      return gradeMatch && sectionMatch && dateMatch;
+    });
+
+    if (searchTerm) {
+      data = data.filter((item: any) =>
+        item.date.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.student_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.status.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    return data;
+  }, [studentAttendanceData, selectedGrade, selectedSection, startDate, endDate, searchTerm]);
+
   // Sorted data
   const sortedData = useMemo(() => {
-    if (!sortConfig) return filteredAndSearchedData;
+    const data = selectedReportType === 'daily-records' ? filteredAttendanceData : filteredStudentData;
+    if (!sortConfig) return data;
 
-    return [...filteredAndSearchedData].sort((a, b) => {
-      const aValue = a[sortConfig.key];
-      const bValue = b[sortConfig.key];
+    return [...data].sort((a, b) => {
+      const aValue = (a as any)[sortConfig.key];
+      const bValue = (b as any)[sortConfig.key];
+
+      if (aValue == null && bValue == null) return 0;
+      if (aValue == null) return sortConfig.direction === 'asc' ? -1 : 1;
+      if (bValue == null) return sortConfig.direction === 'asc' ? 1 : -1;
 
       if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
       if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
       return 0;
     });
-  }, [filteredAndSearchedData, sortConfig]);
-
-  // Use sortedData for calculations
-  const filteredData = sortedData;
+  }, [filteredAttendanceData, filteredStudentData, sortConfig, selectedReportType]);
 
   // Pagination logic
-  const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+  const totalPages = Math.ceil(sortedData.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedData = filteredData.slice(startIndex, startIndex + itemsPerPage);
+  const paginatedData = sortedData.slice(startIndex, startIndex + itemsPerPage);
 
   // Calculate summary stats from filtered data
   const summaryStats = useMemo(() => {
-    if (filteredData.length === 0) return { avgRate: 0, totalStudents: 0, lowAttendance: 0, perfectAttendance: 0 };
+    const data = selectedReportType === 'daily-records' ? filteredAttendanceData : filteredStudentData;
+    if (data.length === 0) return { avgRate: 0, totalStudents: 0, lowAttendance: 0, perfectAttendance: 0 };
 
-    const totalRate = filteredData.reduce((sum: number, item: any) => sum + item.rate, 0);
-    const avgRate = totalRate / filteredData.length;
-    const totalStudents = filteredData.reduce((sum: number, item: any) => sum + item.present + item.absent, 0);
-    const lowAttendance = filteredData.filter((item: any) => item.rate < 70).length;
-    const perfectAttendance = filteredData.filter((item: any) => item.rate === 100).length;
-
-    return { avgRate, totalStudents, lowAttendance, perfectAttendance };
-  }, [filteredData]);
+    if (selectedReportType === 'daily-records') {
+      const totalRate = data.reduce((sum: number, item: any) => sum + item.rate, 0);
+      const avgRate = totalRate / data.length;
+      const totalStudents = data.reduce((sum: number, item: any) => sum + item.present + item.absent, 0);
+      const lowAttendance = data.filter((item: any) => item.rate < 70).length;
+      const perfectAttendance = data.filter((item: any) => item.rate === 100).length;
+      return { avgRate, totalStudents, lowAttendance, perfectAttendance };
+    } else {
+      // Student-level stats
+      const totalStudents = new Set(data.map((item: any) => item.student_id)).size;
+      const presentCount = data.filter((item: any) => item.status === 'present').length;
+      const avgRate = data.length > 0 ? (presentCount / data.length) * 100 : 0;
+      const lowAttendance = 0; // No low attendance since only present is tracked
+      const perfectAttendance = data.filter((item: any) => item.status === 'present').length;
+      return { avgRate, totalStudents, lowAttendance, perfectAttendance };
+    }
+  }, [filteredAttendanceData, filteredStudentData, selectedReportType]);
 
   // Chart data preparation
   const attendanceTrendData = useMemo(() => {
-    const dateGroups = filteredData.reduce((acc: Record<string, any>, item: any) => {
+    const data = selectedReportType === 'daily-records' ? filteredAttendanceData : filteredStudentData;
+    const dateGroups = data.reduce((acc: Record<string, any>, item: any) => {
       if (!acc[item.date]) acc[item.date] = { date: item.date, present: 0, absent: 0, rate: 0 };
-      acc[item.date].present += item.present;
-      acc[item.date].absent += item.absent;
-      acc[item.date].rate = (acc[item.date].present / (acc[item.date].present + acc[item.date].absent)) * 100;
+      if (selectedReportType === 'daily-records') {
+        acc[item.date].present += item.present;
+        acc[item.date].rate = item.rate; // Use the rate directly since absent is removed
+      } else {
+        if (item.status === 'present') {
+          acc[item.date].present += 1;
+        }
+        acc[item.date].rate = (acc[item.date].present / (acc[item.date].present)) * 100; // Always 100% since only present
+      }
       return acc;
     }, {} as Record<string, any>);
 
     return Object.values(dateGroups).sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  }, [filteredData]);
+  }, [filteredAttendanceData, filteredStudentData, selectedReportType]);
 
   const gradeSectionData = useMemo(() => {
-    const groups = filteredData.reduce((acc: Record<string, any>, item: any) => {
+    const data = selectedReportType === 'daily-records' ? filteredAttendanceData : filteredStudentData;
+    const groups = data.reduce((acc: Record<string, any>, item: any) => {
       const key = `${item.grade} - ${item.section}`;
-      if (!acc[key]) acc[key] = { name: key, present: 0, absent: 0 };
-      acc[key].present += item.present;
-      acc[key].absent += item.absent;
+      if (!acc[key]) acc[key] = { name: key, present: 0 };
+      if (selectedReportType === 'daily-records') {
+        acc[key].present += item.present;
+      } else {
+        if (item.status === 'present') {
+          acc[key].present += 1;
+        }
+      }
       return acc;
     }, {} as Record<string, any>);
 
     return Object.values(groups);
-  }, [filteredData]);
+  }, [filteredAttendanceData, filteredStudentData, selectedReportType]);
 
   const attendanceRateData = useMemo(() => {
     return [
       { name: 'Present', value: summaryStats.totalStudents * (summaryStats.avgRate / 100), color: '#38B2AC' },
-      { name: 'Absent', value: summaryStats.totalStudents * (1 - summaryStats.avgRate / 100), color: '#E53E3E' },
     ];
   }, [summaryStats]);
 
   const exportToCSV = () => {
-    const headers = ['Date', 'Grade', 'Section', 'Present', 'Absent', 'Attendance Rate (%)'];
+    const data = selectedReportType === 'daily-records' ? paginatedData : filteredStudentData;
+    const headers = selectedReportType === 'daily-records'
+      ? ['Date', 'Grade', 'Section', 'Present', 'Attendance Rate (%)']
+      : ['Student Name', 'Matric No', 'Grade', 'Date', 'Status', 'Section'];
+
     const csvContent = [
       headers.join(','),
-      ...filteredData.map(row => [row.date, row.grade, row.section, row.present, row.absent, row.rate].join(','))
+      ...data.map((row: any) => {
+        if (selectedReportType === 'daily-records') {
+          return [row.date, row.grade, row.section, row.present, row.rate].join(',');
+        } else {
+          return [row.student_name, row.matric_no, row.grade, row.date, row.status, row.section].join(',');
+        }
+      })
     ].join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
     link.setAttribute('href', url);
-    link.setAttribute('download', `attendance_report_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', `${selectedReportType}_report_${new Date().toISOString().split('T')[0]}.csv`);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
@@ -278,31 +390,133 @@ const Reports: FC = () => {
 
   const exportToPDF = () => {
     const doc = new jsPDF();
+    const data = selectedReportType === 'daily-records' ? paginatedData : filteredStudentData;
 
     // Add title
     doc.setFontSize(18);
-    doc.text('Attendance Report', 14, 22);
+    doc.text(`${REPORT_TYPES.find(t => t.value === selectedReportType)?.label} Report`, 14, 22);
 
     // Add filters info
     doc.setFontSize(12);
     let yPosition = 35;
-    doc.text(`Grade: ${selectedGrade === 'all' ? 'All Grades' : selectedGrade}`, 14, yPosition);
+    doc.text(`Grade: ${selectedGrade || 'All Grades'}`, 14, yPosition);
     yPosition += 7;
-    doc.text(`Section: ${selectedSection === 'all' ? 'All Sections' : selectedSection}`, 14, yPosition);
+    doc.text(`Section: ${selectedSection || 'All Sections'}`, 14, yPosition);
     yPosition += 7;
     doc.text(`Date Range: ${selectedDateRange}`, 14, yPosition);
     yPosition += 7;
     doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, yPosition);
 
     // Prepare table data
-    const tableColumns = ['Date', 'Grade', 'Section', 'Present', 'Absent', 'Rate (%)'];
-    const tableRows = filteredData.map(row => [
+    const tableColumns = selectedReportType === 'daily-records'
+      ? ['Date', 'Grade', 'Section', 'Present', 'Rate (%)']
+      : ['Student Name', 'Matric No', 'Grade', 'Date', 'Status', 'Section'];
+
+    const tableRows = data.map((row: any) => {
+      if (selectedReportType === 'daily-records') {
+        return [
+          row.date,
+          row.grade,
+          row.section,
+          row.present.toString(),
+          row.rate.toString()
+        ];
+      } else {
+        return [
+          row.student_name,
+          row.matric_no,
+          row.grade,
+          row.date,
+          row.status,
+          row.section
+        ];
+      }
+    });
+
+    // Add table
+    autoTable(doc, {
+      head: [tableColumns],
+      body: tableRows,
+      startY: yPosition + 10,
+      styles: {
+        fontSize: 8,
+        cellPadding: 3,
+      },
+      headStyles: {
+        fillColor: [56, 178, 172], // Teal color
+        textColor: 255,
+        fontStyle: 'bold',
+      },
+      alternateRowStyles: {
+        fillColor: [245, 245, 245],
+      },
+    });
+
+    // Save the PDF
+    doc.save(`${selectedReportType}_report_${new Date().toISOString().split('T')[0]}.pdf`);
+  };
+
+  const exportStudentReportToCSV = (report: StudentDetailedReport) => {
+    const headers = ['Date', 'Status', 'Time Type', 'Section', 'Created At'];
+    const csvContent = [
+      headers.join(','),
+      ...report.attendanceRecords.map(row => [
+        row.date,
+        row.status,
+        row.time_type || '',
+        row.section,
+        row.created_at
+      ].join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `student_report_${report.student.name}_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const exportStudentReportToPDF = (report: StudentDetailedReport) => {
+    const doc = new jsPDF();
+
+    // Add title
+    doc.setFontSize(18);
+    doc.text('Student Attendance Report', 14, 22);
+
+    // Add student info
+    doc.setFontSize(12);
+    let yPosition = 35;
+    doc.text(`Student: ${report.student.name}`, 14, yPosition);
+    yPosition += 7;
+    doc.text(`Matric No: ${report.student.matric_no}`, 14, yPosition);
+    yPosition += 7;
+    doc.text(`Grade: ${report.student.grade}`, 14, yPosition);
+    yPosition += 7;
+    doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, yPosition);
+
+    // Add summaries
+    yPosition += 10;
+    doc.setFontSize(14);
+    doc.text('Attendance Summary', 14, yPosition);
+    yPosition += 10;
+    doc.setFontSize(10);
+    doc.text(`Weekly: ${report.summaries.weekly.present_days}/${report.summaries.weekly.total_days} days (${report.summaries.weekly.attendance_rate.toFixed(1)}%)`, 14, yPosition);
+    yPosition += 6;
+    doc.text(`Monthly: ${report.summaries.monthly.present_days}/${report.summaries.monthly.total_days} days (${report.summaries.monthly.attendance_rate.toFixed(1)}%)`, 14, yPosition);
+    yPosition += 6;
+    doc.text(`Yearly: ${report.summaries.yearly.present_days}/${report.summaries.yearly.total_days} days (${report.summaries.yearly.attendance_rate.toFixed(1)}%)`, 14, yPosition);
+
+    // Prepare table data
+    const tableColumns = ['Date', 'Status', 'Time Type', 'Section'];
+    const tableRows = report.attendanceRecords.map(row => [
       row.date,
-      row.grade,
-      row.section,
-      row.present.toString(),
-      row.absent.toString(),
-      row.rate.toString()
+      row.status,
+      row.time_type || '',
+      row.section
     ]);
 
     // Add table
@@ -325,10 +539,10 @@ const Reports: FC = () => {
     });
 
     // Save the PDF
-    doc.save(`attendance_report_${new Date().toISOString().split('T')[0]}.pdf`);
+    doc.save(`student_report_${report.student.name}_${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
-  const studentAttendanceData = studentReportsData?.data?.reports || [];
+  // console.log('Student reports data:', studentReportsData); // Debug log - commented out for production
 
   // Filtered and searched student data
   const filteredAndSearchedStudentData = useMemo(() => {
@@ -362,8 +576,8 @@ const Reports: FC = () => {
     if (!studentSortConfig) return filteredAndSearchedStudentData;
 
     return [...filteredAndSearchedStudentData].sort((a, b) => {
-      const aValue = a[studentSortConfig.key];
-      const bValue = b[studentSortConfig.key];
+      const aValue = (a as any)[studentSortConfig.key];
+      const bValue = (b as any)[studentSortConfig.key];
 
       if (aValue == null && bValue == null) return 0;
       if (aValue == null) return studentSortConfig.direction === 'asc' ? -1 : 1;
@@ -382,598 +596,575 @@ const Reports: FC = () => {
 
   return (
     <WithStaffLayout>
-      <Heading fontSize={25} fontWeight={600} marginBottom="2rem">
-        Reports & Analytics
-      </Heading>
+      <VStack spacing={2} align="center" marginBottom="2rem">
+        <Heading fontSize={28} fontWeight={700} color="teal.600">
+          FP Attendance System - Reports & Analytics
+        </Heading>
+        <Text fontSize="lg" color="gray.600" fontWeight="500">
+          Bula South Central Elementary School, 2025
+        </Text>
+      </VStack>
 
-      <Tabs>
+      {/* Unified Report Filters */}
+      <Card marginBottom="2rem" padding="1rem">
+        <VStack spacing={4} align="stretch">
+          <Text fontWeight="bold" fontSize="lg">Report Filters</Text>
+          <Grid templateColumns={{ base: '1fr', md: 'repeat(2, 1fr)', lg: 'repeat(4, 1fr)' }} gap={4} alignItems="end">
+            <GridItem>
+              <Text fontWeight="bold" marginBottom="0.5rem">Search</Text>
+              <InputGroup>
+                <InputLeftElement pointerEvents="none">
+                  <SearchIcon color="gray.300" />
+                </InputLeftElement>
+                <Input
+                  placeholder="Search records..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </InputGroup>
+            </GridItem>
+            <GridItem>
+              <Text fontWeight="bold" marginBottom="0.5rem">Grade</Text>
+              <Select value={selectedGrade} onChange={(e) => setSelectedGrade(e.target.value)} placeholder="All Grades">
+                <option value="">All Grades</option>
+                {availableGrades.map(grade => (
+                  <option key={grade} value={grade}>{grade}</option>
+                ))}
+              </Select>
+            </GridItem>
+            <GridItem>
+              <Text fontWeight="bold" marginBottom="0.5rem">Section</Text>
+              <Select value={selectedSection} onChange={(e) => setSelectedSection(e.target.value)} placeholder="All Sections">
+                <option value="">All Sections</option>
+                {selectedGrade ? sectionsForGrade.map((section: string) => (
+                  <option key={section} value={section}>{section}</option>
+                )) : availableSections.map((section: string) => (
+                  <option key={section} value={section}>{section}</option>
+                ))}
+              </Select>
+            </GridItem>
+            <GridItem>
+              <Text fontWeight="bold" marginBottom="0.5rem">Date Range</Text>
+              <Select value={selectedDateRange} onChange={(e) => setSelectedDateRange(e.target.value)}>
+                <option value="all">All Time</option>
+                <option value="90days">Last 90 days</option>
+                <option value="30days">Last 30 days</option>
+                <option value="7days">Last 7 days</option>
+              </Select>
+            </GridItem>
+          </Grid>
+
+          {/* Date Range Picker for specific reports */}
+          {(selectedReportType === 'student-summary' || selectedReportType === 'potential-issues') && (
+            <Grid templateColumns={{ base: '1fr', md: 'repeat(2, 1fr)' }} gap={4} alignItems="end">
+              <GridItem>
+                <Text fontWeight="bold" marginBottom="0.5rem">
+                  <CalendarIcon marginRight="0.5rem" />
+                  Start Date
+                </Text>
+                <DatePicker
+                  selected={startDate}
+                  onChange={(date) => setStartDate(date)}
+                  dateFormat="yyyy-MM-dd"
+                  placeholderText="Select start date"
+                  isClearable
+                  className="date-picker-input"
+                />
+              </GridItem>
+              <GridItem>
+                <Text fontWeight="bold" marginBottom="0.5rem">
+                  <CalendarIcon marginRight="0.5rem" />
+                  End Date
+                </Text>
+                <DatePicker
+                  selected={endDate}
+                  onChange={(date) => setEndDate(date)}
+                  dateFormat="yyyy-MM-dd"
+                  placeholderText="Select end date"
+                  isClearable
+                  className="date-picker-input"
+                />
+              </GridItem>
+            </Grid>
+          )}
+
+          {/* Export Options */}
+          <Flex justifyContent="flex-end">
+            <Menu>
+              <MenuButton as={Button} rightIcon={<ChevronDownIcon />} colorScheme="blue">
+                Export Report
+              </MenuButton>
+              <MenuList>
+                <MenuItem onClick={exportToCSV}>Export as CSV</MenuItem>
+                <MenuItem onClick={exportToPDF}>Export as PDF</MenuItem>
+                <MenuItem onClick={() => {
+                  const data = selectedReportType === 'daily-records' ? paginatedData : filteredStudentData;
+                  const ws = XLSX.utils.json_to_sheet(data);
+                  const wb = XLSX.utils.book_new();
+                  XLSX.utils.book_append_sheet(wb, ws, `${REPORT_TYPES.find(t => t.value === selectedReportType)?.label} Report`);
+                  XLSX.writeFile(wb, `${selectedReportType}_report_${new Date().toISOString().split('T')[0]}.xlsx`);
+                }}>Export as Excel</MenuItem>
+              </MenuList>
+            </Menu>
+          </Flex>
+        </VStack>
+      </Card>
+
+      <Tabs variant="enclosed" colorScheme="blue" index={REPORT_TYPES.findIndex(rt => rt.value === selectedReportType)} onChange={(index) => setSelectedReportType(REPORT_TYPES[index].value)}>
         <TabList>
-          <Tab>Class Reports</Tab>
-          <Tab>Student Reports</Tab>
+          {REPORT_TYPES.map((reportType) => (
+            <Tab key={reportType.value}>{reportType.label}</Tab>
+          ))}
         </TabList>
 
         <TabPanels>
+          {/* Daily Records Tab */}
           <TabPanel>
-            {/* Filters */}
-            <Card marginBottom="2rem" padding="1rem">
-              <Grid templateColumns={{ base: '1fr', md: 'repeat(5, 1fr)' }} gap={4} alignItems="end">
-                <GridItem>
-                  <Text fontWeight="bold" marginBottom="0.5rem">Search</Text>
-                  <InputGroup>
-                    <InputLeftElement pointerEvents="none">
-                      <SearchIcon color="gray.300" />
-                    </InputLeftElement>
-                    <Input
-                      placeholder="Search by date, grade, or section..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                  </InputGroup>
-                </GridItem>
-                <GridItem>
-                  <Text fontWeight="bold" marginBottom="0.5rem">Grade</Text>
-                  <Select value={selectedGrade} onChange={(e) => setSelectedGrade(e.target.value)} placeholder="All Grades">
-                    <option value="all">All Grades</option>
-                    {availableGrades.map(grade => (
-                      <option key={grade} value={grade}>{grade}</option>
-                    ))}
-                  </Select>
-                </GridItem>
-                <GridItem>
-                  <Text fontWeight="bold" marginBottom="0.5rem">Section</Text>
-                  <VStack align="stretch" spacing={1}>
-                    <Select value={selectedSection} onChange={(e) => setSelectedSection(e.target.value)} placeholder="All Sections">
-                      <option value="all">All Sections</option>
-                      {selectedGrade !== 'all' ? sectionsForGrade.map(section => (
-                        <option key={section} value={section}>{section}</option>
-                      )) : availableSections.map(section => (
-                        <option key={section} value={section}>{section}</option>
+
+            {/* Summary Stats */}
+            <Grid templateColumns={{ base: '1fr', md: 'repeat(4, 1fr)' }} gap={6} marginBottom="2rem">
+              <GridItem>
+                <Card>
+                  <Box padding="1rem">
+                    <Stat>
+                      <StatLabel>Average Attendance Rate</StatLabel>
+                      <StatNumber>{summaryStats.avgRate.toFixed(1)}%</StatNumber>
+                      <StatHelpText>
+                        <StatArrow type="increase" />
+                        2.1% from last month
+                      </StatHelpText>
+                    </Stat>
+                  </Box>
+                </Card>
+              </GridItem>
+              <GridItem>
+                <Card>
+                  <Box padding="1rem">
+                    <Stat>
+                      <StatLabel>Total Students</StatLabel>
+                      <StatNumber>{summaryStats.totalStudents}</StatNumber>
+                    </Stat>
+                  </Box>
+                </Card>
+              </GridItem>
+              <GridItem>
+                <Card>
+                  <Box padding="1rem">
+                    <Stat>
+                      <StatLabel>Students with Low Attendance</StatLabel>
+                      <StatNumber color="red.500">{summaryStats.lowAttendance}</StatNumber>
+                      <StatHelpText>
+                        Below 70% attendance
+                      </StatHelpText>
+                    </Stat>
+                  </Box>
+                </Card>
+              </GridItem>
+              <GridItem>
+                <Card>
+                  <Box padding="1rem">
+                    <Stat>
+                      <StatLabel>Perfect Attendance</StatLabel>
+                      <StatNumber color="green.500">{summaryStats.perfectAttendance}</StatNumber>
+                      <StatHelpText>
+                        100% attendance rate
+                      </StatHelpText>
+                    </Stat>
+                  </Box>
+                </Card>
+              </GridItem>
+            </Grid>
+
+            {/* Attendance Percentage by Grade Chart */}
+            <Grid templateColumns={{ base: '1fr' }} gap={6} marginBottom="2rem">
+              <GridItem>
+                <Card>
+                  <Box padding="1rem">
+                    <Heading size="md" marginBottom="1rem">Attendance Percentage by Grade</Heading>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <BarChart data={gradeSectionData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" />
+                        <YAxis />
+                        <Tooltip formatter={(value: any) => [`${value}`, 'Count']} />
+                        <Legend />
+                        <Bar dataKey="present" fill="#38B2AC" name="Present" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                    <Text fontSize="sm" color="gray.600" marginTop="0.5rem">
+                      Attendance percentages across different grades and sections
+                    </Text>
+                  </Box>
+                </Card>
+              </GridItem>
+            </Grid>
+
+            {/* Detailed Attendance Report Table */}
+            <Card>
+              <Box padding="1rem">
+                <Heading size="md" marginBottom="1rem">Detailed Attendance Report</Heading>
+
+                <TableContainer>
+                  <Table variant="simple">
+                    <Thead>
+                      <Tr>
+                        <Th
+                          cursor="pointer"
+                          onClick={() => setSortConfig(sortConfig?.key === 'date' && sortConfig.direction === 'asc' ? { key: 'date', direction: 'desc' } : { key: 'date', direction: 'asc' })}
+                        >
+                          Date {sortConfig?.key === 'date' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                        </Th>
+                        <Th
+                          cursor="pointer"
+                          onClick={() => setSortConfig(sortConfig?.key === 'grade' && sortConfig.direction === 'asc' ? { key: 'grade', direction: 'desc' } : { key: 'grade', direction: 'asc' })}
+                        >
+                          Grade {sortConfig?.key === 'grade' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                        </Th>
+                        <Th
+                          cursor="pointer"
+                          onClick={() => setSortConfig(sortConfig?.key === 'section' && sortConfig.direction === 'asc' ? { key: 'section', direction: 'desc' } : { key: 'section', direction: 'asc' })}
+                        >
+                          Section {sortConfig?.key === 'section' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                        </Th>
+                        <Th
+                          cursor="pointer"
+                          onClick={() => setSortConfig(sortConfig?.key === 'present' && sortConfig.direction === 'asc' ? { key: 'present', direction: 'desc' } : { key: 'present', direction: 'asc' })}
+                        >
+                          Present {sortConfig?.key === 'present' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                        </Th>
+                        <Th
+                          cursor="pointer"
+                          onClick={() => setSortConfig(sortConfig?.key === 'rate' && sortConfig.direction === 'asc' ? { key: 'rate', direction: 'desc' } : { key: 'rate', direction: 'asc' })}
+                        >
+                          Attendance Rate {sortConfig?.key === 'rate' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                        </Th>
+                      </Tr>
+                    </Thead>
+                    <Tbody>
+                      {paginatedData.map((row: any, index: number) => (
+                        <Tr key={index}>
+                          <Td>{row.date}</Td>
+                          <Td>{row.grade}</Td>
+                          <Td>{row.section}</Td>
+                          <Td color="green.500">{row.present}</Td>
+                          <Td>{row.rate}%</Td>
+                        </Tr>
                       ))}
-                    </Select>
-                    <HStack spacing={1}>
-                      <Button size="xs" onClick={() => setSectionSortOrder('asc')} colorScheme={sectionSortOrder === 'asc' ? 'blue' : 'gray'}>
-                        A-Z
+                    </Tbody>
+                  </Table>
+                </TableContainer>
+
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                  <Box marginTop="1rem" display="flex" justifyContent="center" alignItems="center" gap={2}>
+                    <Button
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                      isDisabled={currentPage === 1}
+                    >
+                      Previous
+                    </Button>
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                      <Button
+                        key={page}
+                        size="sm"
+                        colorScheme={currentPage === page ? 'blue' : 'gray'}
+                        onClick={() => setCurrentPage(page)}
+                      >
+                        {page}
                       </Button>
-                      <Button size="xs" onClick={() => setSectionSortOrder('desc')} colorScheme={sectionSortOrder === 'desc' ? 'blue' : 'gray'}>
-                        Z-A
-                      </Button>
-                    </HStack>
-                  </VStack>
-                </GridItem>
-                <GridItem>
-                  <Text fontWeight="bold" marginBottom="0.5rem">Date Range</Text>
-                  <Select value={selectedDateRange} onChange={(e) => setSelectedDateRange(e.target.value)} placeholder="Last 7 days">
-                    <option value="7days">Last 7 days</option>
-                    <option value="30days">Last 30 days</option>
-                    <option value="90days">Last 90 days</option>
-                  </Select>
-                </GridItem>
-                <GridItem>
-                  <Menu>
-                    <MenuButton as={Button} rightIcon={<ChevronDownIcon />} colorScheme="blue">
-                      Export Report
-                    </MenuButton>
-                    <MenuList>
-                      <MenuItem onClick={exportToCSV}>Export as CSV</MenuItem>
-                      <MenuItem onClick={exportToPDF}>Export as PDF</MenuItem>
-                    </MenuList>
-                  </Menu>
-                </GridItem>
-              </Grid>
-            </Card>
-
-      {/* Summary Stats */}
-      <Grid templateColumns={{ base: '1fr', md: 'repeat(4, 1fr)' }} gap={6} marginBottom="2rem">
-        <GridItem>
-          <Card>
-            <Box padding="1rem">
-              <Stat>
-                <StatLabel>Average Attendance Rate</StatLabel>
-                <StatNumber>{summaryStats.avgRate.toFixed(1)}%</StatNumber>
-                <StatHelpText>
-                  <StatArrow type="increase" />
-                  2.1% from last month
-                </StatHelpText>
-              </Stat>
-            </Box>
-          </Card>
-        </GridItem>
-        <GridItem>
-          <Card>
-            <Box padding="1rem">
-              <Stat>
-                <StatLabel>Total Students</StatLabel>
-                <StatNumber>{summaryStats.totalStudents}</StatNumber>
-              </Stat>
-            </Box>
-          </Card>
-        </GridItem>
-        <GridItem>
-          <Card>
-            <Box padding="1rem">
-              <Stat>
-                <StatLabel>Students with Low Attendance</StatLabel>
-                <StatNumber color="red.500">{summaryStats.lowAttendance}</StatNumber>
-                <StatHelpText>
-                  Below 70% attendance
-                </StatHelpText>
-              </Stat>
-            </Box>
-          </Card>
-        </GridItem>
-        <GridItem>
-          <Card>
-            <Box padding="1rem">
-              <Stat>
-                <StatLabel>Perfect Attendance</StatLabel>
-                <StatNumber color="green.500">{summaryStats.perfectAttendance}</StatNumber>
-                <StatHelpText>
-                  100% attendance rate
-                </StatHelpText>
-              </Stat>
-            </Box>
-          </Card>
-        </GridItem>
-      </Grid>
-
-      {/* Charts Section */}
-      <Grid templateColumns={{ base: '1fr', md: 'repeat(2, 1fr)' }} gap={6} marginBottom="2rem">
-        {/* Attendance Trend Chart */}
-        <GridItem>
-          <Card>
-            <Box padding="1rem">
-              <Heading size="md" marginBottom="1rem">Attendance Trend</Heading>
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={attendanceTrendData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" />
-                  <YAxis />
-                  <Tooltip formatter={(value: any) => [`${value}%`, 'Attendance Rate']} />
-                  <Legend />
-                  <Line type="monotone" dataKey="rate" stroke="#38B2AC" strokeWidth={2} />
-                </LineChart>
-              </ResponsiveContainer>
-            </Box>
-          </Card>
-        </GridItem>
-
-        {/* Attendance Distribution Pie Chart */}
-        <GridItem>
-          <Card>
-            <Box padding="1rem">
-              <Heading size="md" marginBottom="1rem">Attendance Distribution</Heading>
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={attendanceRateData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={(entry: any) => {
-                      const total = attendanceRateData.reduce((sum: number, item: any) => sum + item.value, 0);
-                      const percent = total > 0 ? (entry.value / total) * 100 : 0;
-                      return `${entry.name} ${percent.toFixed(0)}%`;
-                    }}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {attendanceRateData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </Box>
-          </Card>
-        </GridItem>
-      </Grid>
-
-      {/* Grade/Section Comparison Chart */}
-      <Card marginBottom="2rem">
-        <Box padding="1rem">
-          <Heading size="md" marginBottom="1rem">Grade & Section Comparison</Heading>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={gradeSectionData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Bar dataKey="present" fill="#38B2AC" name="Present" />
-              <Bar dataKey="absent" fill="#E53E3E" name="Absent" />
-            </BarChart>
-          </ResponsiveContainer>
-        </Box>
-      </Card>
-
-      {/* Trend Analysis and Comparison Reports */}
-      <Grid templateColumns={{ base: '1fr', md: 'repeat(2, 1fr)' }} gap={6} marginBottom="2rem">
-        {/* Monthly Trend Analysis */}
-        <GridItem>
-          <Card>
-            <Box padding="1rem">
-              <Heading size="md" marginBottom="1rem">Monthly Attendance Trends</Heading>
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={attendanceTrendData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" />
-                  <YAxis />
-                  <Tooltip formatter={(value: any) => [`${value}%`, 'Attendance Rate']} />
-                  <Legend />
-                  <Line type="monotone" dataKey="rate" stroke="#3182CE" strokeWidth={3} name="Current Period" />
-                  <Line type="monotone" dataKey="rate" stroke="#E53E3E" strokeWidth={2} strokeDasharray="5 5" name="Previous Period" />
-                </LineChart>
-              </ResponsiveContainer>
-              <Text fontSize="sm" color="gray.600" marginTop="0.5rem">
-                Compare current vs previous period attendance trends
-              </Text>
-            </Box>
-          </Card>
-        </GridItem>
-
-        {/* Grade-wise Performance Comparison */}
-        <GridItem>
-          <Card>
-            <Box padding="1rem">
-              <Heading size="md" marginBottom="1rem">Grade Performance Comparison</Heading>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={gradeSectionData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip formatter={(value: any) => [`${value}`, 'Count']} />
-                  <Legend />
-                  <Bar dataKey="present" fill="#38B2AC" name="Present" />
-                  <Bar dataKey="absent" fill="#E53E3E" name="Absent" />
-                </BarChart>
-              </ResponsiveContainer>
-              <Text fontSize="sm" color="gray.600" marginTop="0.5rem">
-                Compare attendance across different grades and sections
-              </Text>
-            </Box>
-          </Card>
-        </GridItem>
-      </Grid>
-
-      {/* Attendance Pattern Analysis */}
-      <Card marginBottom="2rem">
-        <Box padding="1rem">
-          <Heading size="md" marginBottom="1rem">Attendance Pattern Analysis</Heading>
-          <Grid templateColumns={{ base: '1fr', md: 'repeat(3, 1fr)' }} gap={4} marginBottom="1rem">
-            <Box>
-              <Text fontWeight="bold">Peak Attendance Days</Text>
-              <Text fontSize="sm" color="gray.600">Monday, Wednesday, Friday</Text>
-            </Box>
-            <Box>
-              <Text fontWeight="bold">Low Attendance Days</Text>
-              <Text fontSize="sm" color="gray.600">Tuesday, Thursday</Text>
-            </Box>
-            <Box>
-              <Text fontWeight="bold">Improvement Trend</Text>
-              <Text fontSize="sm" color="green.500">+5.2% over last month</Text>
-            </Box>
-          </Grid>
-          <ResponsiveContainer width="100%" height={250}>
-            <LineChart data={attendanceTrendData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
-              <YAxis />
-              <Tooltip formatter={(value: any) => [`${value}%`, 'Attendance Rate']} />
-              <Legend />
-              <Line type="monotone" dataKey="rate" stroke="#38B2AC" strokeWidth={2} />
-            </LineChart>
-          </ResponsiveContainer>
-        </Box>
-      </Card>
-
-      {/* Summary Analysis Table */}
-      <Card marginBottom="2rem">
-        <Box padding="1rem">
-          <Heading size="md" marginBottom="1rem">Summary Analysis Report</Heading>
-          <TableContainer>
-            <Table variant="simple">
-              <Thead>
-                <Tr>
-                  <Th>Category</Th>
-                  <Th>Value</Th>
-                </Tr>
-              </Thead>
-              <Tbody>
-                <Tr>
-                  <Td>Average Attendance Rate</Td>
-                  <Td>{summaryStats.avgRate.toFixed(1)}%</Td>
-                </Tr>
-                <Tr>
-                  <Td>Total Students</Td>
-                  <Td>{summaryStats.totalStudents}</Td>
-                </Tr>
-                <Tr>
-                  <Td>Low Attendance Cases</Td>
-                  <Td>{summaryStats.lowAttendance}</Td>
-                </Tr>
-                <Tr>
-                  <Td>Perfect Attendance</Td>
-                  <Td>{summaryStats.perfectAttendance}</Td>
-                </Tr>
-              </Tbody>
-            </Table>
-          </TableContainer>
-        </Box>
-      </Card>
-
-      {/* Attendance Table */}
-      <Card>
-        <Box padding="1rem">
-          <Heading size="md" marginBottom="1rem">Detailed Attendance Report</Heading>
-
-          <TableContainer>
-            <Table variant="simple">
-              <Thead>
-                <Tr>
-                  <Th
-                    cursor="pointer"
-                    onClick={() => setSortConfig(sortConfig?.key === 'date' && sortConfig.direction === 'asc' ? { key: 'date', direction: 'desc' } : { key: 'date', direction: 'asc' })}
-                  >
-                    Date {sortConfig?.key === 'date' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                  </Th>
-                  <Th
-                    cursor="pointer"
-                    onClick={() => setSortConfig(sortConfig?.key === 'grade' && sortConfig.direction === 'asc' ? { key: 'grade', direction: 'desc' } : { key: 'grade', direction: 'asc' })}
-                  >
-                    Grade {sortConfig?.key === 'grade' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                  </Th>
-                  <Th
-                    cursor="pointer"
-                    onClick={() => setSortConfig(sortConfig?.key === 'section' && sortConfig.direction === 'asc' ? { key: 'section', direction: 'desc' } : { key: 'section', direction: 'asc' })}
-                  >
-                    Section {sortConfig?.key === 'section' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                  </Th>
-                  <Th
-                    cursor="pointer"
-                    onClick={() => setSortConfig(sortConfig?.key === 'present' && sortConfig.direction === 'asc' ? { key: 'present', direction: 'desc' } : { key: 'present', direction: 'asc' })}
-                  >
-                    Present {sortConfig?.key === 'present' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                  </Th>
-                  <Th
-                    cursor="pointer"
-                    onClick={() => setSortConfig(sortConfig?.key === 'absent' && sortConfig.direction === 'asc' ? { key: 'absent', direction: 'desc' } : { key: 'absent', direction: 'asc' })}
-                  >
-                    Absent {sortConfig?.key === 'absent' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                  </Th>
-                  <Th
-                    cursor="pointer"
-                    onClick={() => setSortConfig(sortConfig?.key === 'rate' && sortConfig.direction === 'asc' ? { key: 'rate', direction: 'desc' } : { key: 'rate', direction: 'asc' })}
-                  >
-                    Attendance Rate {sortConfig?.key === 'rate' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                  </Th>
-                </Tr>
-              </Thead>
-              <Tbody>
-                {paginatedData.map((row, index) => (
-                  <Tr key={index}>
-                    <Td>{row.date}</Td>
-                    <Td>{row.grade}</Td>
-                    <Td>{row.section}</Td>
-                    <Td color="green.500">{row.present}</Td>
-                    <Td color="red.500">{row.absent}</Td>
-                    <Td>{row.rate}%</Td>
-                  </Tr>
-                ))}
-              </Tbody>
-            </Table>
-          </TableContainer>
-
-          {/* Pagination Controls */}
-          {totalPages > 1 && (
-            <Box marginTop="1rem" display="flex" justifyContent="center" alignItems="center" gap={2}>
-              <Button
-                size="sm"
-                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                isDisabled={currentPage === 1}
-              >
-                Previous
-              </Button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                <Button
-                  key={page}
-                  size="sm"
-                  colorScheme={currentPage === page ? 'blue' : 'gray'}
-                  onClick={() => setCurrentPage(page)}
-                >
-                  {page}
-                </Button>
-              ))}
-              <Button
-                size="sm"
-                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                isDisabled={currentPage === totalPages}
-              >
-                Next
-              </Button>
-            </Box>
-          )}
-        </Box>
-      </Card>
+                    <Button
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                      isDisabled={currentPage === totalPages}
+                    >
+                      Next
+                    </Button>
+                  </Box>
+                )}
+              </Box>
+            </Card>
           </TabPanel>
 
+          {/* Student Summary Tab */}
           <TabPanel>
-            {/* Student Reports - Hierarchical Structure */}
-            <Card marginBottom="2rem" padding="1rem">
-              <VStack spacing={6} align="stretch">
-                {/* Grades Selection */}
-                <Box>
-                  <Text fontWeight="bold" marginBottom="1rem" fontSize="lg">Select Grade</Text>
-                  <Grid templateColumns={{ base: 'repeat(2, 1fr)', md: 'repeat(6, 1fr)' }} gap={4}>
-                    {availableGrades.map(grade => (
-                      <Button
-                        key={grade}
-                        colorScheme={selectedGrade === grade ? 'blue' : 'gray'}
-                        variant={selectedGrade === grade ? 'solid' : 'outline'}
-                        onClick={() => {
-                          setSelectedGrade(grade);
-                          setSelectedSection('');
-                          setSelectedStudent(null);
-                        }}
-                        size="lg"
-                        height="50px"
-                      >
-                        Grade {grade}
-                      </Button>
-                    ))}
-                  </Grid>
-                </Box>
+            <VStack spacing={4} align="stretch">
+              <Heading size="md">Student Attendance Summary</Heading>
 
-                {/* Sections for Selected Grade */}
-                {selectedGrade && (
-                  <Box>
-                    <Text fontWeight="bold" marginBottom="1rem" fontSize="lg">Select Section</Text>
-                    <Grid templateColumns={{ base: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }} gap={4}>
-                      {sectionsForGrade.map(section => (
-                        <Button
-                          key={section}
-                          colorScheme={selectedSection === section ? 'green' : 'gray'}
-                          variant={selectedSection === section ? 'solid' : 'outline'}
-                          onClick={() => {
-                            setSelectedSection(section);
-                            setSelectedStudent(null);
-                          }}
-                          size="lg"
-                          height="50px"
-                        >
-                          Section {section}
-                        </Button>
-                      ))}
-                    </Grid>
-                  </Box>
-                )}
-
-                {/* Students for Selected Grade and Section */}
-                {selectedGrade && selectedSection && (
-                  <Box>
-                    <Text fontWeight="bold" marginBottom="1rem" fontSize="lg">Select Student</Text>
-                    <Grid templateColumns={{ base: 'repeat(1, 1fr)', md: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' }} gap={4}>
-                      {studentsForGradeAndSection.map(student => (
-                        <Button
-                          key={student.id}
-                          colorScheme={selectedStudent?.id === student.id ? 'purple' : 'gray'}
-                          variant={selectedStudent?.id === student.id ? 'solid' : 'outline'}
-                          onClick={() => setSelectedStudent(student)}
-                          size="md"
-                          height="auto"
-                          padding="1rem"
-                          whiteSpace="normal"
-                          textAlign="left"
-                        >
-                          <VStack align="start" spacing={1}>
-                            <Text fontWeight="bold">{student.name}</Text>
-                            <Text fontSize="sm" color="gray.600">Matric: {student.matric_no}</Text>
-                          </VStack>
-                        </Button>
-                      ))}
-                    </Grid>
-                  </Box>
-                )}
-
-                {/* Manual Attendance Marking */}
-                {selectedStudent && (
-                  <Card padding="1rem" marginTop="1rem">
-                    <VStack spacing={4} align="stretch">
-                      <Heading size="md">Mark Attendance for {selectedStudent.name}</Heading>
-
-                      <Grid templateColumns={{ base: '1fr', md: 'repeat(3, 1fr)' }} gap={4} alignItems="end">
-                        <GridItem>
-                          <Text fontWeight="bold" marginBottom="0.5rem">Select Dates</Text>
-                          <DatePicker
-                            selected={null}
-                            onChange={(date) => {
-                              if (date) {
-                                setMarkAttendanceDates(prev => [...prev, date]);
-                              }
-                            }}
-                            placeholderText="Click to select dates"
-                            dateFormat="yyyy-MM-dd"
-                            isClearable
-                            inline
-                          />
-                          {markAttendanceDates.length > 0 && (
-                            <Box marginTop="0.5rem">
-                              <Text fontSize="sm" fontWeight="bold">Selected Dates:</Text>
-                              <HStack spacing={2} wrap="wrap">
-                                {markAttendanceDates.map((date, index) => (
-                                  <Button
-                                    key={index}
-                                    size="xs"
-                                    colorScheme="red"
-                                    variant="outline"
-                                    onClick={() => setMarkAttendanceDates(prev => prev.filter((_, i) => i !== index))}
-                                  >
-                                    {date.toLocaleDateString()} ×
-                                  </Button>
-                                ))}
-                              </HStack>
-                            </Box>
-                          )}
-                        </GridItem>
-
-                        <GridItem>
-                          <Text fontWeight="bold" marginBottom="0.5rem">Status</Text>
-                          <Select
-                            value={markAttendanceStatus}
-                            onChange={(e) => setMarkAttendanceStatus(e.target.value as 'late' | 'absent')}
-                          >
-                            <option value="absent">Absent</option>
-                            <option value="late">Late</option>
-                          </Select>
-                        </GridItem>
-
-                        <GridItem>
-                          <Button
-                            colorScheme="blue"
-                            onClick={() => {
-                              if (selectedStudent && markAttendanceDates.length > 0) {
-                                markStudentAttendance({
-                                  staffId: staffInfo?.id || '',
-                                  studentId: selectedStudent.id,
-                                  dates: markAttendanceDates.map(date => date.toISOString().split('T')[0]),
-                                  status: markAttendanceStatus,
-                                  section: selectedStudent.section || markAttendanceSection,
-                                }, {
-                                  onSuccess: () => {
-                                    toast({
-                                      title: 'Attendance marked successfully',
-                                      status: 'success',
-                                      duration: 3000,
-                                      isClosable: true,
-                                    });
-                                    setMarkAttendanceDates([]);
-                                  },
-                                  onError: (error) => {
-                                    toast({
-                                      title: 'Failed to mark attendance',
-                                      description: error.message || 'An error occurred',
-                                      status: 'error',
-                                      duration: 3000,
-                                      isClosable: true,
-                                    });
-                                  },
-                                });
-                              }
-                            }}
-                            isDisabled={markAttendanceDates.length === 0}
-                          >
-                            Mark Attendance
-                          </Button>
-                        </GridItem>
-                      </Grid>
-                    </VStack>
+              {/* Student Summary Stats */}
+              <Grid templateColumns={{ base: '1fr', md: 'repeat(4, 1fr)' }} gap={6} marginBottom="2rem">
+                <GridItem>
+                  <Card>
+                    <Box padding="1rem">
+                      <Stat>
+                        <StatLabel>Students Tracked</StatLabel>
+                        <StatNumber>{summaryStats.totalStudents}</StatNumber>
+                      </Stat>
+                    </Box>
                   </Card>
-                )}
-              </VStack>
-            </Card>
+                </GridItem>
+                <GridItem>
+                  <Card>
+                    <Box padding="1rem">
+                      <Stat>
+                        <StatLabel>Average Attendance</StatLabel>
+                        <StatNumber>{summaryStats.avgRate.toFixed(1)}%</StatNumber>
+                      </Stat>
+                    </Box>
+                  </Card>
+                </GridItem>
+                <GridItem>
+                  <Card>
+                    <Box padding="1rem">
+                      <Stat>
+                        <StatLabel>Students with Low Attendance</StatLabel>
+                        <StatNumber color="red.500">{summaryStats.lowAttendance}</StatNumber>
+                      </Stat>
+                    </Box>
+                  </Card>
+                </GridItem>
+                <GridItem>
+                  <Card>
+                    <Box padding="1rem">
+                      <Stat>
+                        <StatLabel>Perfect Attendance</StatLabel>
+                        <StatNumber color="green.500">{summaryStats.perfectAttendance}</StatNumber>
+                      </Stat>
+                    </Box>
+                  </Card>
+                </GridItem>
+              </Grid>
+
+              {/* Student Attendance Table */}
+              <Card>
+                <Box padding="1rem">
+                  <Heading size="md" marginBottom="1rem">Student Attendance Records</Heading>
+                  <TableContainer>
+                    <Table variant="simple">
+                      <Thead>
+                        <Tr>
+                          <Th>Student Name</Th>
+                          <Th>Matric No</Th>
+                          <Th>Grade</Th>
+                          <Th>Date</Th>
+                          <Th>Status</Th>
+                          <Th>Section</Th>
+                        </Tr>
+                      </Thead>
+                      <Tbody>
+                        {studentPaginatedData.map((row: any, index: number) => (
+                          <Tr key={index}>
+                            <Td>{row.student_name}</Td>
+                            <Td>{row.matric_no}</Td>
+                            <Td>{row.grade}</Td>
+                            <Td>{row.date}</Td>
+                            <Td>
+                              <Badge colorScheme={row.status === 'present' ? 'green' : 'red'}>
+                                {row.status}
+                              </Badge>
+                            </Td>
+                            <Td>{row.section}</Td>
+                          </Tr>
+                        ))}
+                      </Tbody>
+                    </Table>
+                  </TableContainer>
+
+                  {/* Pagination for students */}
+                  {studentTotalPages > 1 && (
+                    <Box marginTop="1rem" display="flex" justifyContent="center" alignItems="center" gap={2}>
+                      <Button
+                        size="sm"
+                        onClick={() => setStudentCurrentPage(prev => Math.max(prev - 1, 1))}
+                        isDisabled={studentCurrentPage === 1}
+                      >
+                        Previous
+                      </Button>
+                      {Array.from({ length: studentTotalPages }, (_, i) => i + 1).map(page => (
+                        <Button
+                          key={page}
+                          size="sm"
+                          colorScheme={studentCurrentPage === page ? 'blue' : 'gray'}
+                          onClick={() => setStudentCurrentPage(page)}
+                        >
+                          {page}
+                        </Button>
+                      ))}
+                      <Button
+                        size="sm"
+                        onClick={() => setStudentCurrentPage(prev => Math.min(prev + 1, studentTotalPages))}
+                        isDisabled={studentCurrentPage === studentTotalPages}
+                      >
+                        Next
+                      </Button>
+                    </Box>
+                  )}
+                </Box>
+              </Card>
+            </VStack>
+          </TabPanel>
 
 
+
+          {/* Attendance Trends Tab */}
+          <TabPanel>
+            <VStack spacing={4} align="stretch">
+              <Heading size="md">Attendance Trends</Heading>
+
+              {/* Attendance Trend Chart */}
+              <Card>
+                <Box padding="1rem">
+                  <Heading size="md" marginBottom="1rem">Attendance Trend Over Time</Heading>
+                  <ResponsiveContainer width="100%" height={400}>
+                    <LineChart data={attendanceTrendData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="date" />
+                      <YAxis />
+                      <Tooltip />
+                      <Legend />
+                      <Line type="monotone" dataKey="present" stroke="#38B2AC" name="Present" />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </Box>
+              </Card>
+
+              {/* Monthly Attendance Trends */}
+              <Card>
+                <Box padding="1rem">
+                  <Heading size="md" marginBottom="1rem">Monthly Attendance Trends</Heading>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <AreaChart data={attendanceTrendData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="date" />
+                      <YAxis />
+                      <Tooltip />
+                      <Area type="monotone" dataKey="rate" stroke="#3182CE" fill="#3182CE" fillOpacity={0.3} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </Box>
+              </Card>
+            </VStack>
+          </TabPanel>
+
+          {/* Attendance Patterns Tab */}
+          <TabPanel>
+            <VStack spacing={4} align="stretch">
+              <Heading size="md">Attendance Patterns</Heading>
+
+              {/* Attendance Status Distribution */}
+              <Card>
+                <Box padding="1rem">
+                  <Heading size="md" marginBottom="1rem">Attendance Status Distribution</Heading>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie
+                        data={attendanceRateData}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                        outerRadius={80}
+                        fill="#8884d8"
+                        dataKey="value"
+                      >
+                        {attendanceRateData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </Box>
+              </Card>
+
+              {/* Grade-Section Attendance Patterns */}
+              <Card>
+                <Box padding="1rem">
+                  <Heading size="md" marginBottom="1rem">Grade-Section Attendance Patterns</Heading>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={gradeSectionData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="name" />
+                      <YAxis />
+                      <Tooltip />
+                      <Legend />
+                      <Bar dataKey="present" fill="#38B2AC" name="Present" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </Box>
+              </Card>
+            </VStack>
+          </TabPanel>
+
+          {/* Potential Issues Tab */}
+          <TabPanel>
+            <VStack spacing={4} align="stretch">
+              <Heading size="md">Potential Issues & Alerts</Heading>
+
+              {/* Perfect Attendance Highlights */}
+              <Card>
+                <Box padding="1rem">
+                  <Heading size="md" marginBottom="1rem">Perfect Attendance Highlights</Heading>
+                  <Alert status="success" marginBottom="1rem">
+                    <AlertIcon />
+                    <Box>
+                      <AlertTitle>Students with Perfect Attendance!</AlertTitle>
+                      <AlertDescription>
+                        {summaryStats.perfectAttendance} students have 100% attendance.
+                      </AlertDescription>
+                    </Box>
+                  </Alert>
+                  <TableContainer>
+                    <Table variant="simple">
+                      <Thead>
+                        <Tr>
+                          <Th>Student Name</Th>
+                          <Th>Grade</Th>
+                          <Th>Section</Th>
+                          <Th>Attendance Rate</Th>
+                          <Th>Status</Th>
+                        </Tr>
+                      </Thead>
+                      <Tbody>
+                        {filteredStudentData
+                          .filter(row => row.status === 'present')
+                          .slice(0, 10)
+                          .map((row: any, index: number) => (
+                            <Tr key={index}>
+                              <Td>{row.student_name}</Td>
+                              <Td>{row.grade}</Td>
+                              <Td>{row.section}</Td>
+                              <Td color="green.500">Perfect</Td>
+                              <Td>
+                                <Badge colorScheme="green">Excellent</Badge>
+                              </Td>
+                            </Tr>
+                          ))}
+                      </Tbody>
+                    </Table>
+                  </TableContainer>
+                </Box>
+              </Card>
+
+              {/* Grade Performance Comparison */}
+              <Card>
+                <Box padding="1rem">
+                  <Heading size="md" marginBottom="1rem">Grade Performance Comparison</Heading>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <ComposedChart data={gradeSectionData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="name" />
+                      <YAxis />
+                      <Tooltip />
+                      <Legend />
+                      <Bar dataKey="present" fill="#38B2AC" name="Present" />
+                      <Line type="monotone" dataKey="rate" stroke="#3182CE" name="Rate %" />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </Box>
+              </Card>
+            </VStack>
           </TabPanel>
         </TabPanels>
       </Tabs>

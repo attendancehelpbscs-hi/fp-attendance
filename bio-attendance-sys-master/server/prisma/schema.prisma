@@ -29,6 +29,8 @@ model Staff {
   email                String     @unique
   password             String
   grace_period_minutes Int        @default(15)
+  school_start_time    String     @default("08:00")
+  late_threshold_hours Int        @default(1)
   created_at           DateTime
   courses              Course[]
   students             Student[]
@@ -80,6 +82,7 @@ model StudentCourse {
 }
 
 model StudentAttendance {
+  id             String           @id @default(cuid())
   student        Student         @relation(fields: [student_id], references: [id])
   student_id     String
   attendance     Attendance      @relation(fields: [attendance_id], references: [id])
@@ -89,7 +92,7 @@ model StudentAttendance {
   status         AttendanceStatus @default(present)
   created_at     DateTime         @default(now())
 
-  @@id([student_id, attendance_id])
+  @@index([student_id, attendance_id])
 }
 
 enum TimeType {
@@ -99,8 +102,6 @@ enum TimeType {
 
 enum AttendanceStatus {
   present
-  late
-  absent
 }
 
 model Token {

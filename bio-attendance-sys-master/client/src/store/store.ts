@@ -6,7 +6,7 @@ import envConfig from '../config/environment.config';
 import { persist, devtools } from 'zustand/middleware';
 
 // keys of state to be persisted
-const whiteList: Array<keyof State> = ['staffInfo', 'tokens', 'isAuthenticated'];
+const whiteList: Array<keyof State> = ['staffInfo', 'tokens', 'isAuthenticated', 'staffSettings'];
 
 const useStoreBase = create<State>()(
   devtools(
@@ -14,13 +14,15 @@ const useStoreBase = create<State>()(
       (set) => ({
         count: 0,
         staffInfo: null,
+        staffSettings: null,
         tokens: null,
         isAuthenticated: false,
         increment: () => set((state) => ({ count: state.count + 1 })),
         decrement: () => set((state) => ({ count: state.count - 1 })),
         loginStaff: ({ accessToken, refreshToken, staff }) =>
           set(() => ({ staffInfo: staff, tokens: { accessToken, refreshToken }, isAuthenticated: true })),
-        logoutStaff: () => set({ isAuthenticated: false, tokens: null, staffInfo: null }),
+        logoutStaff: () => set({ isAuthenticated: false, tokens: null, staffInfo: null, staffSettings: null }),
+        setStaffSettings: (settings) => set({ staffSettings: settings }),
       }),
       {
         name: 'bas-persist',

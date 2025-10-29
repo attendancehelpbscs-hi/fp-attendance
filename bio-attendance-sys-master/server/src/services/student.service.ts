@@ -106,13 +106,34 @@ export const getStudentsCourses = (
 export const removeStudentFromDb = (studentId: string): Promise<boolean> => {
   return new Promise<boolean>(async (resolve, reject) => {
     try {
-      const res = await prisma.student.delete({
-        where: {
-          id: studentId,
-        },
+      await prisma.$transaction(async (tx) => {
+        // First, delete all StudentAttendance records associated with this student
+        await tx.studentAttendance.deleteMany({
+          where: {
+            student_id: studentId,
+          },
+        });
+
+        // Then, delete all StudentCourse records associated with this student
+        await tx.studentCourse.deleteMany({
+          where: {
+            student_id: studentId,
+          },
+        });
+
+        // Finally, delete the student
+        const res = await tx.student.delete({
+          where: {
+            id: studentId,
+          },
+        });
+
+        if (!res) {
+          throw new createError.NotFound('Student not found');
+        }
       });
-      if (res) resolve(true);
-      reject(new createError.NotFound('Student not found'));
+
+      resolve(true);
     } catch (err) {
       reject(err);
     }

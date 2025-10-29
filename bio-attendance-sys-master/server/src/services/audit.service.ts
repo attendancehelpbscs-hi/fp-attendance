@@ -15,3 +15,7 @@ export const getAuditLogs = async () => {
     },
   });
 };
+
+export const clearAuditLogs = async () => {
+  return await prisma.auditLog.deleteMany({});
+};

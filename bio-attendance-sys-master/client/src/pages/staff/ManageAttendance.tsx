@@ -36,6 +36,7 @@ import { fingerprintControl } from '../../lib/fingerprint';
 import AddAttendance from '../../components/AddAttendance';
 import { PlusSquareIcon, EditIcon, DeleteIcon, CheckIcon, InfoIcon } from '@chakra-ui/icons';
 import MarkAttendance from '../../components/MarkAttendance';
+
 import { useGetAttendances, useDeleteAttendance } from '../../api/atttendance.api';
 import useStore from '../../store/store';
 import { toast } from 'react-hot-toast';
@@ -54,10 +55,12 @@ const ManageAttendance: FC = () => {
   const [activeAttendance, setActiveAttendance] = useState<Attendance | null>(null);
   const [activeAttendance2, setActiveAttendance2] = useState<Attendance | null>(null);
   const [activeAttendance3, setActiveAttendance3] = useState<Attendance | null>(null);
+
   const [scannerConnected, setScannerConnected] = useState<boolean>(false);
   const [scannerStatus, setScannerStatus] = useState<string>('Checking...');
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
   const [attendanceToDelete, setAttendanceToDelete] = useState<Attendance | null>(null);
+
   const cancelRef = useRef<HTMLButtonElement>(null);
   const { data, error, isLoading, isError } = useGetAttendances(
     staffInfo?.id as string,
@@ -187,7 +190,7 @@ const ManageAttendance: FC = () => {
               </Tr>
             </Thead>
             <Tbody>
-              {data.data.attendances?.map((attendance, idx) => (
+              {data?.data?.attendances?.map((attendance: Attendance, idx: number) => (
                 <Tr key={idx}>
                   <Td>{(page - 1) * per_page + (idx + 1)}</Td>
                   <Td>{attendance.name}</Td>
@@ -300,6 +303,7 @@ const ManageAttendance: FC = () => {
         activeAttendance={activeAttendance2}
       />
       <AttendanceList isOpen={isOpen} onClose={onClose} attendance={activeAttendance3} />
+
 
       <AlertDialog
         isOpen={isDeleteOpen}

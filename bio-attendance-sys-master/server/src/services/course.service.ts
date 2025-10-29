@@ -18,13 +18,27 @@ export const saveCourseToDb = (course: Omit<Course, 'id'>): Promise<Course> => {
 export const removeCourseFromDb = (courseId: string): Promise<boolean> => {
   return new Promise<boolean>(async (resolve, reject) => {
     try {
-      const res = await prisma.course.delete({
-        where: {
-          id: courseId,
-        },
+      await prisma.$transaction(async (tx) => {
+        // First, delete all StudentCourse records associated with this course
+        await tx.studentCourse.deleteMany({
+          where: {
+            course_id: courseId,
+          },
+        });
+
+        // Then, delete the course
+        const res = await tx.course.delete({
+          where: {
+            id: courseId,
+          },
+        });
+
+        if (!res) {
+          throw new createError.NotFound('Course not found');
+        }
       });
-      if (res) resolve(true);
-      reject(new createError.NotFound('Course not found'));
+
+      resolve(true);
     } catch (err) {
       reject(err);
     }

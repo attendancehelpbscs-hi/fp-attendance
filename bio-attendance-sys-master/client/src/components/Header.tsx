@@ -28,36 +28,6 @@ const Header = () => {
                 Dashboard
               </Link>
             </li>
-            <li className="nav-item">
-              <Link to="/staff/manage/students" className={`nav-link ${location.pathname === '/staff/manage/students' ? 'active' : ''}`}>
-                Students
-              </Link>
-            </li>
-            <li className="nav-item">
-              <Link to="/staff/manage/attendance" className={`nav-link ${location.pathname === '/staff/manage/attendance' ? 'active' : ''}`}>
-                Attendance
-              </Link>
-            </li>
-            <li className="nav-item">
-              <Link to="/staff/manage/courses" className={`nav-link ${location.pathname === '/staff/manage/courses' ? 'active' : ''}`}>
-                Courses
-              </Link>
-            </li>
-            <li className="nav-item">
-              <Link to="/staff/reports" className={`nav-link ${location.pathname === '/staff/reports' ? 'active' : ''}`}>
-                Reports
-              </Link>
-            </li>
-            <li className="nav-item">
-              <Link to="/staff/settings" className={`nav-link ${location.pathname === '/staff/settings' ? 'active' : ''}`}>
-                Settings
-              </Link>
-            </li>
-            <li className="nav-item">
-              <Link to="/staff/help" className={`nav-link ${location.pathname === '/staff/help' ? 'active' : ''}`}>
-                Help
-              </Link>
-            </li>
           </ul>
         </nav>
       )}
