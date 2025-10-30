@@ -1,7 +1,0 @@
-- [x] Update CSS variables in bio-attendance-sys-master/client/src/index.scss to implement "Dawn Blue" theme (cancelled)
-- [x] Update CSS variables in bio-attendance-sys-master/client/src/index.scss to implement "Amber Field" theme (cancelled)
-- [x] Update CSS variables in bio-attendance-sys-master/client/src/index.scss to implement "Dawnlight" theme (cancelled)
-- [x] Update CSS variables in bio-attendance-sys-master/client/src/index.scss to implement "Soft Ember" theme (cancelled)
-- [ ] Update CSS variables in bio-attendance-sys-master/client/src/index.scss to implement "Muted Indigo" theme
-- [ ] Run npm run dev in client directory to start development server
-- [ ] Test UI changes using browser to verify theme application
