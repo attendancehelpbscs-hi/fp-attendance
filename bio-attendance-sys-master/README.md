@@ -1,6 +1,6 @@
-# Biometric Attendance System
+# FP Attendance System
 
-This biometric attendance system is a time and attendance tracking system that allows staff or teachers to organize courses, manage students and mark students' attendance using their most unique physical characteristics—their fingerprints. It's built with computer vision (Python OpenCV), Flask and the MERN stack. Inspired by Gideon Idoko's original repository.
+The FP Attendance System is a comprehensive solution designed to streamline time and attendance tracking in educational institutions. It empowers staff and teachers to efficiently organize sections, manage student profiles, and record attendance with unparalleled accuracy using biometric fingerprint technology. Leveraging advanced computer vision techniques powered by Python and OpenCV, along with a robust Flask-based matching server and a full MERN stack architecture, this system ensures secure, reliable, and user-friendly operations. Inspired by Gideon Idoko's original repository, it provides a modern approach to attendance management, reducing manual errors and enhancing productivity in academic environments.
 
 **NB**: This system has been built and tested with The DigitalPersona U.are.U 4500 scanner only. It only supports Windows OS for now.
 
@@ -9,7 +9,7 @@ Download and install the client for windows here: [HID DigitalPersona Client](ht
 ## Features
 
 - **Student Management**: Add, edit, and manage student profiles with biometric data.
-- **Course Management**: Organize and assign courses to students.
+- **Section Management**: Organize and assign sections to students.
 - **Biometric Attendance Marking**: Use fingerprint scanning for secure and accurate attendance tracking.
 - **Manual Attendance Marking**: Option to mark attendance manually if needed.
 - **Reports and Analytics**: Generate detailed reports on attendance, student performance, and audit logs.
@@ -42,7 +42,7 @@ Download and install the client for windows here: [HID DigitalPersona Client](ht
 ## Usage
 
 - Access the React frontend at `http://localhost:3000` after starting all servers.
-- Login as a staff member to manage students, courses, and attendance records.
+- Login as a staff member to manage students, sections, and attendance records.
 - Use the DigitalPersona scanner for biometric attendance marking or opt for manual marking.
 - Generate reports from the Reports section for attendance analytics.
 

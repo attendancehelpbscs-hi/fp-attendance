@@ -1,8 +1,11 @@
 @import url('https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;600;700&display=swap');
 
 :root {
-  --bg-primary: #4D6795; 
-  --bg-primary-light: #5e7aaa; 
+  --bg-primary: #5A5CA1; /* desaturated indigo */
+  --bg-primary-light: #6b6db3; /* lighter variant for hover */
+  --accent: #E9C46A; /* pale gold */
+  --secondary: #2A2A40; /* charcoal indigo */
+  --bg-body: #F9FAFB; /* neutral soft white */
   margin: 0;
   padding: 0;
   box-sizing: border-box;
@@ -11,6 +14,10 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--bg-body);
 }
 
 body, h1, h2, h3, h4, h5, h6 {
