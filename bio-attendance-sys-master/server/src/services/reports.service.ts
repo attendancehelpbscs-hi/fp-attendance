@@ -482,45 +482,47 @@ export const getCheckInTimeAnalysis = async (staff_id: string, filters: { grade?
       time_type: { not: 'OUT' }, // Include IN and null time types for check-ins (exclude OUT)
     };
 
-    if (filters.grade) where.student.grade = filters.grade;
-    if (filters.section) where.section = filters.section;
+    // Temporarily ignore filters to show all data
+    // if (filters.grade) where.student.grade = filters.grade;
+    // if (filters.section) where.section = filters.section;
 
     // Handle dateRange if provided
-    if (filters.dateRange && filters.dateRange !== 'all') {
-      let startDate: string;
-      let endDate: string;
+    // Temporarily ignore dateRange filter to show all data
+    // if (filters.dateRange && filters.dateRange !== 'all') {
+    //   let startDate: string;
+    //   let endDate: string;
 
-      if (filters.dateRange.includes(' - ')) {
-        // It's a date range like "2023-10-01 - 2023-10-07"
-        [startDate, endDate] = filters.dateRange.split(' - ');
-      } else {
-        // It's a period like "7days", "30days", "90days"
-        const now = new Date();
-        endDate = now.toISOString().split('T')[0]; // Today
+    //   if (filters.dateRange.includes(' - ')) {
+    //     // It's a date range like "2023-10-01 - 2023-10-07"
+    //     [startDate, endDate] = filters.dateRange.split(' - ');
+    //   } else {
+    //     // It's a period like "7days", "30days", "90days"
+    //     const now = new Date();
+    //     endDate = now.toISOString().split('T')[0]; // Today
 
-        if (filters.dateRange === '7days') {
-          const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-          startDate = sevenDaysAgo.toISOString().split('T')[0];
-        } else if (filters.dateRange === '30days') {
-          const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-          startDate = thirtyDaysAgo.toISOString().split('T')[0];
-        } else if (filters.dateRange === '90days') {
-          const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-          startDate = ninetyDaysAgo.toISOString().split('T')[0];
-        } else {
-          // Default to 7 days if unrecognized
-          const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-          startDate = sevenDaysAgo.toISOString().split('T')[0];
-        }
-      }
+    //     if (filters.dateRange === '7days') {
+    //       const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    //       startDate = sevenDaysAgo.toISOString().split('T')[0];
+    //     } else if (filters.dateRange === '30days') {
+    //       const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    //       startDate = thirtyDaysAgo.toISOString().split('T')[0];
+    //     } else if (filters.dateRange === '90days') {
+    //       const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+    //       startDate = ninetyDaysAgo.toISOString().split('T')[0];
+    //     } else {
+    //       // Default to 7 days if unrecognized
+    //       const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    //       startDate = sevenDaysAgo.toISOString().split('T')[0];
+    //     }
+    //   }
 
-      where.attendance = {
-        date: {
-          gte: startDate,
-          lte: endDate,
-        },
-      };
-    }
+    //   where.attendance = {
+    //     date: {
+    //       gte: startDate,
+    //     lte: endDate,
+    //     },
+    //   };
+    // }
 
     const checkInRecords = await prisma.studentAttendance.findMany({
       where,
@@ -544,16 +546,16 @@ export const getCheckInTimeAnalysis = async (staff_id: string, filters: { grade?
       // Only consider morning hours (6 AM to 12 PM)
       if (hours < 6 || hours >= 12) return;
 
-      // Calculate 15-minute intervals for finer granularity
-      const intervalStart = Math.floor((hours * 60 + minutes) / 15) * 15;
-      const intervalEnd = intervalStart + 15;
+      // Calculate 30-minute intervals
+      const intervalStart = Math.floor((hours * 60 + minutes) / 30) * 30;
+      const intervalEnd = intervalStart + 30;
 
       const startHour = Math.floor(intervalStart / 60);
       const startMin = intervalStart % 60;
       const endHour = Math.floor(intervalEnd / 60);
       const endMin = intervalEnd % 60;
 
-      const rangeKey = `${startHour.toString().padStart(2, '0')}:${startMin.toString().padStart(2, '0')}–${endHour.toString().padStart(2, '0')}:${endMin.toString().padStart(2, '0')} ${endHour >= 12 ? 'PM' : 'AM'}`;
+      const rangeKey = `${startHour.toString().padStart(2, '0')}:${startMin.toString().padStart(2, '0')}–${endHour.toString().padStart(2, '0')}:${endMin.toString().padStart(2, '0')} ${startHour >= 12 ? 'PM' : 'AM'}`;
 
       if (!timeRanges[rangeKey]) {
         timeRanges[rangeKey] = 0;
@@ -574,16 +576,9 @@ export const getCheckInTimeAnalysis = async (staff_id: string, filters: { grade?
         return aTime.localeCompare(bTime);
       });
 
-    // If no data, return sample data for testing
+    // If no data, return empty array instead of sample data
     if (chartData.length === 0) {
-      return [
-        { timeRange: '06:00–06:30 AM', count: 5 },
-        { timeRange: '06:30–07:00 AM', count: 12 },
-        { timeRange: '07:00–07:30 AM', count: 18 },
-        { timeRange: '07:30–08:00 AM', count: 25 },
-        { timeRange: '08:00–08:30 AM', count: 15 },
-        { timeRange: '08:30–09:00 AM', count: 8 },
-      ];
+      return [];
     }
 
     return chartData;

@@ -69,6 +69,7 @@ import {
   ComposedChart,
 } from 'recharts';
 import { useGetReports, useGetGradesAndSections, useGetStudentReports, useGetSectionsForGrade, useGetStudentsForGradeAndSection, useGetStudentDetailedReport, useMarkStudentAttendance, useGetCheckInTimeAnalysis } from '../../api/atttendance.api';
+import { useGetStudents } from '../../api/student.api';
 import { useToast } from '@chakra-ui/react';
 import { Tabs, TabList, TabPanels, Tab, TabPanel } from '@chakra-ui/react';
 import useStore from '../../store/store';
@@ -100,6 +101,16 @@ const REPORT_TYPES: { value: ReportType; label: string; description: string }[] 
   { value: 'attendance-trends', label: 'Attendance Trends', description: 'Trends and patterns over time' },
   { value: 'attendance-patterns', label: 'Attendance Patterns', description: 'Pattern analysis and insights' },
 ];
+
+// Grade color mapping
+const gradeColors: Record<string, string> = {
+  '1': '#FF6B6B', // Red
+  '2': '#FFA500', // Orange
+  '3': '#FFFF00', // Yellow
+  '4': '#32CD32', // Lime Green
+  '5': '#0000FF', // Blue
+  '6': '#8A2BE2', // Blue Violet
+};
 
 const Reports: FC = () => {
   const staffInfo = useStore.use.staffInfo();
@@ -213,12 +224,17 @@ const Reports: FC = () => {
     refetchOnWindowFocus: false, // Prevent unnecessary refetches
   });
 
-  const { data: checkInTimeAnalysisData } = useGetCheckInTimeAnalysis(staffInfo?.id || '', {
+  const { data: checkInTimeAnalysisData, isLoading: checkInTimeAnalysisLoading } = useGetCheckInTimeAnalysis(staffInfo?.id || '', {
     grade: selectedGrade || undefined,
     section: selectedSection || undefined,
     dateRange: selectedDateRange,
   })({
     queryKey: ['check-in-analysis', staffInfo?.id, selectedGrade, selectedSection, selectedDateRange],
+    enabled: !!staffInfo?.id,
+  });
+
+  const { data: studentsData } = useGetStudents(staffInfo?.id || '')({
+    queryKey: ['students', staffInfo?.id],
     enabled: !!staffInfo?.id,
   });
 
@@ -305,26 +321,27 @@ const Reports: FC = () => {
 
   // Calculate summary stats from filtered data
   const summaryStats = useMemo(() => {
+    const enrolledStudents = studentsData?.data?.students?.length || 0;
     const data = selectedReportType === 'daily-records' ? filteredAttendanceData : filteredStudentData;
-    if (data.length === 0) return { avgRate: 0, totalStudents: 0, lowAttendance: 0, perfectAttendance: 0 };
+    if (data.length === 0) return { avgRate: 0, totalStudents: enrolledStudents, lowAttendance: 0, perfectAttendance: 0 };
 
     if (selectedReportType === 'daily-records') {
       const totalRate = data.reduce((sum: number, item: any) => sum + item.rate, 0);
       const avgRate = totalRate / data.length;
-      const totalStudents = data.reduce((sum: number, item: any) => sum + item.present + item.absent, 0);
+      const totalStudents = enrolledStudents; // Use actual enrolled students count
       const lowAttendance = data.filter((item: any) => item.rate < 70).length;
       const perfectAttendance = data.filter((item: any) => item.rate === 100).length;
       return { avgRate, totalStudents, lowAttendance, perfectAttendance };
     } else {
       // Student-level stats
-      const totalStudents = new Set(data.map((item: any) => item.student_id)).size;
+      const totalStudents = enrolledStudents; // Use actual enrolled students count
       const presentCount = data.filter((item: any) => item.status === 'present').length;
       const avgRate = data.length > 0 ? (presentCount / data.length) * 100 : 0;
       const lowAttendance = 0; // No low attendance since only present is tracked
       const perfectAttendance = data.filter((item: any) => item.status === 'present').length;
       return { avgRate, totalStudents, lowAttendance, perfectAttendance };
     }
-  }, [filteredAttendanceData, filteredStudentData, selectedReportType]);
+  }, [filteredAttendanceData, filteredStudentData, selectedReportType, studentsData]);
 
   // Chart data preparation
   const attendanceTrendData = useMemo(() => {
@@ -350,7 +367,7 @@ const Reports: FC = () => {
     const data = selectedReportType === 'daily-records' ? filteredAttendanceData : filteredStudentData;
     const groups = data.reduce((acc: Record<string, any>, item: any) => {
       const key = `${item.grade} - ${item.section}`;
-      if (!acc[key]) acc[key] = { name: key, present: 0 };
+      if (!acc[key]) acc[key] = { name: key, present: 0, grade: item.grade };
       if (selectedReportType === 'daily-records') {
         acc[key].present += item.present;
       } else {
@@ -361,7 +378,10 @@ const Reports: FC = () => {
       return acc;
     }, {} as Record<string, any>);
 
-    return Object.values(groups);
+    return Object.values(groups).map((item: any) => ({
+      ...item,
+      color: gradeColors[item.grade] || '#38B2AC', // Default to teal if grade not found
+    }));
   }, [filteredAttendanceData, filteredStudentData, selectedReportType]);
 
   const attendanceRateData = useMemo(() => {
@@ -732,52 +752,15 @@ const Reports: FC = () => {
           <TabPanel>
 
             {/* Summary Stats */}
-            <Grid templateColumns={{ base: '1fr', md: 'repeat(4, 1fr)' }} gap={6} marginBottom="2rem">
+            <Grid templateColumns={{ base: '1fr' }} gap={6} marginBottom="2rem">
               <GridItem>
                 <Card>
                   <Box padding="1rem">
                     <Stat>
-                      <StatLabel>Average Attendance Rate</StatLabel>
-                      <StatNumber>{summaryStats.avgRate.toFixed(1)}%</StatNumber>
-                      <StatHelpText>
-                        <StatArrow type="increase" />
-                        2.1% from last month
-                      </StatHelpText>
-                    </Stat>
-                  </Box>
-                </Card>
-              </GridItem>
-              <GridItem>
-                <Card>
-                  <Box padding="1rem">
-                    <Stat>
-                      <StatLabel>Total Students</StatLabel>
+                      <StatLabel>Total Enrolled Students</StatLabel>
                       <StatNumber>{summaryStats.totalStudents}</StatNumber>
-                    </Stat>
-                  </Box>
-                </Card>
-              </GridItem>
-              <GridItem>
-                <Card>
-                  <Box padding="1rem">
-                    <Stat>
-                      <StatLabel>Students with Low Attendance</StatLabel>
-                      <StatNumber color="red.500">{summaryStats.lowAttendance}</StatNumber>
                       <StatHelpText>
-                        Below 70% attendance
-                      </StatHelpText>
-                    </Stat>
-                  </Box>
-                </Card>
-              </GridItem>
-              <GridItem>
-                <Card>
-                  <Box padding="1rem">
-                    <Stat>
-                      <StatLabel>Perfect Attendance</StatLabel>
-                      <StatNumber color="green.500">{summaryStats.perfectAttendance}</StatNumber>
-                      <StatHelpText>
-                        100% attendance rate
+                        Students registered in the system
                       </StatHelpText>
                     </Stat>
                   </Box>
@@ -785,7 +768,7 @@ const Reports: FC = () => {
               </GridItem>
             </Grid>
 
-            {/* Attendance Percentage by Grade Chart */}
+              {/* Attendance Percentage by Grade Chart */}
             <Grid templateColumns={{ base: '1fr' }} gap={6} marginBottom="2rem">
               <GridItem>
                 <Card>
@@ -798,11 +781,15 @@ const Reports: FC = () => {
                         <YAxis />
                         <Tooltip formatter={(value: any) => [`${value}`, 'Count']} />
                         <Legend />
-                        <Bar dataKey="present" fill="#38B2AC" name="Present" />
+                        <Bar dataKey="present" name="Present">
+                          {gradeSectionData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Bar>
                       </BarChart>
                     </ResponsiveContainer>
                     <Text fontSize="sm" color="gray.600" marginTop="0.5rem">
-                      Attendance percentages across different grades and sections
+                      This chart shows the total number of present students for each grade and section combination. Higher bars indicate better attendance in that specific group.
                     </Text>
                   </Box>
                 </Card>
@@ -903,43 +890,16 @@ const Reports: FC = () => {
               <Heading size="md">Student Attendance Summary</Heading>
 
               {/* Student Summary Stats */}
-              <Grid templateColumns={{ base: '1fr', md: 'repeat(4, 1fr)' }} gap={6} marginBottom="2rem">
+              <Grid templateColumns={{ base: '1fr' }} gap={6} marginBottom="2rem">
                 <GridItem>
                   <Card>
                     <Box padding="1rem">
                       <Stat>
-                        <StatLabel>Students Tracked</StatLabel>
+                        <StatLabel>Total Enrolled Students</StatLabel>
                         <StatNumber>{summaryStats.totalStudents}</StatNumber>
-                      </Stat>
-                    </Box>
-                  </Card>
-                </GridItem>
-                <GridItem>
-                  <Card>
-                    <Box padding="1rem">
-                      <Stat>
-                        <StatLabel>Average Attendance</StatLabel>
-                        <StatNumber>{summaryStats.avgRate.toFixed(1)}%</StatNumber>
-                      </Stat>
-                    </Box>
-                  </Card>
-                </GridItem>
-                <GridItem>
-                  <Card>
-                    <Box padding="1rem">
-                      <Stat>
-                        <StatLabel>Students with Low Attendance</StatLabel>
-                        <StatNumber color="red.500">{summaryStats.lowAttendance}</StatNumber>
-                      </Stat>
-                    </Box>
-                  </Card>
-                </GridItem>
-                <GridItem>
-                  <Card>
-                    <Box padding="1rem">
-                      <Stat>
-                        <StatLabel>Perfect Attendance</StatLabel>
-                        <StatNumber color="green.500">{summaryStats.perfectAttendance}</StatNumber>
+                        <StatHelpText>
+                          Students registered in the system
+                        </StatHelpText>
                       </Stat>
                     </Box>
                   </Card>
@@ -1036,6 +996,9 @@ const Reports: FC = () => {
                       <Line type="monotone" dataKey="present" stroke="#38B2AC" name="Present" />
                     </LineChart>
                   </ResponsiveContainer>
+                  <Text fontSize="sm" color="gray.600" marginTop="0.5rem">
+                    This line chart shows the total number of students who checked in as present each day. Since the system only tracks successful biometric check-ins, higher points indicate more students attended that day. Use this to spot attendance patterns, busy days, or unusual drops in participation.
+                  </Text>
                 </Box>
               </Card>
 
@@ -1052,6 +1015,9 @@ const Reports: FC = () => {
                       <Area type="monotone" dataKey="rate" stroke="#3182CE" fill="#3182CE" fillOpacity={0.3} />
                     </AreaChart>
                   </ResponsiveContainer>
+                  <Text fontSize="sm" color="gray.600" marginTop="0.5rem">
+                    This area chart shows the attendance rate percentage over time. The filled area represents the percentage of expected students who successfully checked in via biometrics. A full shaded area (100%) means all enrolled students attended, while lower percentages indicate partial attendance.
+                  </Text>
                 </Box>
               </Card>
             </VStack>
@@ -1062,31 +1028,7 @@ const Reports: FC = () => {
             <VStack spacing={4} align="stretch">
               <Heading size="md">Attendance Patterns</Heading>
 
-              {/* Attendance Status Distribution */}
-              <Card>
-                <Box padding="1rem">
-                  <Heading size="md" marginBottom="1rem">Attendance Status Distribution</Heading>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <PieChart>
-                      <Pie
-                        data={attendanceRateData}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                        outerRadius={80}
-                        fill="#8884d8"
-                        dataKey="value"
-                      >
-                        {attendanceRateData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </Box>
-              </Card>
+
 
               {/* Grade-Section Attendance Patterns */}
               <Card>
@@ -1099,9 +1041,16 @@ const Reports: FC = () => {
                       <YAxis />
                       <Tooltip />
                       <Legend />
-                      <Bar dataKey="present" fill="#38B2AC" name="Present" />
+                      <Bar dataKey="present" name="Present">
+                        {gradeSectionData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Bar>
                     </BarChart>
                   </ResponsiveContainer>
+                  <Text fontSize="sm" color="gray.600" marginTop="0.5rem">
+                    This bar chart compares attendance across different grade and section combinations. Each bar represents a specific class group, with colors indicating different grades.
+                  </Text>
                 </Box>
               </Card>
 
@@ -1116,41 +1065,69 @@ const Reports: FC = () => {
                       <YAxis />
                       <Tooltip />
                       <Legend />
-                      <Bar dataKey="present" fill="#38B2AC" name="Present" />
+                      <Bar dataKey="present" name="Present">
+                        {gradeSectionData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Bar>
                       <Line type="monotone" dataKey="rate" stroke="#3182CE" name="Rate %" />
                     </ComposedChart>
                   </ResponsiveContainer>
+                  <Text fontSize="sm" color="gray.600" marginTop="0.5rem">
+                    This combined chart shows both the number of present students (bars) and attendance rates (line) for each grade-section. The line helps identify which groups have the highest attendance percentages.
+                  </Text>
                 </Box>
               </Card>
 
-              {/* Check-in Time Heatmap */}
+              {/* Check-in Time Distribution */}
               <Card>
                 <Box padding="1rem">
-                  <Heading size="md" marginBottom="1rem">Check-in Time Heatmap</Heading>
+                  <Heading size="md" marginBottom="1rem">Check-in Time Distribution</Heading>
                   <Text fontSize="sm" color="gray.600" marginBottom="1rem">
                     Visual timeline showing peak scanning periods during the morning (6 AM - 12 PM)
                   </Text>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={checkInTimeAnalysisData?.data || []}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis
-                        dataKey="timeRange"
-                        angle={-45}
-                        textAnchor="end"
-                        height={80}
-                        interval={0}
-                      />
-                      <YAxis />
-                      <Tooltip
-                        formatter={(value: any) => [`${value}`, 'Check-ins']}
-                        labelFormatter={(label) => `Time: ${label}`}
-                      />
-                      <Legend />
-                      <Bar dataKey="count" fill="#E53E3E" name="Check-ins" />
-                    </BarChart>
-                  </ResponsiveContainer>
+
+                  {checkInTimeAnalysisLoading ? (
+                    <Center>
+                      <Spinner size="lg" />
+                    </Center>
+                  ) : !checkInTimeAnalysisData?.data?.data || checkInTimeAnalysisData.data.data.length === 0 ? (
+                    <Alert status="info">
+                      <AlertIcon />
+                      <AlertTitle>No check-in data available</AlertTitle>
+                      <AlertDescription>
+                        No check-in time data found for the selected filters. Try adjusting your date range or filters.
+                      </AlertDescription>
+                    </Alert>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={300}>
+                      <BarChart data={checkInTimeAnalysisData.data.data}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis
+                          dataKey="timeRange"
+                          angle={-45}
+                          textAnchor="end"
+                          height={80}
+                          interval={0}
+                        />
+                        <YAxis />
+                        <Tooltip
+                          formatter={(value: any) => [`${value} check-ins`, 'Count']}
+                          labelFormatter={(label) => `Time: ${label}`}
+                        />
+                        <Legend />
+                        <Bar dataKey="count" fill="#E53E3E" name="Check-ins" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
+
+                  {/* Debug info for troubleshooting - hidden in production */}
+                  {/* <Text fontSize="xs" color="gray.500" marginTop="1rem">
+                    Debug: Data length: {checkInTimeAnalysisData?.data?.data?.length || 0}, Loading: {checkInTimeAnalysisLoading ? 'true' : 'false'}, Data: {JSON.stringify(checkInTimeAnalysisData?.data?.data)}
+                  </Text> */}
+
                   <Text fontSize="sm" color="gray.600" marginTop="0.5rem">
-                    Shows the distribution of student check-ins throughout the morning hours
+                    This chart displays when students typically check in during the morning hours (6 AM - 12 PM). Higher bars indicate peak check-in times, helping identify the busiest periods for attendance monitoring.
                   </Text>
                 </Box>
               </Card>

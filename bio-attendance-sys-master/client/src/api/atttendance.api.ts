@@ -15,6 +15,7 @@ import type {
   MarkStudentAttendanceInput,
   MarkStudentAttendanceResult,
   GetDashboardStatsResult,
+  GetCheckInTimeAnalysisResult,
   ManualMarkAttendanceInput,
 } from '../interfaces/api.interface';
 import { useBaseMutation, useBaseQuery } from '../helpers/store.helper';
@@ -102,5 +103,5 @@ export const useGetCheckInTimeAnalysis = (staffId: string, options: { grade?: st
   if (options.section) queryParams.append('section', options.section);
   if (options.dateRange) queryParams.append('dateRange', options.dateRange);
 
-  return useBaseQuery<{ data: { timeRange: string; count: number }[] }, BaseError>(`/api/reports/${staffId}/check-in-analysis?${queryParams.toString()}`);
+  return useBaseQuery<GetCheckInTimeAnalysisResult, BaseError>(`/api/reports/${staffId}/check-in-analysis?${queryParams.toString()}`);
 };

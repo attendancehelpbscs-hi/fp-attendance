@@ -195,6 +195,15 @@ export interface GetDashboardStatsResult {
   };
 }
 
+export interface GetCheckInTimeAnalysisResult {
+  data: {
+    data: {
+      timeRange: string;
+      count: number;
+    }[];
+  };
+}
+
 export interface DeleteAttendanceResult {
   deleted: boolean;
 }
