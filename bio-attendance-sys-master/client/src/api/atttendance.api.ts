@@ -95,3 +95,12 @@ export const useMarkStudentAttendance = () =>
 
 export const useGetDashboardStats = (staffId: string) =>
   useBaseQuery<GetDashboardStatsResult, BaseError>(`/api/reports/${staffId}/dashboard`);
+
+export const useGetCheckInTimeAnalysis = (staffId: string, options: { grade?: string; section?: string; dateRange?: string } = {}) => {
+  const queryParams = new URLSearchParams();
+  if (options.grade) queryParams.append('grade', options.grade);
+  if (options.section) queryParams.append('section', options.section);
+  if (options.dateRange) queryParams.append('dateRange', options.dateRange);
+
+  return useBaseQuery<{ data: { timeRange: string; count: number }[] }, BaseError>(`/api/reports/${staffId}/check-in-analysis?${queryParams.toString()}`);
+};

@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import { createSuccess } from '../helpers/http.helper';
 import createError from 'http-errors';
-import { getAttendanceReports, getAttendanceSummary, getUniqueGradesAndSections, getPreviousPeriodReports, getStudentAttendanceReports, getStudentAttendanceSummary, getSectionsForGrade, getStudentsForGradeAndSection, getStudentDetailedReport, getDashboardStats, markStudentAttendance } from '../services/reports.service';
+import { getAttendanceReports, getAttendanceSummary, getUniqueGradesAndSections, getPreviousPeriodReports, getStudentAttendanceReports, getStudentAttendanceSummary, getSectionsForGrade, getStudentsForGradeAndSection, getStudentDetailedReport, getDashboardStats, getCheckInTimeAnalysis, markStudentAttendance } from '../services/reports.service';
 
 export const getReports = async (req: Request, res: Response, next: NextFunction) => {
   const { staff_id } = req.params;
@@ -121,6 +121,26 @@ export const getDashboardStatsController = async (req: Request, res: Response, n
   try {
     const stats = await getDashboardStats(staff_id);
     return createSuccess(res, 200, 'Dashboard stats fetched successfully', stats);
+  } catch (err) {
+    return next(err);
+  }
+};
+
+export const getCheckInTimeAnalysisController = async (req: Request, res: Response, next: NextFunction) => {
+  const { staff_id } = req.params;
+  const { grade, section, dateRange } = req.query;
+
+  if (!staff_id) return next(new createError.BadRequest('Staff ID is required'));
+
+  try {
+    const filters = {
+      grade: grade as string,
+      section: section as string,
+      dateRange: dateRange as string,
+    };
+
+    const data = await getCheckInTimeAnalysis(staff_id, filters);
+    return createSuccess(res, 200, 'Check-in time analysis fetched successfully', { data });
   } catch (err) {
     return next(err);
   }

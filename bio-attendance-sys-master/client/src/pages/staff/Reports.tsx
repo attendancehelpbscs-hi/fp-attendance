@@ -68,7 +68,7 @@ import {
   Area,
   ComposedChart,
 } from 'recharts';
-import { useGetReports, useGetGradesAndSections, useGetStudentReports, useGetSectionsForGrade, useGetStudentsForGradeAndSection, useGetStudentDetailedReport, useMarkStudentAttendance } from '../../api/atttendance.api';
+import { useGetReports, useGetGradesAndSections, useGetStudentReports, useGetSectionsForGrade, useGetStudentsForGradeAndSection, useGetStudentDetailedReport, useMarkStudentAttendance, useGetCheckInTimeAnalysis } from '../../api/atttendance.api';
 import { useToast } from '@chakra-ui/react';
 import { Tabs, TabList, TabPanels, Tab, TabPanel } from '@chakra-ui/react';
 import useStore from '../../store/store';
@@ -92,14 +92,13 @@ declare module 'recharts' {
 }
 
 // Report Types
-type ReportType = 'daily-records' | 'student-summary' | 'attendance-trends' | 'attendance-patterns' | 'potential-issues';
+type ReportType = 'daily-records' | 'student-summary' | 'attendance-trends' | 'attendance-patterns';
 
 const REPORT_TYPES: { value: ReportType; label: string; description: string }[] = [
   { value: 'daily-records', label: 'Daily Records', description: 'Detailed attendance records with color coding' },
   { value: 'student-summary', label: 'Student Summary', description: 'Individual student attendance summaries' },
   { value: 'attendance-trends', label: 'Attendance Trends', description: 'Trends and patterns over time' },
   { value: 'attendance-patterns', label: 'Attendance Patterns', description: 'Pattern analysis and insights' },
-  { value: 'potential-issues', label: 'Potential Issues', description: 'Students with perfect attendance highlights' },
 ];
 
 const Reports: FC = () => {
@@ -190,7 +189,7 @@ const Reports: FC = () => {
     }
   )({
     queryKey: ['student-reports', staffInfo?.id, startDate, endDate, selectedDateRange],
-    enabled: !!staffInfo?.id && (selectedReportType === 'student-summary' || selectedReportType === 'potential-issues'),
+    enabled: !!staffInfo?.id && selectedReportType === 'student-summary',
   });
 
   const { data: sectionsForGradeData } = useGetSectionsForGrade(staffInfo?.id || '', selectedGrade)({
@@ -213,6 +212,17 @@ const Reports: FC = () => {
     enabled: !!selectedStudent?.id && !!staffInfo?.id && showStudentDetail,
     refetchOnWindowFocus: false, // Prevent unnecessary refetches
   });
+
+  const { data: checkInTimeAnalysisData } = useGetCheckInTimeAnalysis(staffInfo?.id || '', {
+    grade: selectedGrade || undefined,
+    section: selectedSection || undefined,
+    dateRange: selectedDateRange,
+  })({
+    queryKey: ['check-in-analysis', staffInfo?.id, selectedGrade, selectedSection, selectedDateRange],
+    enabled: !!staffInfo?.id,
+  });
+
+
 
   const sectionsForGrade = sectionsForGradeData?.sections || [];
   const studentsForGradeAndSection = studentsForGradeAndSectionData?.students || [];
@@ -655,7 +665,7 @@ const Reports: FC = () => {
           </Grid>
 
           {/* Date Range Picker for specific reports */}
-          {(selectedReportType === 'student-summary' || selectedReportType === 'potential-issues') && (
+          {selectedReportType === 'student-summary' && (
             <Grid templateColumns={{ base: '1fr', md: 'repeat(2, 1fr)' }} gap={4} alignItems="end">
               <GridItem>
                 <Text fontWeight="bold" marginBottom="0.5rem">
@@ -1094,58 +1104,6 @@ const Reports: FC = () => {
                   </ResponsiveContainer>
                 </Box>
               </Card>
-            </VStack>
-          </TabPanel>
-
-          {/* Potential Issues Tab */}
-          <TabPanel>
-            <VStack spacing={4} align="stretch">
-              <Heading size="md">Potential Issues & Alerts</Heading>
-
-              {/* Perfect Attendance Highlights */}
-              <Card>
-                <Box padding="1rem">
-                  <Heading size="md" marginBottom="1rem">Perfect Attendance Highlights</Heading>
-                  <Alert status="success" marginBottom="1rem">
-                    <AlertIcon />
-                    <Box>
-                      <AlertTitle>Students with Perfect Attendance!</AlertTitle>
-                      <AlertDescription>
-                        {summaryStats.perfectAttendance} students have 100% attendance.
-                      </AlertDescription>
-                    </Box>
-                  </Alert>
-                  <TableContainer>
-                    <Table variant="simple">
-                      <Thead>
-                        <Tr>
-                          <Th>Student Name</Th>
-                          <Th>Grade</Th>
-                          <Th>Section</Th>
-                          <Th>Attendance Rate</Th>
-                          <Th>Status</Th>
-                        </Tr>
-                      </Thead>
-                      <Tbody>
-                        {filteredStudentData
-                          .filter(row => row.status === 'present')
-                          .slice(0, 10)
-                          .map((row: any, index: number) => (
-                            <Tr key={index}>
-                              <Td>{row.student_name}</Td>
-                              <Td>{row.grade}</Td>
-                              <Td>{row.section}</Td>
-                              <Td color="green.500">Perfect</Td>
-                              <Td>
-                                <Badge colorScheme="green">Excellent</Badge>
-                              </Td>
-                            </Tr>
-                          ))}
-                      </Tbody>
-                    </Table>
-                  </TableContainer>
-                </Box>
-              </Card>
 
               {/* Grade Performance Comparison */}
               <Card>
@@ -1164,8 +1122,44 @@ const Reports: FC = () => {
                   </ResponsiveContainer>
                 </Box>
               </Card>
+
+              {/* Check-in Time Heatmap */}
+              <Card>
+                <Box padding="1rem">
+                  <Heading size="md" marginBottom="1rem">Check-in Time Heatmap</Heading>
+                  <Text fontSize="sm" color="gray.600" marginBottom="1rem">
+                    Visual timeline showing peak scanning periods during the morning (6 AM - 12 PM)
+                  </Text>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={checkInTimeAnalysisData?.data || []}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis
+                        dataKey="timeRange"
+                        angle={-45}
+                        textAnchor="end"
+                        height={80}
+                        interval={0}
+                      />
+                      <YAxis />
+                      <Tooltip
+                        formatter={(value: any) => [`${value}`, 'Check-ins']}
+                        labelFormatter={(label) => `Time: ${label}`}
+                      />
+                      <Legend />
+                      <Bar dataKey="count" fill="#E53E3E" name="Check-ins" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                  <Text fontSize="sm" color="gray.600" marginTop="0.5rem">
+                    Shows the distribution of student check-ins throughout the morning hours
+                  </Text>
+                </Box>
+              </Card>
             </VStack>
           </TabPanel>
+
+
+
+
         </TabPanels>
       </Tabs>
     </WithStaffLayout>

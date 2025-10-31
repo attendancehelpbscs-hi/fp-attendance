@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getReports, getGradesAndSections, getStudentReports, getSectionsForGradeController, getStudentsForGradeAndSectionController, getStudentDetailedReportController, getDashboardStatsController, markStudentAttendanceController } from '../controllers/reports.controller';
+import { getReports, getGradesAndSections, getStudentReports, getSectionsForGradeController, getStudentsForGradeAndSectionController, getStudentDetailedReportController, getDashboardStatsController, getCheckInTimeAnalysisController, markStudentAttendanceController } from '../controllers/reports.controller';
 import joiValidate from '../middlewares/joi.middleware';
 import { getReportsSchema, getStudentReportsSchema, getDashboardStatsSchema } from '../joi/reports.joi';
 import auth from '../middlewares/auth.middleware';
@@ -25,5 +25,7 @@ router.post('/:staff_id/students/:student_id/mark-attendance', auth as any, mark
 
 // GET /api/reports/:staff_id/dashboard - Get dashboard stats
 router.get('/:staff_id/dashboard', auth as any, joiValidate(getDashboardStatsSchema, 'query'), getDashboardStatsController);
+// GET /api/reports/:staff_id/check-in-analysis - Get check-in time analysis
+router.get('/:staff_id/check-in-analysis', auth as any, getCheckInTimeAnalysisController);
 
 export default router;
