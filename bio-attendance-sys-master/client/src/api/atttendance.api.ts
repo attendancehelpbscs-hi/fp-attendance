@@ -44,11 +44,13 @@ export const useManualMarkAttendance = useBaseMutation<{ marked: number; skipped
 export const useGetAttendanceList = (attendance_id: string) =>
   useBaseQuery<GetAttendanceListResult, BaseError>(`/api/attendance/${attendance_id}/students`);
 
-export const useGetReports = (staffId: string, options: { grade?: string; section?: string; dateRange?: string } = {}) => {
+export const useGetReports = (staffId: string, options: { grade?: string; section?: string; dateRange?: string; page?: number; per_page?: number } = {}) => {
   const queryParams = new URLSearchParams();
   if (options.grade) queryParams.append('grade', options.grade);
   if (options.section) queryParams.append('section', options.section);
   if (options.dateRange) queryParams.append('dateRange', options.dateRange);
+  if (options.page) queryParams.append('page', options.page.toString());
+  if (options.per_page) queryParams.append('per_page', options.per_page.toString());
 
   return useBaseQuery<GetReportsResult, BaseError>(`/api/reports/${staffId}?${queryParams.toString()}`);
 };
@@ -56,12 +58,16 @@ export const useGetReports = (staffId: string, options: { grade?: string; sectio
 export const useGetGradesAndSections = (staffId: string) =>
   useBaseQuery<GetGradesAndSectionsResult, BaseError>(`/api/reports/${staffId}/filters`);
 
-export const useGetStudentReports = (staffId: string, options: { studentId?: string; startDate?: string; endDate?: string; dateRange?: string } = {}) => {
+export const useGetStudentReports = (staffId: string, options: { studentId?: string; grade?: string; section?: string; startDate?: string; endDate?: string; dateRange?: string; page?: number; per_page?: number } = {}) => {
   const queryParams = new URLSearchParams();
   if (options.studentId) queryParams.append('student_id', options.studentId);
+  if (options.grade) queryParams.append('grade', options.grade);
+  if (options.section) queryParams.append('section', options.section);
   if (options.startDate) queryParams.append('startDate', options.startDate);
   if (options.endDate) queryParams.append('endDate', options.endDate);
   if (options.dateRange) queryParams.append('dateRange', options.dateRange);
+  if (options.page) queryParams.append('page', options.page.toString());
+  if (options.per_page) queryParams.append('per_page', options.per_page.toString());
 
   return useBaseQuery<GetStudentReportsResult, BaseError>(`/api/reports/${staffId}/students?${queryParams.toString()}`);
 };

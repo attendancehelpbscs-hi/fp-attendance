@@ -86,14 +86,14 @@ export const addStudentToAttendance = async (req: Request, res: Response, next: 
   if (!attendance_id || !student_id || !time_type || !section) return next(new createError.BadRequest('Attendance ID, student ID, time type, and section are required'));
 
   try {
-    const courseExists = await checkIfStudentIsMarked({ attendance_id, student_id });
+    const courseExists = await checkIfStudentIsMarked({ attendance_id, student_id, time_type });
     if (courseExists) {
       return next(
         createError(
           400,
           ...[
             {
-              message: 'Student has already been marked.',
+              message: 'Student has already been marked for this time type.',
               errorType: 'STUDENT_ALREADY_MARKED',
             },
           ],

@@ -130,12 +130,15 @@ const ManageAttendance: FC = () => {
         <Heading fontSize={25} fontWeight={600}>
           Manage Attendance
         </Heading>
-        <IconButton
+        <Button
           bg="var(--bg-primary)"
           color="white"
-          aria-label="Add attendance session"
-          icon={<PlusSquareIcon fontSize={20} onClick={() => setDrawerOpen(true)} />}
-        />
+          _hover={{ background: 'var(--bg-primary-light)' }}
+          leftIcon={<PlusSquareIcon />}
+          onClick={() => setDrawerOpen(true)}
+        >
+          Add New Attendance
+        </Button>
       </Flex>
 
       {/* Scanner Status Alert */}

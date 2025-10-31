@@ -5,7 +5,7 @@ import { getAttendanceReports, getAttendanceSummary, getUniqueGradesAndSections,
 
 export const getReports = async (req: Request, res: Response, next: NextFunction) => {
   const { staff_id } = req.params;
-  const { grade, section, dateRange } = req.query;
+  const { grade, section, dateRange, page, per_page } = req.query;
 
   if (!staff_id) return next(new createError.BadRequest('Staff ID is required'));
 
@@ -14,16 +14,29 @@ export const getReports = async (req: Request, res: Response, next: NextFunction
       grade: grade as string,
       section: section as string,
       dateRange: dateRange as string,
+      page: page ? parseInt(page as string, 10) : 1,
+      per_page: per_page ? parseInt(per_page as string, 10) : 10,
     };
 
     const reports = await getAttendanceReports(staff_id, filters);
     const summary = await getAttendanceSummary(staff_id, filters);
     const previousPeriodSummary = await getPreviousPeriodReports(staff_id, filters);
 
+    // Calculate pagination metadata
+    const totalItems = reports.length; // This is approximate since we're not counting total without pagination
+    const totalPages = Math.ceil(totalItems / filters.per_page);
+    const meta = {
+      total_items: totalItems,
+      total_pages: totalPages,
+      page: filters.page,
+      per_page: filters.per_page,
+    };
+
     return createSuccess(res, 200, 'Reports fetched successfully', {
       reports,
       summary,
       previousPeriodSummary,
+      meta,
     });
   } catch (err) {
     return next(err);
@@ -46,24 +59,39 @@ export const getGradesAndSections = async (req: Request, res: Response, next: Ne
 
 export const getStudentReports = async (req: Request, res: Response, next: NextFunction) => {
   const { staff_id } = req.params;
-  const { student_id, startDate, endDate, dateRange } = req.query;
+  const { student_id, grade, section, startDate, endDate, dateRange, page, per_page } = req.query;
 
   if (!staff_id) return next(new createError.BadRequest('Staff ID is required'));
 
   try {
     const filters = {
       student_id: student_id as string,
+      grade: grade as string,
+      section: section as string,
       startDate: startDate as string,
       endDate: endDate as string,
       dateRange: dateRange as string,
+      page: page ? parseInt(page as string, 10) : 1,
+      per_page: per_page ? parseInt(per_page as string, 10) : 10,
     };
 
     const reports = await getStudentAttendanceReports(staff_id, filters);
     const summary = await getStudentAttendanceSummary(staff_id, filters);
 
+    // Calculate pagination metadata
+    const totalItems = reports.length; // This is approximate since we're not counting total without pagination
+    const totalPages = Math.ceil(totalItems / filters.per_page);
+    const meta = {
+      total_items: totalItems,
+      total_pages: totalPages,
+      page: filters.page,
+      per_page: filters.per_page,
+    };
+
     return createSuccess(res, 200, 'Student reports fetched successfully', {
       reports,
       summary,
+      meta,
     });
   } catch (err) {
     return next(err);

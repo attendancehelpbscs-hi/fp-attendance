@@ -70,12 +70,18 @@ export const getNewTokens = async (refreshToken: string): Promise<object | undef
 
 export const delRefreshToken = async (staff_id: string): Promise<number | undefined> => {
   try {
+    // Get staff info for detailed logout log
+    const staff = await prisma.staff.findUnique({
+      where: { id: staff_id },
+      select: { name: true }
+    });
+
     // Log logout
     await prisma.auditLog.create({
       data: {
         staff_id,
         action: 'LOGOUT',
-        details: 'Staff logged out successfully',
+        details: `Staff ${staff?.name || 'Unknown'} logged out successfully`,
       },
     });
 

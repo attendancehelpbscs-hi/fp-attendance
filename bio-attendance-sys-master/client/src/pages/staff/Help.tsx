@@ -72,7 +72,7 @@ const Help: FC = () => {
             <List spacing={3}>
               <ListItem>
                 <ListIcon as={CheckCircleIcon} color="green.500" />
-                Add new students by clicking the "+" button, entering their details including name, matriculation number, grade, and enrolled courses
+                Add new students by clicking the "+" button, entering their details including name, matriculation number or ID number, grade, and enrolled sections
               </ListItem>
               <ListItem>
                 <ListIcon as={CheckCircleIcon} color="green.500" />
@@ -106,7 +106,7 @@ const Help: FC = () => {
             <List spacing={3}>
               <ListItem>
                 <ListIcon as={CheckCircleIcon} color="green.500" />
-                Navigate to the "Mark Attendance" section and select the appropriate course and date for the session
+                Navigate to the "Mark Attendance" section and select the appropriate section and date for the session
               </ListItem>
               <ListItem>
                 <ListIcon as={CheckCircleIcon} color="green.500" />
@@ -144,7 +144,7 @@ const Help: FC = () => {
               </ListItem>
               <ListItem>
                 <ListIcon as={CheckCircleIcon} color="green.500" />
-                Use advanced filters to narrow down reports by grade, section, course, and custom date ranges
+                Use advanced filters to narrow down reports by grade, section, and custom date ranges
               </ListItem>
               <ListItem>
                 <ListIcon as={CheckCircleIcon} color="green.500" />

@@ -2,7 +2,7 @@ import createError from 'http-errors';
 import { prisma } from '../db/prisma-client';
 import type { StudentAttendance } from '@prisma/client';
 
-export const getAttendanceReports = async (staff_id: string, filters: { grade?: string; section?: string; dateRange?: string }) => {
+export const getAttendanceReports = async (staff_id: string, filters: { grade?: string; section?: string; dateRange?: string; page?: number; per_page?: number }) => {
   try {
     const where: any = {
       student: { staff_id },
@@ -48,12 +48,18 @@ export const getAttendanceReports = async (staff_id: string, filters: { grade?: 
       };
     }
 
+    const page = filters.page || 1;
+    const per_page = filters.per_page || 10;
+    const skip = (page - 1) * per_page;
+
     const studentAttendances = await prisma.studentAttendance.findMany({
       where,
       include: {
         student: true,
         attendance: true,
       },
+      skip,
+      take: per_page,
     });
 
     // Group by date, grade, section
@@ -67,8 +73,10 @@ export const getAttendanceReports = async (staff_id: string, filters: { grade?: 
         groupedData[key] = { present: 0, total: 0 };
       }
       groupedData[key].total += 1;
-      // All records are now 'present' in simplified system
-      groupedData[key].present += 1;
+      // Only count 'IN' as present, 'OUT' is checkout and doesn't count as attendance
+      if (sa.time_type === 'IN') {
+        groupedData[key].present += 1;
+      }
     });
 
     return Object.entries(groupedData).map(([key, counts]) => {
@@ -151,13 +159,15 @@ export const getPreviousPeriodReports = async (staff_id: string, filters: { grad
   }
 };
 
-export const getStudentAttendanceReports = async (staff_id: string, filters: { student_id?: string; startDate?: string; endDate?: string; dateRange?: string }) => {
+export const getStudentAttendanceReports = async (staff_id: string, filters: { student_id?: string; grade?: string; section?: string; startDate?: string; endDate?: string; dateRange?: string; page?: number; per_page?: number }) => {
   try {
     const where: any = {
       student: { staff_id },
     };
 
     if (filters.student_id) where.student_id = filters.student_id;
+    if (filters.grade) where.student.grade = filters.grade;
+    if (filters.section) where.section = filters.section;
 
     if (filters.dateRange && filters.dateRange !== 'all') {
       let startDate: string;
@@ -202,6 +212,10 @@ export const getStudentAttendanceReports = async (staff_id: string, filters: { s
       };
     }
 
+    const page = filters.page || 1;
+    const per_page = filters.per_page || 10;
+    const skip = (page - 1) * per_page;
+
     const studentAttendances = await prisma.studentAttendance.findMany({
       where,
       include: {
@@ -211,6 +225,8 @@ export const getStudentAttendanceReports = async (staff_id: string, filters: { s
       orderBy: {
         created_at: 'desc',
       },
+      skip,
+      take: per_page,
     });
 
     return studentAttendances.map(sa => ({
@@ -218,8 +234,8 @@ export const getStudentAttendanceReports = async (staff_id: string, filters: { s
       student_name: sa.student.name,
       matric_no: sa.student.matric_no,
       grade: sa.student.grade,
-      date: sa.attendance.date,
-      status: sa.status,
+      date: sa.created_at.toISOString(),
+      status: (sa.time_type === 'IN' ? 'present' : 'departure') as 'present' | 'departure',
       time_type: sa.time_type,
       section: sa.section,
       created_at: sa.created_at,
@@ -234,7 +250,7 @@ export const getStudentAttendanceSummary = async (staff_id: string, filters: { s
     const reports = await getStudentAttendanceReports(staff_id, filters);
 
     const totalDays = reports.length;
-    const presentDays = reports.filter(r => r.status === 'present').length;
+    const presentDays = reports.filter(r => r.status === 'present' && r.time_type === 'IN').length;
     // In simplified system, all days are present days
     const absentDays = 0;
     const attendanceRate = totalDays > 0 ? (presentDays / totalDays) * 100 : 0;
@@ -316,7 +332,7 @@ export interface StudentDetailedReport {
   };
   attendanceRecords: {
     date: string;
-    status: 'present';
+    status: 'present' | 'departure';
     time_type: 'IN' | 'OUT' | null;
     section: string;
     created_at: string;
@@ -378,8 +394,8 @@ export const getStudentDetailedReport = async (staff_id: string, student_id: str
 
     // Transform records
     const records = attendanceRecords.map(record => ({
-      date: record.attendance.date, // Use attendance session date
-      status: record.status,
+      date: record.created_at.toISOString().split('T')[0], // Use actual check-in date
+      status: (record.time_type === 'IN' ? 'present' : 'departure') as 'present' | 'departure',
       time_type: record.time_type,
       section: record.section,
       created_at: record.created_at.toISOString(),
@@ -394,7 +410,7 @@ export const getStudentDetailedReport = async (staff_id: string, student_id: str
     // Weekly summary (last 7 days from today)
     const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     const weeklyRecords = records.filter(r => new Date(r.date) >= weekStart);
-    const weeklyPresent = weeklyRecords.filter(r => r.status === 'present').length;
+    const weeklyPresent = weeklyRecords.filter(r => r.status === 'present' && r.time_type === 'IN').length;
     const weeklyAbsent = 0; // Always 0 in simplified system
     const weeklySummary = {
       total_days: weeklyRecords.length,
@@ -408,7 +424,7 @@ export const getStudentDetailedReport = async (staff_id: string, student_id: str
       const recordDate = new Date(r.date);
       return recordDate.getFullYear() === currentYear && recordDate.getMonth() === currentMonth;
     });
-    const monthlyPresent = monthlyRecords.filter(r => r.status === 'present').length;
+    const monthlyPresent = monthlyRecords.filter(r => r.status === 'present' && r.time_type === 'IN').length;
     const monthlyAbsent = 0; // Always 0 in simplified system
     const monthlySummary = {
       total_days: monthlyRecords.length,
@@ -419,7 +435,7 @@ export const getStudentDetailedReport = async (staff_id: string, student_id: str
 
     // Yearly summary (current year)
     const yearlyRecords = records.filter(r => new Date(r.date).getFullYear() === currentYear);
-    const yearlyPresent = yearlyRecords.filter(r => r.status === 'present').length;
+    const yearlyPresent = yearlyRecords.filter(r => r.status === 'present' && r.time_type === 'IN').length;
     const yearlyAbsent = 0; // Always 0 in simplified system
     const yearlySummary = {
       total_days: yearlyRecords.length,
@@ -451,7 +467,7 @@ export const getDashboardStats = async (staff_id: string) => {
       where: { staff_id },
     });
 
-    // Count present students for today by finding all student attendances where attendance.date is today
+    // Count present students for today by finding all student attendances where attendance.date is today and time_type is 'IN'
     const presentToday = await prisma.studentAttendance.count({
       where: {
         student: { staff_id },
@@ -459,6 +475,7 @@ export const getDashboardStats = async (staff_id: string) => {
           date: today,
         },
         status: 'present',
+        time_type: 'IN',
       },
     });
 

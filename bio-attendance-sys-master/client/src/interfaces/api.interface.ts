@@ -159,6 +159,12 @@ export interface GetReportsResult {
     reports: AttendanceReportData[];
     summary: any;
     previousPeriodSummary: any;
+    meta: {
+      total_items: number;
+      total_pages: number;
+      page: number;
+      per_page: number;
+    };
   };
 }
 
@@ -173,6 +179,12 @@ export interface GetStudentReportsResult {
   data: {
     reports: StudentAttendanceReportData[];
     summary: any;
+    meta: {
+      total_items: number;
+      total_pages: number;
+      page: number;
+      per_page: number;
+    };
   };
 }
 

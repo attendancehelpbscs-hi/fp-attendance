@@ -63,6 +63,10 @@ const ManageStudents: FC = () => {
   const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
 
+  // Pagination states for attendance history
+  const [historyPage, setHistoryPage] = useState<number>(1);
+  const [historyItemsPerPage] = useState<number>(5);
+
   const { data, error, isLoading, isError } = useGetStudents(
     staffInfo?.id as string,
     page,
@@ -102,6 +106,11 @@ const ManageStudents: FC = () => {
     }
   }, [activeStudent]);
 
+  // Reset history pagination when student changes
+  useEffect(() => {
+    setHistoryPage(1);
+  }, [selectedStudentForHistory]);
+
   // Filter and sort students
   const filteredStudents = data?.data?.students?.filter((student: StudentType) => {
     const matchesSearch = student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -126,12 +135,15 @@ const ManageStudents: FC = () => {
         <Heading fontSize={25} fontWeight={600}>
           Manage Students
         </Heading>
-        <IconButton
+        <Button
           bg="var(--bg-primary)"
           color="white"
-          aria-label="Add student"
-          icon={<PlusSquareIcon fontSize={20} onClick={() => setDrawerOpen(true)} />}
-        />
+          _hover={{ background: 'var(--bg-primary-light)' }}
+          leftIcon={<PlusSquareIcon />}
+          onClick={() => setDrawerOpen(true)}
+        >
+          Add New Student
+        </Button>
       </Flex>
 
       {/* Filters and Search */}
@@ -348,32 +360,69 @@ const ManageStudents: FC = () => {
                     <Box>
                       <Text fontSize="lg" fontWeight="bold" marginBottom="1rem">Recent Attendance Records</Text>
                       {studentReportData.data?.reports && studentReportData.data.reports.length > 0 ? (
-                        <Table variant="simple" size="sm">
-                          <Thead>
-                            <Tr>
-                              <Th>Date</Th>
-                              <Th>Status</Th>
-                              <Th>Time Type</Th>
-                              <Th>Section</Th>
-                              <Th>Created At</Th>
-                            </Tr>
-                          </Thead>
-                          <Tbody>
-                            {studentReportData.data.reports.slice(0, 10).map((record: any, idx: number) => (
-                              <Tr key={idx}>
-                                <Td>{new Date(record.date).toLocaleDateString()}</Td>
-                                <Td>
-                                  <Badge colorScheme={record.status === 'present' ? 'green' : record.status === 'late' ? 'yellow' : 'red'}>
-                                    {record.status}
-                                  </Badge>
-                                </Td>
-                                <Td>{record.time_type || 'N/A'}</Td>
-                                <Td>{record.section}</Td>
-                                <Td>{record.created_at ? new Date(record.created_at).toLocaleString() : 'N/A'}</Td>
+                        <>
+                          <Table variant="simple" size="sm">
+                            <Thead>
+                              <Tr>
+                                <Th>Date</Th>
+                                <Th>Status</Th>
+                                <Th>Time Type</Th>
+                                <Th>Section</Th>
+                                <Th>Created At</Th>
                               </Tr>
-                            ))}
-                          </Tbody>
-                        </Table>
+                            </Thead>
+                            <Tbody>
+                              {studentReportData.data.reports
+                                .slice((historyPage - 1) * historyItemsPerPage, historyPage * historyItemsPerPage)
+                                .map((record: any, idx: number) => (
+                                <Tr key={idx}>
+                                  <Td>{new Date(record.date).toLocaleDateString()}</Td>
+                                  <Td>
+                                    <Badge colorScheme={record.status === 'present' ? 'green' : record.status === 'late' ? 'yellow' : 'red'}>
+                                      {record.status}
+                                    </Badge>
+                                  </Td>
+                                  <Td>{record.time_type || 'N/A'}</Td>
+                                  <Td>{record.section}</Td>
+                                  <Td>{record.created_at ? new Date(record.created_at).toLocaleString() : 'N/A'}</Td>
+                                </Tr>
+                              ))}
+                            </Tbody>
+                          </Table>
+
+                          {/* Pagination Controls for Attendance History */}
+                          {studentReportData.data.reports.length > 0 && (
+                            <Box marginTop="1rem" display="flex" justifyContent="center" alignItems="center" gap={2}>
+                              <Text fontSize="sm" color="gray.600">
+                                Page {historyPage} of {Math.ceil(studentReportData.data.reports.length / historyItemsPerPage) || 1}
+                              </Text>
+                              <Button
+                                size="sm"
+                                onClick={() => setHistoryPage(prev => Math.max(prev - 1, 1))}
+                                isDisabled={historyPage === 1}
+                              >
+                                Previous
+                              </Button>
+                              {Array.from({ length: Math.ceil(studentReportData.data.reports.length / historyItemsPerPage) || 1 }, (_, i) => i + 1).map(page => (
+                                <Button
+                                  key={page}
+                                  size="sm"
+                                  colorScheme={historyPage === page ? 'blue' : 'gray'}
+                                  onClick={() => setHistoryPage(page)}
+                                >
+                                  {page}
+                                </Button>
+                              ))}
+                              <Button
+                                size="sm"
+                                onClick={() => setHistoryPage(prev => Math.min(prev + 1, Math.ceil(studentReportData.data.reports.length / historyItemsPerPage) || 1))}
+                                isDisabled={historyPage === (Math.ceil(studentReportData.data.reports.length / historyItemsPerPage) || 1)}
+                              >
+                                Next
+                              </Button>
+                            </Box>
+                          )}
+                        </>
                       ) : (
                         <Box border="1px solid #e2e8f0" borderRadius="md" padding="1rem">
                           <Text>No attendance records found for this student.</Text>

@@ -79,12 +79,15 @@ const ManageCourses: FC = () => {
         <Heading fontSize={25} fontWeight={600}>
           Manage Section
         </Heading>
-        <IconButton
+        <Button
           bg="var(--bg-primary)"
           color="white"
-          aria-label="Add course"
-          icon={<PlusSquareIcon fontSize={20} onClick={() => setDrawerOpen(true)} />}
-        />
+          _hover={{ background: 'var(--bg-primary-light)' }}
+          leftIcon={<PlusSquareIcon />}
+          onClick={() => setDrawerOpen(true)}
+        >
+          Add New Section
+        </Button>
       </Flex>
 
       {isLoading ? (
@@ -108,7 +111,7 @@ const ManageCourses: FC = () => {
               </Tr>
             </Thead>
             <Tbody>
-              {data?.data?.courses?.map((course, idx) => (
+              {data?.data?.courses?.map((course: Course, idx: number) => (
                 <Tr key={idx}>
                   <Td>{(page - 1) * per_page + (idx + 1)}</Td>
                   <Td>{course.course_name}</Td>

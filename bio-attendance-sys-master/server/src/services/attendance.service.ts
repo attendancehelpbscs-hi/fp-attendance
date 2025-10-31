@@ -119,11 +119,21 @@ export const removeAllStudentAttendance = (attendance_id: string): Promise<Prism
   });
 };
 
-export const checkIfStudentIsMarked = (studentAttendanceInfo: { attendance_id: string; student_id: string }): Promise<boolean> => {
+export const checkIfStudentIsMarked = (studentAttendanceInfo: { attendance_id: string; student_id: string; time_type?: 'IN' | 'OUT' }): Promise<boolean> => {
   return new Promise<boolean>(async (resolve, reject) => {
     try {
+      const whereClause: any = {
+        attendance_id: studentAttendanceInfo.attendance_id,
+        student_id: studentAttendanceInfo.student_id,
+      };
+
+      // If time_type is provided, include it in the check
+      if (studentAttendanceInfo.time_type) {
+        whereClause.time_type = studentAttendanceInfo.time_type;
+      }
+
       const studentAttendance = await prisma.studentAttendance.findFirst({
-        where: studentAttendanceInfo,
+        where: whereClause,
       });
       if (studentAttendance) resolve(true);
       resolve(false);

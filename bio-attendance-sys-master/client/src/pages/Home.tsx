@@ -55,7 +55,7 @@ const Home: FC = () => {
     const fetchAuditLogs = async () => {
       try {
         const response = await getAuditLogs();
-        setAuditLogs(response.data.logs.slice(0, 5)); // Show last 5 logs
+        setAuditLogs(response.data.logs.slice(0, 3)); // Show last 3 logs for confidentiality
       } catch (error) {
         console.error('Failed to fetch audit logs:', error);
       }

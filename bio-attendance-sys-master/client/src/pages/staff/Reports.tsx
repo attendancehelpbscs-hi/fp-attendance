@@ -181,8 +181,10 @@ const Reports: FC = () => {
     grade: selectedGrade || undefined,
     section: selectedSection || undefined,
     dateRange: selectedDateRange,
+    page: currentPage,
+    per_page: itemsPerPage,
   })({
-    queryKey: ['reports', staffInfo?.id, selectedGrade, selectedSection, selectedDateRange],
+    queryKey: ['reports', staffInfo?.id, selectedGrade, selectedSection, selectedDateRange, currentPage, itemsPerPage],
     enabled: !!staffInfo?.id,
   });
 
@@ -194,12 +196,16 @@ const Reports: FC = () => {
   const { data: studentReportsData, isLoading: studentReportsLoading, error: studentReportsError } = useGetStudentReports(
     staffInfo?.id || '',
     {
+      grade: selectedGrade || undefined,
+      section: selectedSection || undefined,
       startDate: startDate ? startDate.toISOString().split('T')[0] : undefined,
       endDate: endDate ? endDate.toISOString().split('T')[0] : undefined,
       dateRange: selectedDateRange,
+      page: studentCurrentPage,
+      per_page: itemsPerPage,
     }
   )({
-    queryKey: ['student-reports', staffInfo?.id, startDate, endDate, selectedDateRange],
+    queryKey: ['student-reports', staffInfo?.id, selectedGrade, selectedSection, startDate, endDate, selectedDateRange, studentCurrentPage, itemsPerPage],
     enabled: !!staffInfo?.id && selectedReportType === 'student-summary',
   });
 
@@ -246,6 +252,8 @@ const Reports: FC = () => {
   // Use real data from API - ensure we have data
   const attendanceData = reportsData?.data?.reports || [];
   const studentAttendanceData = studentReportsData?.data?.reports || [];
+  const reportsMeta = reportsData?.data?.meta;
+  const studentReportsMeta = studentReportsData?.data?.meta;
   const availableGrades = ['1', '2', '3', '4', '5', '6'];
   const availableSections = [...new Set(filtersData?.data?.sections || [])].sort();
 
@@ -261,7 +269,9 @@ const Reports: FC = () => {
       data = data.filter((item: any) =>
         item.date.toLowerCase().includes(searchTerm.toLowerCase()) ||
         item.grade.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.section.toLowerCase().includes(searchTerm.toLowerCase())
+        item.section.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.present.toString().toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.rate.toString().toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
@@ -288,7 +298,10 @@ const Reports: FC = () => {
       data = data.filter((item: any) =>
         item.date.toLowerCase().includes(searchTerm.toLowerCase()) ||
         item.student_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.status.toLowerCase().includes(searchTerm.toLowerCase())
+        item.status.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.matric_no.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.grade.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.section.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
@@ -314,10 +327,10 @@ const Reports: FC = () => {
     });
   }, [filteredAttendanceData, filteredStudentData, sortConfig, selectedReportType]);
 
-  // Pagination logic
-  const totalPages = Math.ceil(sortedData.length / itemsPerPage);
+  // Pagination logic - use server-side pagination when available
+  const totalPages = reportsMeta?.total_pages || Math.ceil(sortedData.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedData = sortedData.slice(startIndex, startIndex + itemsPerPage);
+  const paginatedData = reportsMeta ? sortedData : sortedData.slice(startIndex, startIndex + itemsPerPage);
 
   // Calculate summary stats from filtered data
   const summaryStats = useMemo(() => {
@@ -343,38 +356,27 @@ const Reports: FC = () => {
     }
   }, [filteredAttendanceData, filteredStudentData, selectedReportType, studentsData]);
 
-  // Chart data preparation
+  // Chart data preparation - always use daily records data for trends and patterns
   const attendanceTrendData = useMemo(() => {
-    const data = selectedReportType === 'daily-records' ? filteredAttendanceData : filteredStudentData;
+    const data = filteredAttendanceData; // Use daily records data for trends
     const dateGroups = data.reduce((acc: Record<string, any>, item: any) => {
-      if (!acc[item.date]) acc[item.date] = { date: item.date, present: 0, absent: 0, rate: 0 };
-      if (selectedReportType === 'daily-records') {
-        acc[item.date].present += item.present;
-        acc[item.date].rate = item.rate; // Use the rate directly since absent is removed
-      } else {
-        if (item.status === 'present') {
-          acc[item.date].present += 1;
-        }
-        acc[item.date].rate = (acc[item.date].present / (acc[item.date].present)) * 100; // Always 100% since only present
-      }
+      // Group by date only (YYYY-MM-DD) to prevent overcrowding
+      const dateKey = new Date(item.date).toISOString().split('T')[0];
+      if (!acc[dateKey]) acc[dateKey] = { date: dateKey, present: 0, absent: 0, rate: 0 };
+      acc[dateKey].present += item.present;
+      acc[dateKey].rate = item.rate; // Use the rate directly since absent is removed
       return acc;
     }, {} as Record<string, any>);
 
     return Object.values(dateGroups).sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  }, [filteredAttendanceData, filteredStudentData, selectedReportType]);
+  }, [filteredAttendanceData]);
 
   const gradeSectionData = useMemo(() => {
-    const data = selectedReportType === 'daily-records' ? filteredAttendanceData : filteredStudentData;
+    const data = filteredAttendanceData; // Use daily records data for patterns
     const groups = data.reduce((acc: Record<string, any>, item: any) => {
       const key = `${item.grade} - ${item.section}`;
       if (!acc[key]) acc[key] = { name: key, present: 0, grade: item.grade };
-      if (selectedReportType === 'daily-records') {
-        acc[key].present += item.present;
-      } else {
-        if (item.status === 'present') {
-          acc[key].present += 1;
-        }
-      }
+      acc[key].present += item.present;
       return acc;
     }, {} as Record<string, any>);
 
@@ -382,13 +384,26 @@ const Reports: FC = () => {
       ...item,
       color: gradeColors[item.grade] || '#38B2AC', // Default to teal if grade not found
     }));
-  }, [filteredAttendanceData, filteredStudentData, selectedReportType]);
+  }, [filteredAttendanceData]);
 
   const attendanceRateData = useMemo(() => {
     return [
       { name: 'Present', value: summaryStats.totalStudents * (summaryStats.avgRate / 100), color: '#38B2AC' },
     ];
   }, [summaryStats]);
+
+  // Update summary stats to always use filteredAttendanceData for consistency across tabs
+  const updatedSummaryStats = useMemo(() => {
+    const data = filteredAttendanceData;
+    if (data.length === 0) return { avgRate: 0, totalStudents: studentsData?.data?.students?.length || 0, lowAttendance: 0, perfectAttendance: 0 };
+
+    const totalRate = data.reduce((sum: number, item: any) => sum + item.rate, 0);
+    const avgRate = totalRate / data.length;
+    const totalStudents = studentsData?.data?.students?.length || 0;
+    const lowAttendance = data.filter((item: any) => item.rate < 70).length;
+    const perfectAttendance = data.filter((item: any) => item.rate === 100).length;
+    return { avgRate, totalStudents, lowAttendance, perfectAttendance };
+  }, [filteredAttendanceData, studentsData]);
 
   const exportToCSV = () => {
     const data = selectedReportType === 'daily-records' ? paginatedData : filteredStudentData;
@@ -619,10 +634,10 @@ const Reports: FC = () => {
     });
   }, [filteredAndSearchedStudentData, studentSortConfig]);
 
-  // Pagination for students
-  const studentTotalPages = Math.ceil(sortedStudentData.length / itemsPerPage);
+  // Pagination for students - use server-side pagination when available
+  const studentTotalPages = studentReportsMeta?.total_pages || Math.ceil(sortedStudentData.length / itemsPerPage);
   const studentStartIndex = (studentCurrentPage - 1) * itemsPerPage;
-  const studentPaginatedData = sortedStudentData.slice(studentStartIndex, studentStartIndex + itemsPerPage);
+  const studentPaginatedData = studentReportsMeta ? sortedStudentData : sortedStudentData.slice(studentStartIndex, studentStartIndex + itemsPerPage);
 
   return (
     <WithStaffLayout>
@@ -751,14 +766,14 @@ const Reports: FC = () => {
           {/* Daily Records Tab */}
           <TabPanel>
 
-            {/* Summary Stats */}
+              {/* Summary Stats */}
             <Grid templateColumns={{ base: '1fr' }} gap={6} marginBottom="2rem">
               <GridItem>
                 <Card>
                   <Box padding="1rem">
                     <Stat>
                       <StatLabel>Total Enrolled Students</StatLabel>
-                      <StatNumber>{summaryStats.totalStudents}</StatNumber>
+                      <StatNumber>{updatedSummaryStats.totalStudents}</StatNumber>
                       <StatHelpText>
                         Students registered in the system
                       </StatHelpText>
@@ -840,7 +855,7 @@ const Reports: FC = () => {
                     <Tbody>
                       {paginatedData.map((row: any, index: number) => (
                         <Tr key={index}>
-                          <Td>{row.date}</Td>
+                          <Td>{new Date(row.date).toLocaleString()}</Td>
                           <Td>{row.grade}</Td>
                           <Td>{row.section}</Td>
                           <Td color="green.500">{row.present}</Td>
@@ -852,7 +867,7 @@ const Reports: FC = () => {
                 </TableContainer>
 
                 {/* Pagination Controls */}
-                {totalPages > 1 && (
+                {totalPages >= 1 && (
                   <Box marginTop="1rem" display="flex" justifyContent="center" alignItems="center" gap={2}>
                     <Button
                       size="sm"
@@ -896,7 +911,7 @@ const Reports: FC = () => {
                     <Box padding="1rem">
                       <Stat>
                         <StatLabel>Total Enrolled Students</StatLabel>
-                        <StatNumber>{summaryStats.totalStudents}</StatNumber>
+                        <StatNumber>{updatedSummaryStats.totalStudents}</StatNumber>
                         <StatHelpText>
                           Students registered in the system
                         </StatHelpText>
@@ -928,7 +943,7 @@ const Reports: FC = () => {
                             <Td>{row.student_name}</Td>
                             <Td>{row.matric_no}</Td>
                             <Td>{row.grade}</Td>
-                            <Td>{row.date}</Td>
+                            <Td>{new Date(row.date).toLocaleString()}</Td>
                             <Td>
                               <Badge colorScheme={row.status === 'present' ? 'green' : 'red'}>
                                 {row.status}
@@ -942,7 +957,7 @@ const Reports: FC = () => {
                   </TableContainer>
 
                   {/* Pagination for students */}
-                  {studentTotalPages > 1 && (
+                  {studentTotalPages >= 1 && (
                     <Box marginTop="1rem" display="flex" justifyContent="center" alignItems="center" gap={2}>
                       <Button
                         size="sm"
@@ -989,9 +1004,9 @@ const Reports: FC = () => {
                   <ResponsiveContainer width="100%" height={400}>
                     <LineChart data={attendanceTrendData}>
                       <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="date" />
+                      <XAxis dataKey="date" tickFormatter={(value) => new Date(value).toLocaleDateString()} />
                       <YAxis />
-                      <Tooltip />
+                      <Tooltip labelFormatter={(value) => `Date: ${new Date(value).toLocaleDateString()}`} />
                       <Legend />
                       <Line type="monotone" dataKey="present" stroke="#38B2AC" name="Present" />
                     </LineChart>
@@ -1009,9 +1024,9 @@ const Reports: FC = () => {
                   <ResponsiveContainer width="100%" height={300}>
                     <AreaChart data={attendanceTrendData}>
                       <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="date" />
+                      <XAxis dataKey="date" tickFormatter={(value) => new Date(value).toLocaleDateString()} />
                       <YAxis />
-                      <Tooltip />
+                      <Tooltip labelFormatter={(value) => `Date: ${new Date(value).toLocaleDateString()}`} />
                       <Area type="monotone" dataKey="rate" stroke="#3182CE" fill="#3182CE" fillOpacity={0.3} />
                     </AreaChart>
                   </ResponsiveContainer>
