@@ -94,9 +94,15 @@ const Settings: FC = () => {
     }
   };
 
-  const [profileName, setProfileName] = useState(staffInfo?.name || '');
+  const [profileName, setProfileName] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
+
+  // Add this useEffect to sync profileName with staffInfo
+  useEffect(() => {
+    setProfileName(staffInfo?.name || '');
+  }, [staffInfo]);
+
 
   const handleSaveProfile = async () => {
     // Validate passwords match
@@ -194,7 +200,7 @@ const Settings: FC = () => {
                   </FormControl>
                   <FormControl>
                     <FormLabel>Email address</FormLabel>
-                    <Input type="email" disabled value={staffInfo?.email} />
+                    <Input type="email" disabled value={staffInfo?.email || ''} />
                   </FormControl>
                   <FormControl>
                     <FormLabel>New Password</FormLabel>

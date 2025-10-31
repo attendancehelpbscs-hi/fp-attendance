@@ -111,7 +111,7 @@ const Home: FC = () => {
             <List spacing={3}>
               {auditLogs.map((log) => (
                 <ListItem key={log.id}>
-                  <ListIcon as={() => <Badge colorScheme={log.action === 'LOGIN' ? 'green' : 'blue'}>{log.action}</Badge>} />
+                  <ListIcon as={() => <Badge colorScheme={log.action === 'LOGIN' ? 'green' : 'orange'}>{log.action}</Badge>} />
                   <Text as="span" fontWeight="bold">{log.staff.name}</Text> ({log.staff.email}) - {log.details} at {new Date(log.created_at).toLocaleString()}
                 </ListItem>
               ))}
