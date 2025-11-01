@@ -44,12 +44,14 @@ import {
   VStack,
   HStack,
   Divider,
+  Image,
 } from '@chakra-ui/react';
 import { DownloadIcon, DeleteIcon, ViewIcon } from '@chakra-ui/icons';
 import useStore from '../../store/store';
 import { toast } from 'react-hot-toast';
 import { getAuditLogs } from '../../api/audit.api';
 import { useBackupData, useClearAuditLogs, useUpdateStaffProfile } from '../../api/staff.api';
+import noDp from '../../assets/no-dp.png';
 
 
 const Settings: FC = () => {

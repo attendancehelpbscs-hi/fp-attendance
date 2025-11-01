@@ -19,3 +19,13 @@ export const getAuditLogs = async () => {
 export const clearAuditLogs = async () => {
   return await prisma.auditLog.deleteMany({});
 };
+
+export const createAuditLog = async (staffId: string, action: string, details?: string) => {
+  return await prisma.auditLog.create({
+    data: {
+      staff_id: staffId,
+      action,
+      details,
+    },
+  });
+};

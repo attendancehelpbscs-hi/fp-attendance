@@ -230,6 +230,21 @@ export interface Student {
   courses: Course[];
 }
 
+export interface AddStudentInput {
+  name: string;
+  matric_no: string;
+  grade: string;
+  fingerprint: string;
+  courses: string[];
+  staff_id: string;
+}
+
+export interface AddCourseInput {
+  course_name: string;
+  course_code: string;
+  staff_id: string;
+}
+
 // Staff-related interfaces
 export interface RegisterStaffInput {
   name: string;

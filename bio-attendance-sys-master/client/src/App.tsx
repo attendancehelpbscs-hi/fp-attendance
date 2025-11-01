@@ -70,6 +70,7 @@ function App() {
         </WithMainLayout>
       ),
     },
+
     {
       path: '/staff/manage/courses',
       element: (

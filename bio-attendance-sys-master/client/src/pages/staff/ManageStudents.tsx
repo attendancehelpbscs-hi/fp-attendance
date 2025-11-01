@@ -37,6 +37,7 @@ import {
   AlertDialogHeader,
   AlertDialogContent,
   AlertDialogOverlay,
+  Checkbox,
 } from '@chakra-ui/react';
 import AddStudent from '../../components/AddStudent';
 import useStore from '../../store/store';
@@ -45,7 +46,7 @@ import { useGetStudents, useDeleteStudent } from '../../api/student.api';
 import { useGetStudentReports } from '../../api/atttendance.api';
 import { toast } from 'react-hot-toast';
 import { queryClient } from '../../lib/query-client';
-import { Student } from '../../interfaces/api.interface';
+import { Student, Course } from '../../interfaces/api.interface';
 import type { Student as StudentType } from '../../interfaces/api.interface';
 
 const ManageStudents: FC = () => {
@@ -62,6 +63,9 @@ const ManageStudents: FC = () => {
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
   const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
+  const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
+  const { isOpen: isBulkDeleteOpen, onOpen: onBulkDeleteOpen, onClose: onBulkDeleteClose } = useDisclosure();
+  const bulkCancelRef = useRef<HTMLButtonElement>(null);
 
   // Pagination states for attendance history
   const [historyPage, setHistoryPage] = useState<number>(1);
@@ -106,11 +110,6 @@ const ManageStudents: FC = () => {
     }
   }, [activeStudent]);
 
-  // Reset history pagination when student changes
-  useEffect(() => {
-    setHistoryPage(1);
-  }, [selectedStudentForHistory]);
-
   // Filter and sort students
   const filteredStudents = data?.data?.students?.filter((student: StudentType) => {
     const matchesSearch = student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -129,21 +128,106 @@ const ManageStudents: FC = () => {
   }) || [];
 
   const meta = data?.data?.meta;
+
+  const handleSelectStudent = (studentId: string, isChecked: boolean) => {
+    if (isChecked) {
+      setSelectedStudents(prev => [...prev, studentId]);
+    } else {
+      setSelectedStudents(prev => prev.filter(id => id !== studentId));
+    }
+  };
+
+  const handleSelectAll = (isChecked: boolean) => {
+    if (isChecked) {
+      setSelectedStudents(filteredStudents.map((student: StudentType) => student.id));
+    } else {
+      setSelectedStudents([]);
+    }
+  };
+
+  const handleBulkDelete = () => {
+    selectedStudents.forEach((studentId: string) => {
+      deleteStudent({ url: `/${studentId}` });
+    });
+    setSelectedStudents([]);
+    onBulkDeleteClose();
+  };
+
+  // Reset history pagination when student changes
+  useEffect(() => {
+    setHistoryPage(1);
+  }, [selectedStudentForHistory]);
+=======
+  // Filter and sort students
+  const filteredStudents = data?.data?.students?.filter((student: StudentType) => {
+    const matchesSearch = student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         student.matric_no.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         student.grade.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesGrade = !gradeFilter || student.grade === gradeFilter;
+    return matchesSearch && matchesGrade;
+  }).sort((a: StudentType, b: StudentType) => {
+    if (sortBy === 'name-asc') return a.name.localeCompare(b.name);
+    if (sortBy === 'name-desc') return b.name.localeCompare(a.name);
+    if (sortBy === 'matric_no') return a.matric_no.localeCompare(b.matric_no);
+    if (sortBy === 'grade') return parseInt(a.grade) - parseInt(b.grade);
+    if (sortBy === 'section-asc') return a.courses[0]?.course_name.localeCompare(b.courses[0]?.course_name);
+    if (sortBy === 'section-desc') return b.courses[0]?.course_name.localeCompare(a.courses[0]?.course_name);
+    return 0;
+  }) || [];
+
+  const meta = data?.data?.meta;
+
+  const handleSelectStudent = (studentId: string, isChecked: boolean) => {
+    if (isChecked) {
+      setSelectedStudents(prev => [...prev, studentId]);
+    } else {
+      setSelectedStudents(prev => prev.filter(id => id !== studentId));
+    }
+  };
+
+  const handleSelectAll = (isChecked: boolean) => {
+    if (isChecked) {
+      setSelectedStudents(filteredStudents.map(student => student.id));
+    } else {
+      setSelectedStudents([]);
+    }
+  };
+
+  const handleBulkDelete = () => {
+    selectedStudents.forEach(studentId => {
+      deleteStudent({ url: `/${studentId}` });
+    });
+    setSelectedStudents([]);
+    onBulkDeleteClose();
+  };
+
   return (
     <WithStaffLayout>
       <Flex justifyContent="space-between" alignItems="center" marginTop="2rem">
         <Heading fontSize={25} fontWeight={600}>
           Manage Students
         </Heading>
-        <Button
-          bg="var(--bg-primary)"
-          color="white"
-          _hover={{ background: 'var(--bg-primary-light)' }}
-          leftIcon={<PlusSquareIcon />}
-          onClick={() => setDrawerOpen(true)}
-        >
-          Add New Student
-        </Button>
+        <Flex gap={4}>
+          {selectedStudents.length > 0 && (
+            <Button
+              bg="red.500"
+              color="white"
+              _hover={{ background: 'red.600' }}
+              onClick={onBulkDeleteOpen}
+            >
+              Delete Selected ({selectedStudents.length})
+            </Button>
+          )}
+          <Button
+            bg="var(--bg-primary)"
+            color="white"
+            _hover={{ background: 'var(--bg-primary-light)' }}
+            leftIcon={<PlusSquareIcon />}
+            onClick={() => setDrawerOpen(true)}
+          >
+            Add New Student
+          </Button>
+        </Flex>
       </Flex>
 
       {/* Filters and Search */}
@@ -195,6 +279,13 @@ const ManageStudents: FC = () => {
             <TableCaption>All Students</TableCaption>
             <Thead>
               <Tr>
+                <Th>
+                  <Checkbox
+                    isChecked={selectedStudents.length === filteredStudents.length && filteredStudents.length > 0}
+                    isIndeterminate={selectedStudents.length > 0 && selectedStudents.length < filteredStudents.length}
+                    onChange={(e) => handleSelectAll(e.target.checked)}
+                  />
+                </Th>
                 <Th>S/N</Th>
                 <Th>Name</Th>
                 <Th>ID Number</Th>
@@ -206,12 +297,18 @@ const ManageStudents: FC = () => {
             <Tbody>
               {filteredStudents.map((student: StudentType, idx: number) => (
                 <Tr key={idx}>
+                  <Td>
+                    <Checkbox
+                      isChecked={selectedStudents.includes(student.id)}
+                      onChange={(e) => handleSelectStudent(student.id, e.target.checked)}
+                    />
+                  </Td>
                   <Td>{(page - 1) * per_page + (idx + 1)}</Td>
                   <Td>{student.name}</Td>
                   <Td>{student.matric_no}</Td>
                   <Td>{student.grade}</Td>
                   <Td>
-                    {student.courses?.map((course) => (
+                    {student.courses?.map((course: Course) => (
                       <Badge key={course.id} colorScheme="blue" marginRight="0.5rem" marginBottom="0.25rem">
                         {course.course_code}
                       </Badge>
@@ -474,6 +571,38 @@ const ManageStudents: FC = () => {
                 ml={3}
               >
                 Delete
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
+
+      <AlertDialog
+        isOpen={isBulkDeleteOpen}
+        leastDestructiveRef={bulkCancelRef}
+        onClose={onBulkDeleteClose}
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent>
+            <AlertDialogHeader fontSize="lg" fontWeight="bold">
+              Delete Selected Students
+            </AlertDialogHeader>
+
+            <AlertDialogBody>
+              Are you sure you want to delete {selectedStudents.length} selected student(s)?
+              This action cannot be undone and will remove all associated attendance records.
+            </AlertDialogBody>
+
+            <AlertDialogFooter>
+              <Button ref={bulkCancelRef} onClick={onBulkDeleteClose}>
+                Cancel
+              </Button>
+              <Button
+                colorScheme="red"
+                onClick={handleBulkDelete}
+                ml={3}
+              >
+                Delete All
               </Button>
             </AlertDialogFooter>
           </AlertDialogContent>

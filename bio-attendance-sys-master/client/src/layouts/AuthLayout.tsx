@@ -15,7 +15,7 @@ const AuthLayout: FC<{ children: ReactNode; routeType: 'auth' | 'noauth' }> = ({
     if (!isAuthenticated && routeType === 'auth') {
       navigate('/staff/login');
     } else if (isAuthenticated && routeType === 'noauth') {
-      navigate('/staff/profile');
+      navigate('/');
     }
   }, [isAuthenticated]);
 

@@ -2,6 +2,7 @@ import '../styles/Header.scss';
 import logo from '../assets/1756882646835-removebg-preview.png';
 import { Link, useLocation } from 'react-router-dom';
 import useStore from '../store/store';
+import { ViewIcon, CalendarIcon, InfoIcon, SettingsIcon, RepeatIcon, AtSignIcon, TimeIcon } from '@chakra-ui/icons';
 
 const Header = () => {
   const isAuthenticated = useStore.use.isAuthenticated();
@@ -25,7 +26,37 @@ const Header = () => {
           <ul className="nav-list">
             <li className="nav-item">
               <Link to="/" className={`nav-link ${location.pathname === '/' ? 'active' : ''}`}>
-                Dashboard
+                <ViewIcon className="nav-icon" /> Dashboard
+              </Link>
+            </li>
+            <li className="nav-item">
+              <Link to="/staff/manage/courses" className={`nav-link ${location.pathname === '/staff/manage/courses' ? 'active' : ''}`}>
+                <CalendarIcon className="nav-icon" /> Section
+              </Link>
+            </li>
+            <li className="nav-item">
+              <Link to="/staff/manage/students" className={`nav-link ${location.pathname === '/staff/manage/students' ? 'active' : ''}`}>
+                <AtSignIcon className="nav-icon" /> Students
+              </Link>
+            </li>
+            <li className="nav-item">
+              <Link to="/staff/manage/attendance" className={`nav-link ${location.pathname === '/staff/manage/attendance' ? 'active' : ''}`}>
+                <TimeIcon className="nav-icon" /> Attendance
+              </Link>
+            </li>
+            <li className="nav-item">
+              <Link to="/staff/reports" className={`nav-link ${location.pathname === '/staff/reports' ? 'active' : ''}`}>
+                <RepeatIcon className="nav-icon" /> Reports
+              </Link>
+            </li>
+            <li className="nav-item">
+              <Link to="/staff/help" className={`nav-link ${location.pathname === '/staff/help' ? 'active' : ''}`}>
+                <InfoIcon className="nav-icon" /> Help
+              </Link>
+            </li>
+            <li className="nav-item">
+              <Link to="/staff/settings" className={`nav-link ${location.pathname === '/staff/settings' ? 'active' : ''}`}>
+                <SettingsIcon className="nav-icon" /> Settings
               </Link>
             </li>
           </ul>

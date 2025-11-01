@@ -1,7 +1,7 @@
 import { useRef, useState, useEffect } from 'react';
 import type { FC, ChangeEventHandler, FormEventHandler } from 'react';
 import SimpleReactValidator from 'simple-react-validator';
-import { AddStudentInput, Student } from '../interfaces/api.interface';
+import { AddStudentInput, Student, Course } from '../interfaces/api.interface';
 import { useAddStudent, useUpdateStudent } from '../api/student.api';
 import { useGetCourses } from '../api/course.api';
 import {
@@ -18,6 +18,13 @@ import {
   Box,
   Image,
   Text,
+  AlertDialog,
+  AlertDialogBody,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogContent,
+  AlertDialogOverlay,
+  useDisclosure,
 } from '@chakra-ui/react';
 import Select from 'react-select';
 import { toast } from 'react-hot-toast';
@@ -44,11 +51,13 @@ const AddStudent: FC<{
     grade: '',
     fingerprint: '',
     courses: [],
-  });
+  } as AddStudentInput);
 
   const [deviceConnected, setDeviceConnected] = useState<boolean>(false);
   // console.log('studentInput => ', studentInput);
   const [, forceUpdate] = useState<boolean>(false);
+  const { isOpen: isConfirmOpen, onOpen: onConfirmOpen, onClose: onConfirmClose } = useDisclosure();
+  const cancelRef = useRef<HTMLButtonElement>(null);
   const [page] = useState<number>(1);
   const [per_page] = useState<number>(500);
   const { data: courseData } = useGetCourses(
@@ -57,7 +66,7 @@ const AddStudent: FC<{
     per_page,
   )({ queryKey: ['availablecourses', page], keepPreviousData: true });
   const defaultStudentInput = () =>
-    setStudentInput((prev) => ({ ...prev, name: '', matric_no: '', grade: '', courses: [], fingerprint: '' }));
+    setStudentInput((prev: AddStudentInput) => ({ ...prev, name: '', matric_no: '', grade: '', courses: [], fingerprint: '' }));
   const { isLoading, mutate: addStudent } = useAddStudent({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['students'] });
@@ -83,7 +92,7 @@ const AddStudent: FC<{
   });
   useEffect(() => {
     if (isOpen && activeStudent) {
-      setStudentInput((prev) => ({
+      setStudentInput((prev: AddStudentInput) => ({
         ...prev,
         name: activeStudent.name,
         matric_no: activeStudent.matric_no,
@@ -109,7 +118,7 @@ const AddStudent: FC<{
     console.log('Sample acquired => ', event?.samples);
     const rawImages = event?.samples.map((sample: string) => Base64.fromBase64Url(sample));
 
-    setStudentInput((prev) => ({ ...prev, fingerprint: rawImages[0] }));
+    setStudentInput((prev: AddStudentInput) => ({ ...prev, fingerprint: rawImages[0] }));
   };
 
   useEffect(() => {
@@ -126,7 +135,7 @@ const AddStudent: FC<{
 
   const handleInputChange: ChangeEventHandler<HTMLInputElement> = (e) => {
     const { name, value } = e.target;
-    setStudentInput((prev) => ({ ...prev, [name]: value }));
+    setStudentInput((prev: AddStudentInput) => ({ ...prev, [name]: value }));
   };
 
   console.log('studentInput => ', studentInput);
@@ -136,7 +145,7 @@ const AddStudent: FC<{
     if (simpleValidator.current.allValid()) {
       try {
         if (activeStudent) {
-          updateStudent({ ...studentInput, id: activeStudent.id, url: `/${activeStudent.id}` });
+          onConfirmOpen();
         } else {
           addStudent(studentInput);
         }
@@ -149,7 +158,14 @@ const AddStudent: FC<{
     }
   };
 
-  const courses = courseData?.data?.courses?.map((course) => ({ value: course.id, label: course.course_code })) ?? [];
+  const confirmUpdate = () => {
+    if (activeStudent) {
+      updateStudent({ ...studentInput, id: activeStudent.id, url: `/${activeStudent.id}` });
+      onConfirmClose();
+    }
+  };
+
+  const courses = courseData?.data?.courses?.map((course: Course) => ({ value: course.id, label: course.course_code })) ?? [];
   return (
     <Drawer
       onClose={() => {
@@ -215,14 +231,14 @@ const AddStudent: FC<{
               <Select
                 value={studentInput.courses && studentInput.courses.length > 0 ? {
                   value: studentInput.courses[0],
-                  label: courses?.find((course) => course.value === studentInput.courses[0])?.label,
+                  label: courses?.find((course: { value: string; label: string }) => course.value === studentInput.courses[0])?.label,
                 } : null}
                 name="section"
                 options={courses}
                 className="basic-single-select"
                 classNamePrefix="select"
-                onChange={(newValue) =>
-                  setStudentInput((prev) => ({ ...prev, courses: newValue ? [newValue.value] : [] }))
+                onChange={(newValue: any) =>
+                  setStudentInput((prev: AddStudentInput) => ({ ...prev, courses: newValue ? [newValue.value] : [] }))
                 }
               />
             </FormControl>
@@ -246,6 +262,38 @@ const AddStudent: FC<{
           </form>
         </DrawerBody>
       </DrawerContent>
+
+      <AlertDialog
+        isOpen={isConfirmOpen}
+        leastDestructiveRef={cancelRef}
+        onClose={onConfirmClose}
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent>
+            <AlertDialogHeader fontSize="lg" fontWeight="bold">
+              Confirm Changes
+            </AlertDialogHeader>
+
+            <AlertDialogBody>
+              Are you sure you want to update the student "{activeStudent?.name}" (ID: {activeStudent?.matric_no})?
+              This action will save the changes you made.
+            </AlertDialogBody>
+
+            <AlertDialogFooter>
+              <Button ref={cancelRef} onClick={onConfirmClose}>
+                Cancel
+              </Button>
+              <Button
+                colorScheme="blue"
+                onClick={confirmUpdate}
+                ml={3}
+              >
+                Confirm Changes
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
     </Drawer>
   );
 };

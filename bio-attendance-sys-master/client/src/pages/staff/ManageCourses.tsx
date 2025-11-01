@@ -24,6 +24,7 @@ import {
   AlertDialogOverlay,
   Button,
   useDisclosure,
+  Checkbox,
 } from '@chakra-ui/react';
 import AddCourse from '../../components/AddCourse';
 import { PlusSquareIcon, EditIcon, DeleteIcon } from '@chakra-ui/icons';
@@ -42,6 +43,9 @@ const ManageCourses: FC = () => {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [courseToDelete, setCourseToDelete] = useState<Course | null>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
+  const [selectedCourses, setSelectedCourses] = useState<string[]>([]);
+  const { isOpen: isBulkDeleteOpen, onOpen: onBulkDeleteOpen, onClose: onBulkDeleteClose } = useDisclosure();
+  const bulkCancelRef = useRef<HTMLButtonElement>(null);
   const { data, error, isLoading, isError } = useGetCourses(
     staffInfo?.id as string,
     page,
@@ -73,21 +77,57 @@ const ManageCourses: FC = () => {
 
   const meta = data?.data?.meta;
 
+  const handleSelectCourse = (courseId: string, isChecked: boolean) => {
+    if (isChecked) {
+      setSelectedCourses(prev => [...prev, courseId]);
+    } else {
+      setSelectedCourses(prev => prev.filter(id => id !== courseId));
+    }
+  };
+
+  const handleSelectAll = (isChecked: boolean) => {
+    if (isChecked) {
+      setSelectedCourses(data?.data?.courses?.map(course => course.id) || []);
+    } else {
+      setSelectedCourses([]);
+    }
+  };
+
+  const handleBulkDelete = () => {
+    selectedCourses.forEach(courseId => {
+      deleteCourse({ url: `/${courseId}` });
+    });
+    setSelectedCourses([]);
+    onBulkDeleteClose();
+  };
+
   return (
     <WithStaffLayout>
       <Flex justifyContent="space-between" alignItems="center" marginTop="2rem">
         <Heading fontSize={25} fontWeight={600}>
           Manage Section
         </Heading>
-        <Button
-          bg="var(--bg-primary)"
-          color="white"
-          _hover={{ background: 'var(--bg-primary-light)' }}
-          leftIcon={<PlusSquareIcon />}
-          onClick={() => setDrawerOpen(true)}
-        >
-          Add New Section
-        </Button>
+        <Flex gap={4}>
+          {selectedCourses.length > 0 && (
+            <Button
+              bg="red.500"
+              color="white"
+              _hover={{ background: 'red.600' }}
+              onClick={onBulkDeleteOpen}
+            >
+              Delete Selected ({selectedCourses.length})
+            </Button>
+          )}
+          <Button
+            bg="var(--bg-primary)"
+            color="white"
+            _hover={{ background: 'var(--bg-primary-light)' }}
+            leftIcon={<PlusSquareIcon />}
+            onClick={() => setDrawerOpen(true)}
+          >
+            Add New Section
+          </Button>
+        </Flex>
       </Flex>
 
       {isLoading ? (
@@ -104,6 +144,13 @@ const ManageCourses: FC = () => {
             <TableCaption>All Courses</TableCaption>
             <Thead>
               <Tr>
+                <Th>
+                  <Checkbox
+                    isChecked={selectedCourses.length === data?.data?.courses?.length && data?.data?.courses?.length > 0}
+                    isIndeterminate={selectedCourses.length > 0 && selectedCourses.length < (data?.data?.courses?.length || 0)}
+                    onChange={(e) => handleSelectAll(e.target.checked)}
+                  />
+                </Th>
                 <Th>S/N</Th>
                 <Th>Teacher Name</Th>
                 <Th>Section</Th>
@@ -113,6 +160,12 @@ const ManageCourses: FC = () => {
             <Tbody>
               {data?.data?.courses?.map((course: Course, idx: number) => (
                 <Tr key={idx}>
+                  <Td>
+                    <Checkbox
+                      isChecked={selectedCourses.includes(course.id)}
+                      onChange={(e) => handleSelectCourse(course.id, e.target.checked)}
+                    />
+                  </Td>
                   <Td>{(page - 1) * per_page + (idx + 1)}</Td>
                   <Td>{course.course_name}</Td>
                   <Td>{course.course_code}</Td>
@@ -218,6 +271,38 @@ const ManageCourses: FC = () => {
                 ml={3}
               >
                 Delete
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
+
+      <AlertDialog
+        isOpen={isBulkDeleteOpen}
+        leastDestructiveRef={bulkCancelRef}
+        onClose={onBulkDeleteClose}
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent>
+            <AlertDialogHeader fontSize="lg" fontWeight="bold">
+              Delete Selected Courses
+            </AlertDialogHeader>
+
+            <AlertDialogBody>
+              Are you sure you want to delete {selectedCourses.length} selected course(s)?
+              This action cannot be undone and will remove all associated data.
+            </AlertDialogBody>
+
+            <AlertDialogFooter>
+              <Button ref={bulkCancelRef} onClick={onBulkDeleteClose}>
+                Cancel
+              </Button>
+              <Button
+                colorScheme="red"
+                onClick={handleBulkDelete}
+                ml={3}
+              >
+                Delete All
               </Button>
             </AlertDialogFooter>
           </AlertDialogContent>

@@ -14,6 +14,13 @@ import {
   FormLabel,
   Input,
   Button,
+  AlertDialog,
+  AlertDialogBody,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogContent,
+  AlertDialogOverlay,
+  useDisclosure,
 } from '@chakra-ui/react';
 import { toast } from 'react-hot-toast';
 import useStore from '../store/store';
@@ -32,14 +39,16 @@ const AddCourse: FC<{
     staff_id: staffInfo?.id as string,
     course_name: '',
     course_code: '',
-  });
+  } as AddCourseInput);
   const [, forceUpdate] = useState<boolean>(false);
+  const { isOpen: isConfirmOpen, onOpen: onConfirmOpen, onClose: onConfirmClose } = useDisclosure();
+  const cancelRef = useRef<HTMLButtonElement>(null);
   const { isLoading, mutate: addCourse } = useAddCourse({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['courses'] });
       closeDrawer();
       toast.success('Course added successfully');
-      setCourseInput((prev) => ({ ...prev, course_name: '', course_code: '' }));
+      setCourseInput((prev: AddCourseInput) => ({ ...prev, course_name: '', course_code: '' }));
     },
     onError: (err) => {
       toast.error((err.response?.data?.message as string) ?? 'An error occured');
@@ -51,7 +60,7 @@ const AddCourse: FC<{
       setActiveCourse(null);
       closeDrawer();
       toast.success('Course updated successfully');
-      setCourseInput((prev) => ({ ...prev, course_name: '', course_code: '' }));
+      setCourseInput((prev: AddCourseInput) => ({ ...prev, course_name: '', course_code: '' }));
     },
     onError: (err) => {
       toast.error((err.response?.data?.message as string) ?? 'An error occured');
@@ -59,7 +68,7 @@ const AddCourse: FC<{
   });
   useEffect(() => {
     if (isOpen && activeCourse) {
-      setCourseInput((prev) => ({
+      setCourseInput((prev: AddCourseInput) => ({
         ...prev,
         course_name: activeCourse.course_name,
         course_code: activeCourse.course_code,
@@ -74,7 +83,7 @@ const AddCourse: FC<{
 
   const handleInputChange: ChangeEventHandler<HTMLInputElement> = (e) => {
     const { name, value } = e.target;
-    setCourseInput((prev) => ({ ...prev, [name]: value }));
+    setCourseInput((prev: AddCourseInput) => ({ ...prev, [name]: value }));
   };
 
   const handleAddCourse: FormEventHandler = async (e) => {
@@ -82,7 +91,7 @@ const AddCourse: FC<{
     if (simpleValidator.current.allValid()) {
       try {
         if (activeCourse) {
-          updateCourse({ ...courseInput, id: activeCourse.id, url: `/${activeCourse.id}` });
+          onConfirmOpen();
         } else {
           addCourse(courseInput);
         }
@@ -95,10 +104,17 @@ const AddCourse: FC<{
     }
   };
 
+  const confirmUpdate = () => {
+    if (activeCourse) {
+      updateCourse({ ...courseInput, id: activeCourse.id, url: `/${activeCourse.id}` });
+      onConfirmClose();
+    }
+  };
+
   return (
     <Drawer
       onClose={() => {
-        setCourseInput((prev) => ({ ...prev, course_name: '', course_code: '' }));
+        setCourseInput((prev: AddCourseInput) => ({ ...prev, course_name: '', course_code: '' }));
         onClose();
       }}
       isOpen={isOpen}
@@ -160,6 +176,38 @@ const AddCourse: FC<{
           </form>
         </DrawerBody>
       </DrawerContent>
+
+      <AlertDialog
+        isOpen={isConfirmOpen}
+        leastDestructiveRef={cancelRef}
+        onClose={onConfirmClose}
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent>
+            <AlertDialogHeader fontSize="lg" fontWeight="bold">
+              Confirm Changes
+            </AlertDialogHeader>
+
+            <AlertDialogBody>
+              Are you sure you want to update the course "{activeCourse?.course_name}" ({activeCourse?.course_code})?
+              This action will save the changes you made.
+            </AlertDialogBody>
+
+            <AlertDialogFooter>
+              <Button ref={cancelRef} onClick={onConfirmClose}>
+                Cancel
+              </Button>
+              <Button
+                colorScheme="blue"
+                onClick={confirmUpdate}
+                ml={3}
+              >
+                Confirm Changes
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
     </Drawer>
   );
 };

@@ -14,6 +14,13 @@ import {
   FormLabel,
   Input,
   Button,
+  AlertDialog,
+  AlertDialogBody,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogContent,
+  AlertDialogOverlay,
+  useDisclosure,
 } from '@chakra-ui/react';
 
 import DatePicker from 'react-datepicker';
@@ -37,6 +44,8 @@ const AddAttendance: FC<{
     date: new Date().toISOString(),
   });
   const [, forceUpdate] = useState<boolean>(false);
+  const { isOpen: isConfirmOpen, onOpen: onConfirmOpen, onClose: onConfirmClose } = useDisclosure();
+  const cancelRef = useRef<HTMLButtonElement>(null);
   const { isLoading, mutate: addAttendance } = useAddAttendance({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['attendances'] });
@@ -89,7 +98,7 @@ const AddAttendance: FC<{
     if (simpleValidator.current.allValid()) {
       try {
         if (activeAttendance) {
-          updateAttendance({ ...attendanceInput, id: activeAttendance.id, url: `/${activeAttendance.id}` });
+          onConfirmOpen();
         } else {
           addAttendance(attendanceInput);
         }
@@ -99,6 +108,13 @@ const AddAttendance: FC<{
     } else {
       simpleValidator.current.showMessages();
       forceUpdate((prev) => !prev);
+    }
+  };
+
+  const confirmUpdate = () => {
+    if (activeAttendance) {
+      updateAttendance({ ...attendanceInput, id: activeAttendance.id });
+      onConfirmClose();
     }
   };
   return (
@@ -150,6 +166,38 @@ const AddAttendance: FC<{
           </form>
         </DrawerBody>
       </DrawerContent>
+
+      <AlertDialog
+        isOpen={isConfirmOpen}
+        leastDestructiveRef={cancelRef}
+        onClose={onConfirmClose}
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent>
+            <AlertDialogHeader fontSize="lg" fontWeight="bold">
+              Confirm Changes
+            </AlertDialogHeader>
+
+            <AlertDialogBody>
+              Are you sure you want to update the attendance session "{activeAttendance?.name}" for {activeAttendance?.date ? new Date(activeAttendance.date).toLocaleDateString() : ''}?
+              This action will save the changes you made.
+            </AlertDialogBody>
+
+            <AlertDialogFooter>
+              <Button ref={cancelRef} onClick={onConfirmClose}>
+                Cancel
+              </Button>
+              <Button
+                colorScheme="blue"
+                onClick={confirmUpdate}
+                ml={3}
+              >
+                Confirm Changes
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
     </Drawer>
   );
 };

@@ -31,6 +31,7 @@ import {
   AlertDialogHeader,
   AlertDialogContent,
   AlertDialogOverlay,
+  Checkbox,
 } from '@chakra-ui/react';
 import { fingerprintControl } from '../../lib/fingerprint';
 import AddAttendance from '../../components/AddAttendance';
@@ -62,6 +63,9 @@ const ManageAttendance: FC = () => {
   const [attendanceToDelete, setAttendanceToDelete] = useState<Attendance | null>(null);
 
   const cancelRef = useRef<HTMLButtonElement>(null);
+  const [selectedAttendances, setSelectedAttendances] = useState<string[]>([]);
+  const { isOpen: isBulkDeleteOpen, onOpen: onBulkDeleteOpen, onClose: onBulkDeleteClose } = useDisclosure();
+  const bulkCancelRef = useRef<HTMLButtonElement>(null);
   const { data, error, isLoading, isError } = useGetAttendances(
     staffInfo?.id as string,
     page,
@@ -124,21 +128,58 @@ const ManageAttendance: FC = () => {
   }, [scannerConnected]);
 
   const meta = data?.data?.meta;
+
+  const handleSelectAttendance = (attendanceId: string, isChecked: boolean) => {
+    if (isChecked) {
+      setSelectedAttendances(prev => [...prev, attendanceId]);
+    } else {
+      setSelectedAttendances(prev => prev.filter(id => id !== attendanceId));
+    }
+  };
+
+  const handleSelectAll = (isChecked: boolean) => {
+    if (isChecked) {
+      setSelectedAttendances(data?.data?.attendances?.map(attendance => attendance.id) || []);
+    } else {
+      setSelectedAttendances([]);
+    }
+  };
+
+  const handleBulkDelete = () => {
+    selectedAttendances.forEach(attendanceId => {
+      deleteAttendance({ url: `/${attendanceId}` });
+    });
+    setSelectedAttendances([]);
+    onBulkDeleteClose();
+  };
+
   return (
     <WithStaffLayout>
       <Flex justifyContent="space-between" alignItems="center" marginTop="2rem">
         <Heading fontSize={25} fontWeight={600}>
           Manage Attendance
         </Heading>
-        <Button
-          bg="var(--bg-primary)"
-          color="white"
-          _hover={{ background: 'var(--bg-primary-light)' }}
-          leftIcon={<PlusSquareIcon />}
-          onClick={() => setDrawerOpen(true)}
-        >
-          Add New Attendance
-        </Button>
+        <Flex gap={4}>
+          {selectedAttendances.length > 0 && (
+            <Button
+              bg="red.500"
+              color="white"
+              _hover={{ background: 'red.600' }}
+              onClick={onBulkDeleteOpen}
+            >
+              Delete Selected ({selectedAttendances.length})
+            </Button>
+          )}
+          <Button
+            bg="var(--bg-primary)"
+            color="white"
+            _hover={{ background: 'var(--bg-primary-light)' }}
+            leftIcon={<PlusSquareIcon />}
+            onClick={() => setDrawerOpen(true)}
+          >
+            Add New Attendance
+          </Button>
+        </Flex>
       </Flex>
 
       {/* Scanner Status Alert */}
@@ -186,6 +227,13 @@ const ManageAttendance: FC = () => {
             <TableCaption>All Attendance</TableCaption>
             <Thead>
               <Tr>
+                <Th>
+                  <Checkbox
+                    isChecked={selectedAttendances.length === data?.data?.attendances?.length && data?.data?.attendances?.length > 0}
+                    isIndeterminate={selectedAttendances.length > 0 && selectedAttendances.length < (data?.data?.attendances?.length || 0)}
+                    onChange={(e) => handleSelectAll(e.target.checked)}
+                  />
+                </Th>
                 <Th>S/N</Th>
                 <Th>Name</Th>
                 <Th>Date</Th>
@@ -195,6 +243,12 @@ const ManageAttendance: FC = () => {
             <Tbody>
               {data?.data?.attendances?.map((attendance: Attendance, idx: number) => (
                 <Tr key={idx}>
+                  <Td>
+                    <Checkbox
+                      isChecked={selectedAttendances.includes(attendance.id)}
+                      onChange={(e) => handleSelectAttendance(attendance.id, e.target.checked)}
+                    />
+                  </Td>
                   <Td>{(page - 1) * per_page + (idx + 1)}</Td>
                   <Td>{attendance.name}</Td>
                   <Td>{dayjs(attendance.date).format('DD/MM/YYYY')}</Td>
@@ -341,6 +395,38 @@ const ManageAttendance: FC = () => {
                 ml={3}
               >
                 Delete
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
+
+      <AlertDialog
+        isOpen={isBulkDeleteOpen}
+        leastDestructiveRef={bulkCancelRef}
+        onClose={onBulkDeleteClose}
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent>
+            <AlertDialogHeader fontSize="lg" fontWeight="bold">
+              Delete Selected Attendance Sessions
+            </AlertDialogHeader>
+
+            <AlertDialogBody>
+              Are you sure you want to delete {selectedAttendances.length} selected attendance session(s)?
+              This action cannot be undone and will remove all associated attendance records.
+            </AlertDialogBody>
+
+            <AlertDialogFooter>
+              <Button ref={bulkCancelRef} onClick={onBulkDeleteClose}>
+                Cancel
+              </Button>
+              <Button
+                colorScheme="red"
+                onClick={handleBulkDelete}
+                ml={3}
+              >
+                Delete All
               </Button>
             </AlertDialogFooter>
           </AlertDialogContent>
