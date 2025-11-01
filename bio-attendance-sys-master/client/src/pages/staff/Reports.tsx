@@ -104,12 +104,12 @@ const REPORT_TYPES: { value: ReportType; label: string; description: string }[] 
 
 // Grade color mapping
 const gradeColors: Record<string, string> = {
-  '1': '#FF6B6B', // Red
-  '2': '#FFA500', // Orange
-  '3': '#FFFF00', // Yellow
-  '4': '#32CD32', // Lime Green
-  '5': '#0000FF', // Blue
-  '6': '#8A2BE2', // Blue Violet
+  '1': '#E57373', // Bright Red
+  '2': '#FFB74D', // Vivid Orange
+  '3': '#FFD54F', // Neon Yellow
+  '4': '#81C784', // Lime Green
+  '5': '#64B5F6', // Pure Blue
+  '6': '#9575CD', // Strong Blue Violet
 };
 
 const Reports: FC = () => {
@@ -1131,7 +1131,7 @@ const Reports: FC = () => {
                           labelFormatter={(label) => `Time: ${label}`}
                         />
                         <Legend />
-                        <Bar dataKey="count" fill="#E53E3E" name="Check-ins" />
+                        <Bar dataKey="count" fill="#3BB4C1" name="Check-ins" />
                       </BarChart>
                     </ResponsiveContainer>
                   )}
