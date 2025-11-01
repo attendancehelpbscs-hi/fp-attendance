@@ -83,7 +83,14 @@ const AddCourse: FC<{
 
   const handleInputChange: ChangeEventHandler<HTMLInputElement> = (e) => {
     const { name, value } = e.target;
-    setCourseInput((prev: AddCourseInput) => ({ ...prev, [name]: value }));
+    let processedValue = value;
+
+    // Auto-capitalize the course_name and course_code fields (ALL CAPS)
+    if (name === 'course_name' || name === 'course_code') {
+      processedValue = value.toUpperCase();
+    }
+
+    setCourseInput((prev: AddCourseInput) => ({ ...prev, [name]: processedValue }));
   };
 
   const handleAddCourse: FormEventHandler = async (e) => {
@@ -138,7 +145,7 @@ const AddCourse: FC<{
               {simpleValidator.current.message(
                 'teacher name',
                 courseInput.course_name,
-                'required|alpha_num_space|between:2,128',
+                'required|string|between:2,128',
               )}
             </FormControl>
             <FormControl marginTop="1rem">

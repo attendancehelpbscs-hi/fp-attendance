@@ -25,9 +25,12 @@ import {
   Button,
   useDisclosure,
   Checkbox,
+  Input,
+  InputGroup,
+  InputLeftElement,
 } from '@chakra-ui/react';
 import AddCourse from '../../components/AddCourse';
-import { PlusSquareIcon, EditIcon, DeleteIcon } from '@chakra-ui/icons';
+import { PlusSquareIcon, EditIcon, DeleteIcon, SearchIcon } from '@chakra-ui/icons';
 import { useGetCourses, useDeleteCourse } from '../../api/course.api';
 import useStore from '../../store/store';
 import { toast } from 'react-hot-toast';
@@ -40,6 +43,7 @@ const ManageCourses: FC = () => {
   const [page, setPage] = useState<number>(1);
   const [per_page] = useState<number>(10);
   const [activeCourse, setActiveCourse] = useState<Course | null>(null);
+  const [searchTerm, setSearchTerm] = useState<string>('');
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [courseToDelete, setCourseToDelete] = useState<Course | null>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
@@ -87,7 +91,7 @@ const ManageCourses: FC = () => {
 
   const handleSelectAll = (isChecked: boolean) => {
     if (isChecked) {
-      setSelectedCourses(data?.data?.courses?.map(course => course.id) || []);
+      setSelectedCourses(filteredCourses.map((course: Course) => course.id));
     } else {
       setSelectedCourses([]);
     }
@@ -100,6 +104,12 @@ const ManageCourses: FC = () => {
     setSelectedCourses([]);
     onBulkDeleteClose();
   };
+
+  // Filter courses based on search term
+  const filteredCourses = data?.data?.courses?.filter((course: Course) =>
+    course.course_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    course.course_code.toLowerCase().includes(searchTerm.toLowerCase())
+  ) || [];
 
   return (
     <WithStaffLayout>
@@ -130,6 +140,20 @@ const ManageCourses: FC = () => {
         </Flex>
       </Flex>
 
+      {/* Search Input */}
+      <Box marginTop="1rem" marginBottom="1rem">
+        <InputGroup maxW="400px">
+          <InputLeftElement pointerEvents="none">
+            <SearchIcon color="gray.300" />
+          </InputLeftElement>
+          <Input
+            placeholder="Search by teacher name or section"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </InputGroup>
+      </Box>
+
       {isLoading ? (
         <Box marginTop="4rem" display="flex" justifyContent="center">
           <Spinner color="var(--bg-primar)" />
@@ -146,8 +170,8 @@ const ManageCourses: FC = () => {
               <Tr>
                 <Th>
                   <Checkbox
-                    isChecked={selectedCourses.length === data?.data?.courses?.length && data?.data?.courses?.length > 0}
-                    isIndeterminate={selectedCourses.length > 0 && selectedCourses.length < (data?.data?.courses?.length || 0)}
+                    isChecked={selectedCourses.length === filteredCourses.length && filteredCourses.length > 0}
+                    isIndeterminate={selectedCourses.length > 0 && selectedCourses.length < filteredCourses.length}
                     onChange={(e) => handleSelectAll(e.target.checked)}
                   />
                 </Th>
@@ -158,7 +182,7 @@ const ManageCourses: FC = () => {
               </Tr>
             </Thead>
             <Tbody>
-              {data?.data?.courses?.map((course: Course, idx: number) => (
+              {filteredCourses.map((course: Course, idx: number) => (
                 <Tr key={idx}>
                   <Td>
                     <Checkbox
@@ -197,7 +221,7 @@ const ManageCourses: FC = () => {
             </Tbody>
           </Table>
           <Flex flexDirection="column" justifyContent="space-between" alignItems="center" marginBottom="1rem">
-            <Text>Total Courses: {meta?.total_items}</Text>
+            <Text>Total Courses: {filteredCourses.length} (filtered from {meta?.total_items})</Text>
             <Text>
               Page {meta?.page} of {meta?.total_pages}
             </Text>

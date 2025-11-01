@@ -135,7 +135,14 @@ const AddStudent: FC<{
 
   const handleInputChange: ChangeEventHandler<HTMLInputElement> = (e) => {
     const { name, value } = e.target;
-    setStudentInput((prev: AddStudentInput) => ({ ...prev, [name]: value }));
+    let processedValue = value;
+
+    // Auto-capitalize the name field (ALL CAPS)
+    if (name === 'name') {
+      processedValue = value.toUpperCase();
+    }
+
+    setStudentInput((prev: AddStudentInput) => ({ ...prev, [name]: processedValue }));
   };
 
   console.log('studentInput => ', studentInput);
@@ -183,8 +190,9 @@ const AddStudent: FC<{
           <form className="login-form" method="post" action="#" onSubmit={handleAddStudent}>
             <FormControl>
               <FormLabel>Name</FormLabel>
+              <Text fontSize="sm" color="gray.500" mb={1}>(First Name, Middle Initial/Name, Last Name)</Text>
               <Input type="text" name="name" required value={studentInput.name} onChange={handleInputChange} />
-              {simpleValidator.current.message('name', studentInput.name, 'required|alpha_num_space|between:2,128')}
+              {simpleValidator.current.message('name', studentInput.name, 'required|string|between:2,128')}
             </FormControl>
             <FormControl marginTop="1rem">
               <FormLabel>Matric Number (or ID Number)</FormLabel>
@@ -203,19 +211,28 @@ const AddStudent: FC<{
             </FormControl>
             <FormControl marginTop="1rem">
               <FormLabel>Grade</FormLabel>
-              <Input
-                type="number"
+              <Text fontSize="sm" color="gray.500" mb={1}>(Select grade level)</Text>
+              <Select
+                value={studentInput.grade ? { value: studentInput.grade, label: `Grade ${studentInput.grade}` } : null}
                 name="grade"
-                required
-                value={studentInput.grade}
-                onChange={handleInputChange}
-                min="1"
-                max="6"
+                options={[
+                  { value: '1', label: 'Grade 1' },
+                  { value: '2', label: 'Grade 2' },
+                  { value: '3', label: 'Grade 3' },
+                  { value: '4', label: 'Grade 4' },
+                  { value: '5', label: 'Grade 5' },
+                  { value: '6', label: 'Grade 6' },
+                ]}
+                className="basic-single-select"
+                classNamePrefix="select"
+                onChange={(newValue: any) =>
+                  setStudentInput((prev: AddStudentInput) => ({ ...prev, grade: newValue ? newValue.value : '' }))
+                }
               />
               {simpleValidator.current.message(
                 'grade',
                 studentInput.grade,
-                'required|numeric|between:1,6',
+                'required|string|between:1,6',
               )}
             </FormControl>
             <FormControl marginTop="1rem">

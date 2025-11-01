@@ -89,6 +89,7 @@ const ManageStudents: FC = () => {
     queryKey: ['student-reports', selectedStudentForHistory?.id],
     enabled: !!selectedStudentForHistory?.id,
   });
+
   const toastRef = useRef<string>('');
   const { mutate: deleteStudent } = useDeleteStudent({
     onSuccess: () => {
@@ -110,11 +111,17 @@ const ManageStudents: FC = () => {
     }
   }, [activeStudent]);
 
+  // Reset history pagination when student changes
+  useEffect(() => {
+    setHistoryPage(1);
+  }, [selectedStudentForHistory]);
+
   // Filter and sort students
   const filteredStudents = data?.data?.students?.filter((student: StudentType) => {
     const matchesSearch = student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          student.matric_no.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         student.grade.toLowerCase().includes(searchTerm.toLowerCase());
+                         student.grade.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         student.courses?.some(course => course.course_code.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesGrade = !gradeFilter || student.grade === gradeFilter;
     return matchesSearch && matchesGrade;
   }).sort((a: StudentType, b: StudentType) => {
@@ -147,54 +154,6 @@ const ManageStudents: FC = () => {
 
   const handleBulkDelete = () => {
     selectedStudents.forEach((studentId: string) => {
-      deleteStudent({ url: `/${studentId}` });
-    });
-    setSelectedStudents([]);
-    onBulkDeleteClose();
-  };
-
-  // Reset history pagination when student changes
-  useEffect(() => {
-    setHistoryPage(1);
-  }, [selectedStudentForHistory]);
-=======
-  // Filter and sort students
-  const filteredStudents = data?.data?.students?.filter((student: StudentType) => {
-    const matchesSearch = student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         student.matric_no.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         student.grade.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesGrade = !gradeFilter || student.grade === gradeFilter;
-    return matchesSearch && matchesGrade;
-  }).sort((a: StudentType, b: StudentType) => {
-    if (sortBy === 'name-asc') return a.name.localeCompare(b.name);
-    if (sortBy === 'name-desc') return b.name.localeCompare(a.name);
-    if (sortBy === 'matric_no') return a.matric_no.localeCompare(b.matric_no);
-    if (sortBy === 'grade') return parseInt(a.grade) - parseInt(b.grade);
-    if (sortBy === 'section-asc') return a.courses[0]?.course_name.localeCompare(b.courses[0]?.course_name);
-    if (sortBy === 'section-desc') return b.courses[0]?.course_name.localeCompare(a.courses[0]?.course_name);
-    return 0;
-  }) || [];
-
-  const meta = data?.data?.meta;
-
-  const handleSelectStudent = (studentId: string, isChecked: boolean) => {
-    if (isChecked) {
-      setSelectedStudents(prev => [...prev, studentId]);
-    } else {
-      setSelectedStudents(prev => prev.filter(id => id !== studentId));
-    }
-  };
-
-  const handleSelectAll = (isChecked: boolean) => {
-    if (isChecked) {
-      setSelectedStudents(filteredStudents.map(student => student.id));
-    } else {
-      setSelectedStudents([]);
-    }
-  };
-
-  const handleBulkDelete = () => {
-    selectedStudents.forEach(studentId => {
       deleteStudent({ url: `/${studentId}` });
     });
     setSelectedStudents([]);
@@ -239,7 +198,7 @@ const ManageStudents: FC = () => {
                 <SearchIcon color="gray.300" />
               </InputLeftElement>
               <Input
-                placeholder="Search by name, ID, or grade"
+                placeholder="Search by name, ID, grade, or section"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -260,7 +219,6 @@ const ManageStudents: FC = () => {
               <option value="section-asc">Sort by Section (A-Z)</option>
               <option value="section-desc">Sort by Section (Z-A)</option>
             </Select>
-
           </Flex>
         </CardBody>
       </Card>
