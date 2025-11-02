@@ -1,7 +1,9 @@
 import { axiosClient } from '../lib/axios-client';
 
-export const getAuditLogs = async () => {
-  const response = await axiosClient.get('/api/audit/logs');
+export const getAuditLogs = async (page: number = 1, limit: number = 10) => {
+  const response = await axiosClient.get('/api/audit/logs', {
+    params: { page, limit },
+  });
   return response.data;
 };
 

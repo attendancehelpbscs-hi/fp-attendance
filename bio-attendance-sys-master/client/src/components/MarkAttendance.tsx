@@ -64,7 +64,7 @@ const MarkAttendance: FC<{
   });
 
   const defaultMarkInput = () => {
-    setMarkInput((prev) => ({ ...prev, student_id: '', time_type: 'IN', section: '' }));
+    setMarkInput((prev) => ({ ...prev, student_id: '', section: '' }));
     setFingerprints((prev) => ({ ...prev, newFingerprint: '' }));
     setIdentifiedStudent(null);
     setIdentificationStatus('idle');
@@ -118,7 +118,7 @@ const MarkAttendance: FC<{
       const { student_id, confidence } = res.data;
       setConfidence(confidence);
 
-      if (student_id && confidence > 6) { // Adjusted threshold to accept legitimate matches
+      if (student_id && confidence > 5) { // Adjusted threshold to accept legitimate matches
         const student = studentFingerprintsData.data?.data?.students?.find((s: StudentFingerprint) => s.id === student_id);
         if (student) {
           setIdentifiedStudent(student);
@@ -253,7 +253,7 @@ const MarkAttendance: FC<{
                 <InfoIcon />
                 <Text fontStyle="italic">Scan fingerprint to identify and mark attendance for the student.</Text>
               </Flex>
-              {deviceConnected && <Text>NB: Fingerprint scanner is connected</Text>}
+              {deviceConnected && <Text>✅ System: Fingerprint scanner is connected</Text>}
 
               <Box
                 overflow="hidden"

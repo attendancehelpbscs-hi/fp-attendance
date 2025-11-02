@@ -140,7 +140,7 @@ const Help: FC = () => {
             <List spacing={3}>
               <ListItem>
                 <ListIcon as={CheckCircleIcon} color="green.500" />
-                Access the Reports section to view comprehensive attendance analytics, including attendance rates, trends, and detailed breakdowns
+                Access the Reports section to view comprehensive attendance analytics, including attendance trends, and detailed breakdowns
               </ListItem>
               <ListItem>
                 <ListIcon as={CheckCircleIcon} color="green.500" />

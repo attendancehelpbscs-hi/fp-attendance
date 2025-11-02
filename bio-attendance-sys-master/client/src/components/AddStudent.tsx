@@ -237,7 +237,7 @@ const AddStudent: FC<{
             </FormControl>
             <FormControl marginTop="1rem">
               <FormLabel>Fingerprint</FormLabel>
-              {deviceConnected && <Text>NB: Fingerprint scanner is connected</Text>}
+              {deviceConnected && <Text>✅ System: Fingerprint scanner is connected</Text>}
               <Box shadow="xs" h={240} w={240} margin="1rem auto 0" border="1px solid rgba(0, 0, 0, 0.04)">
                 {studentInput.fingerprint && <Image src={getFingerprintImgString(studentInput.fingerprint)} />}
               </Box>

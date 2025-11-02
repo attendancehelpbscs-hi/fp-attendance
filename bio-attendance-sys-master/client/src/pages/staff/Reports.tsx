@@ -270,8 +270,7 @@ const Reports: FC = () => {
         item.date.toLowerCase().includes(searchTerm.toLowerCase()) ||
         item.grade.toLowerCase().includes(searchTerm.toLowerCase()) ||
         item.section.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.present.toString().toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.rate.toString().toLowerCase().includes(searchTerm.toLowerCase())
+        item.present.toString().toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
@@ -371,6 +370,30 @@ const Reports: FC = () => {
     return Object.values(dateGroups).sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }, [filteredAttendanceData]);
 
+  // Weekly attendance pattern data
+  const weeklyAttendanceData = useMemo(() => {
+    const data = filteredAttendanceData;
+    const dayGroups = data.reduce((acc: Record<string, any>, item: any) => {
+      const dayOfWeek = new Date(item.date).toLocaleDateString('en-US', { weekday: 'long' });
+      if (!acc[dayOfWeek]) acc[dayOfWeek] = { day: dayOfWeek, present: 0, count: 0 };
+      acc[dayOfWeek].present += item.present;
+      acc[dayOfWeek].count += 1;
+      return acc;
+    }, {} as Record<string, any>);
+
+    // Calculate average attendance per day
+    const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    return daysOfWeek.map(day => {
+      const dayData = dayGroups[day];
+      return {
+        day,
+        averagePresent: dayData ? Math.round(dayData.present / dayData.count) : 0,
+        totalPresent: dayData ? dayData.present : 0,
+        occurrences: dayData ? dayData.count : 0
+      };
+    });
+  }, [filteredAttendanceData]);
+
   const gradeSectionData = useMemo(() => {
     const data = filteredAttendanceData; // Use daily records data for patterns
     const groups = data.reduce((acc: Record<string, any>, item: any) => {
@@ -408,14 +431,14 @@ const Reports: FC = () => {
   const exportToCSV = () => {
     const data = selectedReportType === 'daily-records' ? paginatedData : filteredStudentData;
     const headers = selectedReportType === 'daily-records'
-      ? ['Date', 'Grade', 'Section', 'Present', 'Attendance Rate (%)']
+      ? ['Date', 'Grade', 'Section', 'Present']
       : ['Student Name', 'Matric No', 'Grade', 'Date', 'Status', 'Section'];
 
     const csvContent = [
       headers.join(','),
       ...data.map((row: any) => {
         if (selectedReportType === 'daily-records') {
-          return [row.date, row.grade, row.section, row.present, row.rate].join(',');
+          return [row.date, row.grade, row.section, row.present].join(',');
         } else {
           return [row.student_name, row.matric_no, row.grade, row.date, row.status, row.section].join(',');
         }
@@ -454,7 +477,7 @@ const Reports: FC = () => {
 
     // Prepare table data
     const tableColumns = selectedReportType === 'daily-records'
-      ? ['Date', 'Grade', 'Section', 'Present', 'Rate (%)']
+      ? ['Date', 'Grade', 'Section', 'Present']
       : ['Student Name', 'Matric No', 'Grade', 'Date', 'Status', 'Section'];
 
     const tableRows = data.map((row: any) => {
@@ -463,8 +486,7 @@ const Reports: FC = () => {
           row.date,
           row.grade,
           row.section,
-          row.present.toString(),
-          row.rate.toString()
+          row.present.toString()
         ];
       } else {
         return [
@@ -549,11 +571,14 @@ const Reports: FC = () => {
     doc.text('Attendance Summary', 14, yPosition);
     yPosition += 10;
     doc.setFontSize(10);
-    doc.text(`Weekly: ${report.summaries.weekly.present_days}/${report.summaries.weekly.total_days} days (${report.summaries.weekly.attendance_rate.toFixed(1)}%)`, 14, yPosition);
+    const weeklyRate = report.summaries.weekly.total_days > 0 ? (report.summaries.weekly.present_days / report.summaries.weekly.total_days) * 100 : 0;
+    doc.text(`Weekly: ${report.summaries.weekly.present_days}/${report.summaries.weekly.total_days} days (${weeklyRate.toFixed(1)}%)`, 14, yPosition);
     yPosition += 6;
-    doc.text(`Monthly: ${report.summaries.monthly.present_days}/${report.summaries.monthly.total_days} days (${report.summaries.monthly.attendance_rate.toFixed(1)}%)`, 14, yPosition);
+    const monthlyRate = report.summaries.monthly.total_days > 0 ? (report.summaries.monthly.present_days / report.summaries.monthly.total_days) * 100 : 0;
+    doc.text(`Monthly: ${report.summaries.monthly.present_days}/${report.summaries.monthly.total_days} days (${monthlyRate.toFixed(1)}%)`, 14, yPosition);
     yPosition += 6;
-    doc.text(`Yearly: ${report.summaries.yearly.present_days}/${report.summaries.yearly.total_days} days (${report.summaries.yearly.attendance_rate.toFixed(1)}%)`, 14, yPosition);
+    const yearlyRate = report.summaries.yearly.total_days > 0 ? (report.summaries.yearly.present_days / report.summaries.yearly.total_days) * 100 : 0;
+    doc.text(`Yearly: ${report.summaries.yearly.present_days}/${report.summaries.yearly.total_days} days (${yearlyRate.toFixed(1)}%)`, 14, yPosition);
 
     // Prepare table data
     const tableColumns = ['Date', 'Status', 'Time Type', 'Section'];
@@ -844,12 +869,7 @@ const Reports: FC = () => {
                         >
                           Present {sortConfig?.key === 'present' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                         </Th>
-                        <Th
-                          cursor="pointer"
-                          onClick={() => setSortConfig(sortConfig?.key === 'rate' && sortConfig.direction === 'asc' ? { key: 'rate', direction: 'desc' } : { key: 'rate', direction: 'asc' })}
-                        >
-                          Attendance Rate {sortConfig?.key === 'rate' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                        </Th>
+
                       </Tr>
                     </Thead>
                     <Tbody>
@@ -859,7 +879,6 @@ const Reports: FC = () => {
                           <Td>{row.grade}</Td>
                           <Td>{row.section}</Td>
                           <Td color="green.500">{row.present}</Td>
-                          <Td>{row.rate}%</Td>
                         </Tr>
                       ))}
                     </Tbody>
@@ -1017,21 +1036,28 @@ const Reports: FC = () => {
                 </Box>
               </Card>
 
-              {/* Monthly Attendance Trends */}
+              {/* Weekly Attendance Patterns */}
               <Card>
                 <Box padding="1rem">
-                  <Heading size="md" marginBottom="1rem">Monthly Attendance Trends</Heading>
+                  <Heading size="md" marginBottom="1rem">Weekly Attendance Patterns</Heading>
                   <ResponsiveContainer width="100%" height={300}>
-                    <AreaChart data={attendanceTrendData}>
+                    <BarChart data={weeklyAttendanceData}>
                       <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="date" tickFormatter={(value) => new Date(value).toLocaleDateString()} />
+                      <XAxis dataKey="day" />
                       <YAxis />
-                      <Tooltip labelFormatter={(value) => `Date: ${new Date(value).toLocaleDateString()}`} />
-                      <Area type="monotone" dataKey="rate" stroke="#3182CE" fill="#3182CE" fillOpacity={0.3} />
-                    </AreaChart>
+                      <Tooltip
+                        formatter={(value: any, name: string) => [
+                          name === 'averagePresent' ? `${value} students` : value,
+                          name === 'averagePresent' ? 'Average Present' : name
+                        ]}
+                        labelFormatter={(label) => `Day: ${label}`}
+                      />
+                      <Legend />
+                      <Bar dataKey="averagePresent" fill="#38B2AC" name="Average Present" />
+                    </BarChart>
                   </ResponsiveContainer>
                   <Text fontSize="sm" color="gray.600" marginTop="0.5rem">
-                    This area chart shows the attendance rate percentage over time. The filled area represents the percentage of expected students who successfully checked in via biometrics. A full shaded area (100%) means all enrolled students attended, while lower percentages indicate partial attendance.
+                    This bar chart shows the average number of students who attend each day of the week. Higher bars indicate days with better attendance. This helps identify patterns like lower attendance on certain weekdays or weekends.
                   </Text>
                 </Box>
               </Card>
@@ -1074,7 +1100,7 @@ const Reports: FC = () => {
                 <Box padding="1rem">
                   <Heading size="md" marginBottom="1rem">Grade Performance Comparison</Heading>
                   <ResponsiveContainer width="100%" height={300}>
-                    <ComposedChart data={gradeSectionData}>
+                    <BarChart data={gradeSectionData}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="name" />
                       <YAxis />
@@ -1085,11 +1111,10 @@ const Reports: FC = () => {
                           <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
                       </Bar>
-                      <Line type="monotone" dataKey="rate" stroke="#3182CE" name="Rate %" />
-                    </ComposedChart>
+                    </BarChart>
                   </ResponsiveContainer>
                   <Text fontSize="sm" color="gray.600" marginTop="0.5rem">
-                    This combined chart shows both the number of present students (bars) and attendance rates (line) for each grade-section. The line helps identify which groups have the highest attendance percentages.
+                    This bar chart shows the number of present students for each grade-section combination. Higher bars indicate more students attended in that specific group.
                   </Text>
                 </Box>
               </Card>

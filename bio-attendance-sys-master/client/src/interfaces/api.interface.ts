@@ -58,17 +58,17 @@ export interface StudentAttendanceSummary {
   weekly: {
     present_days: number;
     total_days: number;
-    attendance_rate: number;
+    absent_days: number;
   };
   monthly: {
     present_days: number;
     total_days: number;
-    attendance_rate: number;
+    absent_days: number;
   };
   yearly: {
     present_days: number;
     total_days: number;
-    attendance_rate: number;
+    absent_days: number;
   };
 }
 

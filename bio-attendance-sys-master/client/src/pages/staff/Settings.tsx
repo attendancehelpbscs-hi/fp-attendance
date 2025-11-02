@@ -60,6 +60,9 @@ const Settings: FC = () => {
   const setStaffSettings = useStore.use.setStaffSettings();
 
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalLogs, setTotalLogs] = useState(0);
   const { isOpen: isBackupOpen, onOpen: onBackupOpen, onClose: onBackupClose } = useDisclosure();
   const { isOpen: isClearLogsOpen, onOpen: onClearLogsOpen, onClose: onClearLogsClose } = useDisclosure();
   const { isOpen: isViewLogsOpen, onOpen: onViewLogsOpen, onClose: onViewLogsClose } = useDisclosure();
@@ -88,8 +91,8 @@ const Settings: FC = () => {
       toast.success('System logs cleared successfully');
       onClearLogsClose();
       // Refresh audit logs
-      const response = await getAuditLogs();
-      setAuditLogs(response.data.logs);
+      setCurrentPage(1);
+      await fetchAuditLogs(1);
     } catch (error) {
       toast.error('Failed to clear logs');
       console.error('Clear logs error:', error);
@@ -157,17 +160,20 @@ const Settings: FC = () => {
 
 
 
-  useEffect(() => {
-    const fetchAuditLogs = async () => {
-      try {
-        const response = await getAuditLogs();
-        setAuditLogs(response.data.logs);
-      } catch (error) {
-        console.error('Failed to fetch audit logs:', error);
-        toast.error('Failed to load audit logs');
-      }
-    };
+  const fetchAuditLogs = async (page: number = currentPage) => {
+    try {
+      const response = await getAuditLogs(page);
+      setAuditLogs(response.data.logs);
+      setTotalPages(response.data.totalPages);
+      setTotalLogs(response.data.total);
+      setCurrentPage(page);
+    } catch (error) {
+      console.error('Failed to fetch audit logs:', error);
+      toast.error('Failed to load audit logs');
+    }
+  };
 
+  useEffect(() => {
     fetchAuditLogs();
   }, []);
 
@@ -298,6 +304,27 @@ const Settings: FC = () => {
                     </Tbody>
                   </Table>
                 </TableContainer>
+                <Box marginTop="1rem">
+                  <HStack spacing={4} justify="center">
+                    <Button
+                      onClick={() => fetchAuditLogs(currentPage - 1)}
+                      isDisabled={currentPage === 1}
+                      size="sm"
+                    >
+                      Previous
+                    </Button>
+                    <Text>
+                      Page {currentPage} of {totalPages} ({totalLogs} total logs)
+                    </Text>
+                    <Button
+                      onClick={() => fetchAuditLogs(currentPage + 1)}
+                      isDisabled={currentPage === totalPages}
+                      size="sm"
+                    >
+                      Next
+                    </Button>
+                  </HStack>
+                </Box>
                 <Button leftIcon={<ViewIcon />} colorScheme="teal" marginTop="1rem" onClick={onViewLogsOpen}>
                   View Full Logs
                 </Button>

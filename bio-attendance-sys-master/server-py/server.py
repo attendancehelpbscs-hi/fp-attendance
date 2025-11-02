@@ -111,8 +111,8 @@ def identify_fingerprint(scanned_fingerprint_path, students_fingerprints):
 
     logging.info(f"Identification complete. Best match: {best_match}")
 
-    # Only return a match if confidence is above 6%
-    if best_match['confidence'] < 6:
+    # Only return a match if confidence is above 5%
+    if best_match['confidence'] < 5:
         logging.info("Confidence too low, returning no match")
         return {
             'student_id': None,

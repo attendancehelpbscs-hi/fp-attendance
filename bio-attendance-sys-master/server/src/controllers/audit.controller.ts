@@ -5,8 +5,11 @@ import { createSuccess } from '../helpers/http.helper';
 
 export const getAuditLogsController = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const logs = await getAuditLogs();
-    return createSuccess(res, 200, 'Audit logs retrieved successfully', { logs });
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+
+    const result = await getAuditLogs(page, limit);
+    return createSuccess(res, 200, 'Audit logs retrieved successfully', result);
   } catch (err) {
     return next(err);
   }

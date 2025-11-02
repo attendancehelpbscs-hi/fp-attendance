@@ -342,19 +342,16 @@ export interface StudentDetailedReport {
       total_days: number;
       present_days: number;
       absent_days: number;
-      attendance_rate: number;
     };
     monthly: {
       total_days: number;
       present_days: number;
       absent_days: number;
-      attendance_rate: number;
     };
     yearly: {
       total_days: number;
       present_days: number;
       absent_days: number;
-      attendance_rate: number;
     };
   };
 }
@@ -416,7 +413,6 @@ export const getStudentDetailedReport = async (staff_id: string, student_id: str
       total_days: weeklyRecords.length,
       present_days: weeklyPresent,
       absent_days: weeklyAbsent,
-      attendance_rate: 0, // Remove percentage calculation
     };
 
     // Monthly summary (current month)
@@ -430,7 +426,6 @@ export const getStudentDetailedReport = async (staff_id: string, student_id: str
       total_days: monthlyRecords.length,
       present_days: monthlyPresent,
       absent_days: monthlyAbsent,
-      attendance_rate: 0, // Remove percentage calculation
     };
 
     // Yearly summary (current year)
@@ -441,7 +436,6 @@ export const getStudentDetailedReport = async (staff_id: string, student_id: str
       total_days: yearlyRecords.length,
       present_days: yearlyPresent,
       absent_days: yearlyAbsent,
-      attendance_rate: 0, // Remove percentage calculation
     };
 
     return {

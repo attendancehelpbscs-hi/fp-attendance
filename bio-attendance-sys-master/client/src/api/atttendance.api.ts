@@ -87,9 +87,9 @@ export const useGetStudentDetailedReport = (staffId: string, studentId: string, 
     student: { id: string; name: string; matric_no: string; grade: string };
     attendanceRecords: { date: string; status: 'present' | 'absent'; time_type: 'IN' | 'OUT' | null; section: string; created_at: string }[];
     summaries: {
-      weekly: { total_days: number; present_days: number; absent_days: number; attendance_rate: number };
-      monthly: { total_days: number; present_days: number; absent_days: number; attendance_rate: number };
-      yearly: { total_days: number; present_days: number; absent_days: number; attendance_rate: number };
+      weekly: { total_days: number; present_days: number; absent_days: number };
+      monthly: { total_days: number; present_days: number; absent_days: number };
+      yearly: { total_days: number; present_days: number; absent_days: number };
     };
   }, BaseError>(`/api/reports/${staffId}/students/${studentId}/details?${queryParams.toString()}`);
 };

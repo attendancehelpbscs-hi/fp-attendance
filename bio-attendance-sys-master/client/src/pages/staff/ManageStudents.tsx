@@ -398,16 +398,6 @@ const ManageStudents: FC = () => {
                             <Text fontSize="2xl" fontWeight="bold">{studentReportData.data?.reports?.filter(r => r.status === 'present').length ?? 0}</Text>
                           </CardBody>
                         </Card>
-                        <Card minW="200px">
-                          <CardBody>
-                            <Text fontSize="sm" color="gray.600">Attendance Rate</Text>
-                            <Text fontSize="2xl" fontWeight="bold">
-                              {studentReportData.data?.reports?.length > 0
-                                ? Math.round((studentReportData.data.reports.filter(r => r.status === 'present').length / studentReportData.data.reports.length) * 100)
-                                : 0}%
-                            </Text>
-                          </CardBody>
-                        </Card>
                       </Flex>
                     </Box>
 
