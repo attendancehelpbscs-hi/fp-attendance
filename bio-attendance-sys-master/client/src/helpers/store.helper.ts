@@ -13,7 +13,8 @@ export function useBaseMutation<TRes = unknown, TError = unknown, TData = unknow
         const dynamicUrl = (data as TData & { staffId?: string; studentId?: string })?.staffId && (data as TData & { staffId?: string; studentId?: string })?.studentId
           ? `/api/reports/${(data as TData & { staffId: string; studentId: string }).staffId}/students/${(data as TData & { staffId: string; studentId: string }).studentId}/mark-attendance`
           : url + ((data as TData & { url?: string })?.url || '');
-        const payload = removeObjectProps(data as { [k: string]: unknown }, ['staffId', 'studentId', 'url']);
+        // FIXED: Added 'id' to the list of properties to remove from the payload
+        const payload = removeObjectProps(data as { [k: string]: unknown }, ['staffId', 'studentId', 'url', 'id']);
         return method === 'delete'
           ? (await axiosClient[method](dynamicUrl)).data
           : (await axiosClient[method](dynamicUrl, payload)).data;
