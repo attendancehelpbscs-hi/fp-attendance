@@ -41,14 +41,16 @@ export const useManualMarkAttendance = useBaseMutation<{ marked: number; skipped
   '/api/attendance/manual',
   'post',
 );
-export const useGetAttendanceList = (attendance_id: string) =>
-  useBaseQuery<GetAttendanceListResult, BaseError>(`/api/attendance/${attendance_id}/students`);
+export const useGetAttendanceList = (attendance_id: string, page = 1, per_page = 10) =>
+  useBaseQuery<GetAttendanceListResult, BaseError>(`/api/attendance/${attendance_id}/students?page=${page}&per_page=${per_page}`);
 
-export const useGetReports = (staffId: string, options: { grade?: string; section?: string; dateRange?: string; page?: number; per_page?: number } = {}) => {
+export const useGetReports = (staffId: string, options: { grade?: string; section?: string; dateRange?: string; startDate?: string; endDate?: string; page?: number; per_page?: number } = {}) => {
   const queryParams = new URLSearchParams();
   if (options.grade) queryParams.append('grade', options.grade);
   if (options.section) queryParams.append('section', options.section);
   if (options.dateRange) queryParams.append('dateRange', options.dateRange);
+  if (options.startDate) queryParams.append('startDate', options.startDate);
+  if (options.endDate) queryParams.append('endDate', options.endDate);
   if (options.page) queryParams.append('page', options.page.toString());
   if (options.per_page) queryParams.append('per_page', options.per_page.toString());
 
@@ -103,11 +105,13 @@ export const useMarkStudentAttendance = () =>
 export const useGetDashboardStats = (staffId: string) =>
   useBaseQuery<GetDashboardStatsResult, BaseError>(`/api/reports/${staffId}/dashboard`);
 
-export const useGetCheckInTimeAnalysis = (staffId: string, options: { grade?: string; section?: string; dateRange?: string } = {}) => {
+export const useGetCheckInTimeAnalysis = (staffId: string, options: { grade?: string; section?: string; dateRange?: string; startDate?: string; endDate?: string } = {}) => {
   const queryParams = new URLSearchParams();
   if (options.grade) queryParams.append('grade', options.grade);
   if (options.section) queryParams.append('section', options.section);
   if (options.dateRange) queryParams.append('dateRange', options.dateRange);
+  if (options.startDate) queryParams.append('startDate', options.startDate);
+  if (options.endDate) queryParams.append('endDate', options.endDate);
 
   return useBaseQuery<GetCheckInTimeAnalysisResult, BaseError>(`/api/reports/${staffId}/check-in-analysis?${queryParams.toString()}`);
 };

@@ -2,7 +2,7 @@ import createError from 'http-errors';
 import { prisma } from '../db/prisma-client';
 import type { StudentAttendance } from '@prisma/client';
 
-export const getAttendanceReports = async (staff_id: string, filters: { grade?: string; section?: string; dateRange?: string; page?: number; per_page?: number }) => {
+export const getAttendanceReports = async (staff_id: string, filters: { grade?: string; section?: string; dateRange?: string; startDate?: string; endDate?: string; page?: number; per_page?: number }) => {
   try {
     const where: any = {
       student: { staff_id },
@@ -27,12 +27,24 @@ export const getAttendanceReports = async (staff_id: string, filters: { grade?: 
         if (filters.dateRange === '7days') {
           const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
           startDate = sevenDaysAgo.toISOString().split('T')[0];
+        } else if (filters.dateRange === '14days') {
+          const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+          startDate = fourteenDaysAgo.toISOString().split('T')[0];
         } else if (filters.dateRange === '30days') {
           const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
           startDate = thirtyDaysAgo.toISOString().split('T')[0];
+        } else if (filters.dateRange === '60days') {
+          const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+          startDate = sixtyDaysAgo.toISOString().split('T')[0];
         } else if (filters.dateRange === '90days') {
           const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
           startDate = ninetyDaysAgo.toISOString().split('T')[0];
+        } else if (filters.dateRange === '180days') {
+          const oneEightyDaysAgo = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000);
+          startDate = oneEightyDaysAgo.toISOString().split('T')[0];
+        } else if (filters.dateRange === '365days') {
+          const threeSixtyFiveDaysAgo = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+          startDate = threeSixtyFiveDaysAgo.toISOString().split('T')[0];
         } else {
           // Default to 7 days if unrecognized
           const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -44,6 +56,14 @@ export const getAttendanceReports = async (staff_id: string, filters: { grade?: 
         date: {
           gte: startDate,
           lte: endDate,
+        },
+      };
+    } else if (filters.startDate && filters.endDate) {
+      // Use startDate and endDate if provided
+      where.attendance = {
+        date: {
+          gte: filters.startDate,
+          lte: filters.endDate,
         },
       };
     }
@@ -184,12 +204,24 @@ export const getStudentAttendanceReports = async (staff_id: string, filters: { s
         if (filters.dateRange === '7days') {
           const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
           startDate = sevenDaysAgo.toISOString().split('T')[0];
+        } else if (filters.dateRange === '14days') {
+          const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+          startDate = fourteenDaysAgo.toISOString().split('T')[0];
         } else if (filters.dateRange === '30days') {
           const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
           startDate = thirtyDaysAgo.toISOString().split('T')[0];
+        } else if (filters.dateRange === '60days') {
+          const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+          startDate = sixtyDaysAgo.toISOString().split('T')[0];
         } else if (filters.dateRange === '90days') {
           const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
           startDate = ninetyDaysAgo.toISOString().split('T')[0];
+        } else if (filters.dateRange === '180days') {
+          const oneEightyDaysAgo = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000);
+          startDate = oneEightyDaysAgo.toISOString().split('T')[0];
+        } else if (filters.dateRange === '365days') {
+          const threeSixtyFiveDaysAgo = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+          startDate = threeSixtyFiveDaysAgo.toISOString().split('T')[0];
         } else {
           // Default to 7 days if unrecognized
           const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -486,7 +518,7 @@ export const getDashboardStats = async (staff_id: string) => {
   }
 };
 
-export const getCheckInTimeAnalysis = async (staff_id: string, filters: { grade?: string; section?: string; dateRange?: string }) => {
+export const getCheckInTimeAnalysis = async (staff_id: string, filters: { grade?: string; section?: string; dateRange?: string; startDate?: string; endDate?: string }) => {
   try {
     const where: any = {
       student: { staff_id },

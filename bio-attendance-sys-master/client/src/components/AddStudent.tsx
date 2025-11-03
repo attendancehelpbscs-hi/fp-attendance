@@ -81,9 +81,12 @@ const AddStudent: FC<{
   const { isLoading: isUpdating, mutate: updateStudent } = useUpdateStudent({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['students'] });
+      queryClient.invalidateQueries({ queryKey: ['reports'] });
+      queryClient.invalidateQueries({ queryKey: ['student-reports'] });
+      queryClient.invalidateQueries({ queryKey: ['grades-sections'] });
       setActiveStudent(null);
       closeDrawer();
-      toast.success('Course updated successfully');
+      toast.success('Student updated successfully');
       defaultStudentInput();
     },
     onError: (err) => {

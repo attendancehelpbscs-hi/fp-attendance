@@ -151,6 +151,12 @@ export interface GetAttendanceListResult {
       status: 'present' | 'late' | 'absent';
       created_at: string;
     }[];
+    meta: {
+      total_items: number;
+      total_pages: number;
+      page: number;
+      per_page: number;
+    };
   };
 }
 

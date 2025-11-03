@@ -160,7 +160,7 @@ const AddCourse: FC<{
               {simpleValidator.current.message(
                 'section',
                 courseInput.course_code,
-                'required|alpha_num|between:2,128',
+                'required|string|between:2,128',
               )}
             </FormControl>
             <Button

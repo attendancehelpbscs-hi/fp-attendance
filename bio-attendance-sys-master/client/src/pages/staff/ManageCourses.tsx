@@ -30,7 +30,9 @@ import {
   InputLeftElement,
 } from '@chakra-ui/react';
 import AddCourse from '../../components/AddCourse';
-import { PlusSquareIcon, EditIcon, DeleteIcon, SearchIcon } from '@chakra-ui/icons';
+import EnrolledStudentsModal from '../../components/EnrolledStudentsModal';
+import { EditIcon, DeleteIcon, SearchIcon } from '@chakra-ui/icons';
+import { List, ListPlus } from 'lucide-react';
 import { useGetCourses, useDeleteCourse } from '../../api/course.api';
 import useStore from '../../store/store';
 import { toast } from 'react-hot-toast';
@@ -50,6 +52,8 @@ const ManageCourses: FC = () => {
   const [selectedCourses, setSelectedCourses] = useState<string[]>([]);
   const { isOpen: isBulkDeleteOpen, onOpen: onBulkDeleteOpen, onClose: onBulkDeleteClose } = useDisclosure();
   const bulkCancelRef = useRef<HTMLButtonElement>(null);
+  const { isOpen: isEnrolledModalOpen, onOpen: onEnrolledModalOpen, onClose: onEnrolledModalClose } = useDisclosure();
+  const [selectedCourseForModal, setSelectedCourseForModal] = useState<Course | null>(null);
   const { data, error, isLoading, isError } = useGetCourses(
     staffInfo?.id as string,
     page,
@@ -132,7 +136,7 @@ const ManageCourses: FC = () => {
             bg="var(--bg-primary)"
             color="white"
             _hover={{ background: 'var(--bg-primary-light)' }}
-            leftIcon={<PlusSquareIcon />}
+            leftIcon={<ListPlus />}
             onClick={() => setDrawerOpen(true)}
           >
             Add New Section
@@ -195,6 +199,17 @@ const ManageCourses: FC = () => {
                   <Td>{course.course_code}</Td>
                   <Td>
                     <Flex justifyContent="flex-start" gap={4} alignItems="center">
+                      <IconButton
+                        bg="transparent"
+                        _hover={{ color: 'white', background: 'var(--bg-primary)' }}
+                        color="var(--bg-primary)"
+                        aria-label="View enrolled students"
+                        onClick={() => {
+                          setSelectedCourseForModal(course);
+                          onEnrolledModalOpen();
+                        }}
+                        icon={<List size={20} />}
+                      />
                       <IconButton
                         bg="transparent"
                         _hover={{ color: 'white', background: 'var(--bg-primary)' }}
@@ -332,6 +347,14 @@ const ManageCourses: FC = () => {
           </AlertDialogContent>
         </AlertDialogOverlay>
       </AlertDialog>
+
+      {selectedCourseForModal && (
+        <EnrolledStudentsModal
+          isOpen={isEnrolledModalOpen}
+          onClose={onEnrolledModalClose}
+          course={selectedCourseForModal}
+        />
+      )}
     </WithStaffLayout>
   );
 };

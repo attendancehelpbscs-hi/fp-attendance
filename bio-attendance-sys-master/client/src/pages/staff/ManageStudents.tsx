@@ -41,7 +41,8 @@ import {
 } from '@chakra-ui/react';
 import AddStudent from '../../components/AddStudent';
 import useStore from '../../store/store';
-import { PlusSquareIcon, EditIcon, DeleteIcon, SearchIcon, ViewIcon } from '@chakra-ui/icons';
+import { EditIcon, DeleteIcon, SearchIcon } from '@chakra-ui/icons';
+import { UserPlus, Eye } from 'lucide-react';
 import { useGetStudents, useDeleteStudent } from '../../api/student.api';
 import { useGetStudentReports } from '../../api/atttendance.api';
 import { toast } from 'react-hot-toast';
@@ -181,7 +182,7 @@ const ManageStudents: FC = () => {
             bg="var(--bg-primary)"
             color="white"
             _hover={{ background: 'var(--bg-primary-light)' }}
-            leftIcon={<PlusSquareIcon />}
+            leftIcon={<UserPlus />}
             onClick={() => setDrawerOpen(true)}
           >
             Add New Student
@@ -284,7 +285,7 @@ const ManageStudents: FC = () => {
                           setSelectedStudentForHistory(student);
                           onOpen();
                         }}
-                        icon={<ViewIcon />}
+                        icon={<Eye size={16} />}
                       />
                       <IconButton
                         size="sm"

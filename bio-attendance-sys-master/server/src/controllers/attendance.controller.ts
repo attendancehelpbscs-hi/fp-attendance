@@ -57,10 +57,25 @@ export const getAttendances = async (req: Request, res: Response, next: NextFunc
 
 export const getAttendanceList = async (req: Request, res: Response, next: NextFunction) => {
   const { attendance_id } = req.params;
+  const { per_page, page } = req.query;
   if (!attendance_id) return next(new createError.BadRequest('Attendance ID is required'));
+  if (!per_page || !page) return next(new createError.BadRequest('Pagination info is required'));
   try {
     const attendanceList = await fetchAttendanceStudents(attendance_id);
-    return createSuccess(res, 200, 'Attendance fetched successfully', { attendanceList });
+    const totalItems = attendanceList.length;
+    const totalPages = Math.ceil(totalItems / Number(per_page)) || 1;
+    const startIndex = (Number(page) - 1) * Number(per_page);
+    const endIndex = startIndex + Number(per_page);
+    const paginatedList = attendanceList.slice(startIndex, endIndex);
+
+    const meta = {
+      total_items: totalItems,
+      total_pages: totalPages,
+      page: Number(page),
+      per_page: Number(per_page),
+    };
+
+    return createSuccess(res, 200, 'Attendance fetched successfully', { attendanceList: paginatedList, meta });
   } catch (err) {
     return next(err);
   }

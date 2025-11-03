@@ -1,4 +1,5 @@
 import type { FC } from 'react';
+import { useState } from 'react';
 import {
   Modal,
   ModalOverlay,
@@ -13,6 +14,7 @@ import {
   Text,
   Box,
   Spinner,
+  Flex,
 } from '@chakra-ui/react';
 import { CheckIcon } from '@chakra-ui/icons';
 import type { Attendance, GetAttendanceListResult } from '../interfaces/api.interface';
@@ -24,8 +26,10 @@ const AttendanceList: FC<{ isOpen: boolean; onClose: () => void; attendance: Att
   onClose,
   attendance,
 }) => {
-  const { data, error, isLoading, isError } = useGetAttendanceList(attendance?.id || '')({
-    queryKey: ['attendance_list', attendance?.id],
+  const [page, setPage] = useState<number>(1);
+  const [per_page] = useState<number>(10);
+  const { data, error, isLoading, isError } = useGetAttendanceList(attendance?.id || '', page, per_page)({
+    queryKey: ['attendance_list', attendance?.id, page, per_page],
     keepPreviousData: true,
     enabled: !!attendance?.id,
   });
@@ -47,24 +51,52 @@ const AttendanceList: FC<{ isOpen: boolean; onClose: () => void; attendance: Att
               <Text>Error: {error?.response?.data?.message}</Text>
             </Box>
           ) : (
-            <List spacing={3}>
-              {data?.data?.attendanceList.map((student) => (
-                <ListItem key={student.student.id} display="flex" gap="1rem" alignItems="center">
-                  <CheckIcon color="green.500" />
-                  <Text>
-                    {student?.student?.name} ({student?.student?.matric_no}) - {student?.student?.grade}
-                    <br />
-                    <Text as="span" fontSize="sm" color="gray.600">
-                      {student?.time_type} - Section: {student?.section} - Time: {dayjs(student?.created_at).format('HH:mm:ss')} - Status: {student?.time_type === 'IN' ? 'Present' : 'Departure'}
+            <>
+              <List spacing={3}>
+                {data?.data?.attendanceList.map((student) => (
+                  <ListItem key={student.student.id} display="flex" gap="1rem" alignItems="center">
+                    <CheckIcon color="green.500" />
+                    <Text>
+                      {student?.student?.name} ({student?.student?.matric_no}) - {student?.student?.grade}
+                      <br />
+                      <Text as="span" fontSize="sm" color="gray.600">
+                        {student?.time_type} - Section: {student?.section} - Time: {dayjs(student?.created_at).format('HH:mm:ss')} - Status: {student?.time_type === 'IN' ? 'Present' : 'Departure'}
+                      </Text>
                     </Text>
-                  </Text>
-                </ListItem>
-              ))}
-            </List>
+                  </ListItem>
+                ))}
+              </List>
+            </>
           )}
         </ModalBody>
         <ModalFooter>
-          <Button onClick={onClose}>Close</Button>
+          <Flex justifyContent="space-between" alignItems="center" width="100%">
+            <Text fontSize="sm" color="gray.600">
+              Showing {data?.data?.attendanceList.length || 0} of {data?.data?.meta?.total_items || 0} students
+            </Text>
+            {data?.data?.meta && data.data.meta.total_items > 0 && (
+              <Flex gap={2}>
+                <Button
+                  size="sm"
+                  onClick={() => setPage(prev => Math.max(prev - 1, 1))}
+                  isDisabled={page === 1}
+                >
+                  Previous
+                </Button>
+                <Text fontSize="sm" alignSelf="center">
+                  Page {page} of {data.data.meta.total_pages}
+                </Text>
+                <Button
+                  size="sm"
+                  onClick={() => setPage(prev => Math.min(prev + 1, data.data.meta.total_pages))}
+                  isDisabled={page === data.data.meta.total_pages}
+                >
+                  Next
+                </Button>
+              </Flex>
+            )}
+            <Button onClick={onClose}>Close</Button>
+          </Flex>
         </ModalFooter>
       </ModalContent>
     </Modal>

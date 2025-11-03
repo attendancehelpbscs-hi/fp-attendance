@@ -120,8 +120,8 @@ const Reports: FC = () => {
   const [selectedGrade, setSelectedGrade] = useState<string>('');
   const [selectedSection, setSelectedSection] = useState<string>('');
   const [selectedDateRange, setSelectedDateRange] = useState<string>('all');
-  const [startDate, setStartDate] = useState<Date | null>(null);
-  const [endDate, setEndDate] = useState<Date | null>(null);
+  const [startDate, setStartDate] = useState<Date | null>(null); // No default date
+  const [endDate, setEndDate] = useState<Date | null>(new Date()); // Default to today
   const [searchTerm, setSearchTerm] = useState<string>('');
 
   // Sorting and pagination
@@ -145,6 +145,10 @@ const Reports: FC = () => {
   const [markAttendanceDates, setMarkAttendanceDates] = useState<Date[]>([]);
   const [markAttendanceSection, setMarkAttendanceSection] = useState<string>('');
 
+  // Pagination states for Grade-Section chart
+  const [gradeSectionPage, setGradeSectionPage] = useState<number>(1);
+  const [gradeSectionItemsPerPage, setGradeSectionItemsPerPage] = useState<number>(10);
+
   const toast = useToast();
 
   // Reset to first page when filters change
@@ -157,8 +161,8 @@ const Reports: FC = () => {
     setSelectedGrade('');
     setSelectedSection('');
     setSearchTerm('');
-    setStartDate(null);
-    setEndDate(null);
+    setStartDate(null); // Reset to no default date
+    setEndDate(new Date()); // Reset to default today
     setCurrentPage(1);
     setSortConfig(null);
     setSelectedStudent(null);
@@ -175,16 +179,19 @@ const Reports: FC = () => {
     setMarkAttendanceGracePeriod(0);
     setMarkAttendanceDates([]);
     setMarkAttendanceSection('');
+    setGradeSectionPage(1);
   }, [selectedReportType]);
 
   const { data: reportsData, isLoading, error } = useGetReports(staffInfo?.id || '', {
     grade: selectedGrade || undefined,
     section: selectedSection || undefined,
     dateRange: selectedDateRange,
+    startDate: selectedReportType === 'student-summary' ? (startDate ? startDate.toISOString().split('T')[0] : undefined) : undefined,
+    endDate: selectedReportType === 'student-summary' ? (endDate ? endDate.toISOString().split('T')[0] : undefined) : undefined,
     page: currentPage,
     per_page: itemsPerPage,
   })({
-    queryKey: ['reports', staffInfo?.id, selectedGrade, selectedSection, selectedDateRange, currentPage, itemsPerPage],
+    queryKey: ['reports', staffInfo?.id, selectedGrade, selectedSection, selectedDateRange, selectedReportType === 'student-summary' ? startDate : null, selectedReportType === 'student-summary' ? endDate : null, currentPage, itemsPerPage],
     enabled: !!staffInfo?.id,
   });
 
@@ -234,6 +241,8 @@ const Reports: FC = () => {
     grade: selectedGrade || undefined,
     section: selectedSection || undefined,
     dateRange: selectedDateRange,
+    startDate: undefined,
+    endDate: undefined,
   })({
     queryKey: ['check-in-analysis', staffInfo?.id, selectedGrade, selectedSection, selectedDateRange],
     enabled: !!staffInfo?.id,
@@ -406,8 +415,19 @@ const Reports: FC = () => {
     return Object.values(groups).map((item: any) => ({
       ...item,
       color: gradeColors[item.grade] || '#38B2AC', // Default to teal if grade not found
-    }));
+    })).sort((a: any, b: any) => a.name.localeCompare(b.name)); // Sort alphabetically
   }, [filteredAttendanceData]);
+
+  // Paginated grade-section data
+  const paginatedGradeSectionData = useMemo(() => {
+    if (gradeSectionItemsPerPage === 0) return gradeSectionData; // Show all
+    const startIndex = (gradeSectionPage - 1) * gradeSectionItemsPerPage;
+    const endIndex = startIndex + gradeSectionItemsPerPage;
+    return gradeSectionData.slice(startIndex, endIndex);
+  }, [gradeSectionData, gradeSectionPage, gradeSectionItemsPerPage]);
+
+  // Pagination info for grade-section chart
+  const gradeSectionTotalPages = gradeSectionItemsPerPage === 0 ? 1 : Math.ceil(gradeSectionData.length / gradeSectionItemsPerPage);
 
   const attendanceRateData = useMemo(() => {
     return [
@@ -717,14 +737,18 @@ const Reports: FC = () => {
               <Text fontWeight="bold" marginBottom="0.5rem">Date Range</Text>
               <Select value={selectedDateRange} onChange={(e) => setSelectedDateRange(e.target.value)}>
                 <option value="all">All Time</option>
+                <option value="365days">Last 365 days</option>
+                <option value="180days">Last 180 days</option>
                 <option value="90days">Last 90 days</option>
+                <option value="60days">Last 60 days</option>
                 <option value="30days">Last 30 days</option>
+                <option value="14days">Last 14 days</option>
                 <option value="7days">Last 7 days</option>
               </Select>
             </GridItem>
           </Grid>
 
-          {/* Date Range Picker for specific reports */}
+          {/* Date Range Picker - only for Student Summary */}
           {selectedReportType === 'student-summary' && (
             <Grid templateColumns={{ base: '1fr', md: 'repeat(2, 1fr)' }} gap={4} alignItems="end">
               <GridItem>
@@ -1075,22 +1099,68 @@ const Reports: FC = () => {
               <Card>
                 <Box padding="1rem">
                   <Heading size="md" marginBottom="1rem">Grade-Section Attendance Patterns</Heading>
+
+                  {/* Pagination Controls */}
+                  <Flex justifyContent="space-between" alignItems="center" marginBottom="1rem">
+                    <HStack spacing={4}>
+                      <Text fontSize="sm" color="gray.600">
+                        Showing {gradeSectionItemsPerPage === 0 ? gradeSectionData.length : paginatedGradeSectionData.length} of {gradeSectionData.length} sections
+                      </Text>
+                      <Select
+                        size="sm"
+                        value={gradeSectionItemsPerPage}
+                        onChange={(e) => {
+                          setGradeSectionItemsPerPage(parseInt(e.target.value));
+                          setGradeSectionPage(1); // Reset to first page
+                        }}
+                        width="120px"
+                      >
+                        <option value={10}>10 per page</option>
+                        <option value={15}>15 per page</option>
+                        <option value={20}>20 per page</option>
+                        <option value={0}>Show All</option>
+                      </Select>
+                    </HStack>
+
+                    {gradeSectionItemsPerPage > 0 && (
+                      <HStack spacing={2}>
+                        <Button
+                          size="sm"
+                          onClick={() => setGradeSectionPage(prev => Math.max(prev - 1, 1))}
+                          isDisabled={gradeSectionPage === 1}
+                        >
+                          Previous
+                        </Button>
+                        <Text fontSize="sm" color="gray.600">
+                          Page {gradeSectionPage} of {gradeSectionTotalPages}
+                        </Text>
+                        <Button
+                          size="sm"
+                          onClick={() => setGradeSectionPage(prev => Math.min(prev + 1, gradeSectionTotalPages))}
+                          isDisabled={gradeSectionPage === gradeSectionTotalPages}
+                        >
+                          Next
+                        </Button>
+                      </HStack>
+                    )}
+                  </Flex>
+
                   <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={gradeSectionData}>
+                    <BarChart data={paginatedGradeSectionData}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="name" />
                       <YAxis />
                       <Tooltip />
                       <Legend />
                       <Bar dataKey="present" name="Present">
-                        {gradeSectionData.map((entry, index) => (
+                        {paginatedGradeSectionData.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                   <Text fontSize="sm" color="gray.600" marginTop="0.5rem">
-                    This bar chart compares attendance across different grade and section combinations. Each bar represents a specific class group, with colors indicating different grades.
+                    This bar chart compares attendance across different grade and section combinations. Each bar represents a specific class group, with colors indicating different grades. Use pagination controls to view all sections.
                   </Text>
                 </Box>
               </Card>

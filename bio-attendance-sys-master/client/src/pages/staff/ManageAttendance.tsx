@@ -35,7 +35,8 @@ import {
 } from '@chakra-ui/react';
 import { fingerprintControl } from '../../lib/fingerprint';
 import AddAttendance from '../../components/AddAttendance';
-import { PlusSquareIcon, EditIcon, DeleteIcon, CheckIcon, InfoIcon } from '@chakra-ui/icons';
+import { EditIcon, DeleteIcon, CheckIcon, InfoIcon } from '@chakra-ui/icons';
+import { ClockPlus, Fingerprint, Logs } from 'lucide-react';
 import MarkAttendance from '../../components/MarkAttendance';
 
 import { useGetAttendances, useDeleteAttendance } from '../../api/atttendance.api';
@@ -174,7 +175,7 @@ const ManageAttendance: FC = () => {
             bg="var(--bg-primary)"
             color="white"
             _hover={{ background: 'var(--bg-primary-light)' }}
-            leftIcon={<PlusSquareIcon />}
+            leftIcon={<ClockPlus />}
             onClick={() => setDrawerOpen(true)}
           >
             Add New Attendance
@@ -255,22 +256,22 @@ const ManageAttendance: FC = () => {
                   <Td>
                     <Flex justifyContent="flex-start" gap={4} alignItems="center">
                       <Button
-                        leftIcon={<CheckIcon />}
-                        bg="var(--bg-primary)"
+                        leftIcon={<Fingerprint size={18} />}
+                        bg="#16A34A"
                         color="white"
-                        _hover={{ background: 'var(--bg-primary-light)' }}
-                        size="xs"
+                        _hover={{ background: '#15803D' }}
+                        size="sm"
                         variant="solid"
                         onClick={() => setActiveAttendance2(attendance)}
                       >
                         Mark
                       </Button>
                       <Button
-                        leftIcon={<InfoIcon />}
+                        leftIcon={<Logs size={18} />}
                         bg="var(--bg-primary)"
                         color="white"
                         _hover={{ background: 'var(--bg-primary-light)' }}
-                        size="xs"
+                        size="sm"
                         variant="solid"
                         ref={btnRef}
                         onClick={() => {
