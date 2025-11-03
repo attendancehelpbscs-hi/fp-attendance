@@ -113,7 +113,13 @@ const AddCourse: FC<{
 
   const confirmUpdate = () => {
     if (activeCourse) {
-      updateCourse({ ...courseInput, id: activeCourse.id, url: `/${activeCourse.id}` });
+      // FIXED: Only send the fields that should be updated, excluding staff_id
+      updateCourse({ 
+        id: activeCourse.id,
+        url: `/${activeCourse.id}`,
+        course_name: courseInput.course_name,
+        course_code: courseInput.course_code,
+      });
       onConfirmClose();
     }
   };

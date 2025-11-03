@@ -251,6 +251,37 @@ export interface AddCourseInput {
   staff_id: string;
 }
 
+export interface AddCourseResult {
+  course: Course;
+}
+
+export interface GetCoursesResult {
+  data: {
+    courses: Course[];
+    meta: {
+      total_items: number;
+      total_pages: number;
+      page: number;
+      per_page: number;
+    };
+  };
+}
+
+export interface UpdateCourseInput {
+  id: string;
+  course_name?: string;
+  course_code?: string;
+  url: string;
+}
+
+export interface UpdateCourseResult {
+  course: Course;
+}
+
+export interface DeleteCourseResult {
+  deleted: boolean;
+}
+
 // Staff-related interfaces
 export interface RegisterStaffInput {
   name: string;
