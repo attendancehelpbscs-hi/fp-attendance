@@ -1,4 +1,5 @@
 // import FingerprintSigninControl from './lib/fingerprint';
+import { useEffect } from 'react';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import WithMainLayout from './layouts/WithMainLayout';
 import Home from './pages/Home';
@@ -25,15 +26,15 @@ function App() {
   const setStaffSettings = useStore.use.setStaffSettings();
 
   // Load staff settings on app start if authenticated
-  useGetStaffSettings({
+  const { data: staffSettingsData } = useGetStaffSettings({
     enabled: isAuthenticated && !!useStore.use.tokens(),
-    onSuccess: (data) => {
-      setStaffSettings(data.settings);
-    },
-    onError: (err) => {
-      console.error('Failed to load staff settings:', err);
-    },
   });
+
+  useEffect(() => {
+    if (staffSettingsData) {
+      setStaffSettings(staffSettingsData.settings);
+    }
+  }, [staffSettingsData, setStaffSettings]);
 
   const router = createBrowserRouter([
     {

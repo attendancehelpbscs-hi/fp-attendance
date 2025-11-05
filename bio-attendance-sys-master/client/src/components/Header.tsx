@@ -26,7 +26,7 @@ const Header = () => {
           'Authorization': `Bearer ${useStore.getState().tokens?.accessToken}`,
         },
         body: JSON.stringify({
-          staff_id: staffInfo?.id,
+          staff_id: staffInfo?.id || undefined,
         }),
       });
 

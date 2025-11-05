@@ -18,7 +18,8 @@ import { useBaseMutation, useBaseQuery } from '../helpers/store.helper';
 export const useRegisterStaff = useBaseMutation<RegisterStaffResult, BaseError, RegisterStaffInput>('/api/staff/register', 'post');
 export const useLoginStaff = useBaseMutation<LoginStaffResult, BaseError, LoginStaffInput>('/api/auth/staff/login', 'post');
 export const useUpdateStaffSettings = useBaseMutation<UpdateStaffSettingsResult, BaseError, UpdateStaffSettingsInput>('/api/staff/settings', 'put');
-export const useGetStaffSettings = useBaseQuery<GetStaffSettingsResult, BaseError>('/api/staff/settings');
+export const useGetStaffSettings = (options: { enabled?: boolean } = {}) =>
+  useBaseQuery<GetStaffSettingsResult, BaseError>('/api/staff/settings', options);
 export const useBackupData = useBaseMutation<BackupDataResult, BaseError, Record<string, never>>('/api/staff/backup', 'post');
 export const useClearAuditLogs = useBaseMutation<ClearAuditLogsResult, BaseError, Record<string, never>>('/api/staff/clear-logs', 'delete');
 export const useUpdateStaffProfile = useBaseMutation<UpdateStaffProfileResult, BaseError, UpdateStaffProfileInput>('/api/staff/profile', 'put');

@@ -43,13 +43,10 @@ export const refreshStaffToken = async (req: Request, res: Response, next: NextF
 export const logoutStaff = async (req: Request, res: Response, next: NextFunction) => {
   const { staff_id } = req.body;
 
-  //check if all input fields have value
-  if (!staff_id) {
-    return next(createError(400, 'Please, enter all fields'));
-  }
-
   try {
-    await delRefreshToken(staff_id);
+    if (staff_id) {
+      await delRefreshToken(staff_id);
+    }
     return createSuccess(res, 200, 'Staff logged out successfully', {});
   } catch (err) {
     return next(err);

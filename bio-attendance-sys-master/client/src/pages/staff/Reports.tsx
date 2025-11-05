@@ -190,13 +190,9 @@ const Reports: FC = () => {
     endDate: selectedReportType === 'student-summary' ? (endDate ? endDate.toISOString().split('T')[0] : undefined) : undefined,
     page: currentPage,
     per_page: itemsPerPage,
-  })({
-    queryKey: ['reports', staffInfo?.id, selectedGrade, selectedSection, selectedDateRange, selectedReportType === 'student-summary' ? startDate : null, selectedReportType === 'student-summary' ? endDate : null, currentPage, itemsPerPage],
-    enabled: !!staffInfo?.id,
   });
 
-  const { data: filtersData } = useGetGradesAndSections(staffInfo?.id || '')({
-    queryKey: ['grades-sections', staffInfo?.id],
+  const { data: filtersData } = useGetGradesAndSections(staffInfo?.id || '', {
     enabled: !!staffInfo?.id,
   });
 
@@ -211,31 +207,18 @@ const Reports: FC = () => {
       page: studentCurrentPage,
       per_page: itemsPerPage,
     }
-  )({
-    queryKey: ['student-reports', staffInfo?.id, selectedGrade, selectedSection, startDate, endDate, selectedDateRange, studentCurrentPage, itemsPerPage],
-    enabled: !!staffInfo?.id && selectedReportType === 'student-summary',
-  });
+  );
 
-  const { data: sectionsForGradeData } = useGetSectionsForGrade(staffInfo?.id || '', selectedGrade)({
-    queryKey: ['sections-for-grade', staffInfo?.id, selectedGrade],
-    enabled: !!selectedGrade && !!staffInfo?.id,
-  });
+  const { data: sectionsForGradeData } = useGetSectionsForGrade(staffInfo?.id || '', selectedGrade);
 
-  const { data: studentsForGradeAndSectionData } = useGetStudentsForGradeAndSection(staffInfo?.id || '', selectedGrade, selectedSection)({
-    queryKey: ['students-for-grade-section', staffInfo?.id, selectedGrade, selectedSection],
-    enabled: !!selectedSection && !!staffInfo?.id,
-  });
+  const { data: studentsForGradeAndSectionData } = useGetStudentsForGradeAndSection(staffInfo?.id || '', selectedGrade, selectedSection);
 
   const { data: studentDetailedReportData, isLoading: studentDetailedLoading } = useGetStudentDetailedReport(
     staffInfo?.id || '',
     selectedStudent?.id || '',
     startDate ? startDate.toISOString().split('T')[0] : undefined,
     endDate ? endDate.toISOString().split('T')[0] : undefined
-  )({
-    queryKey: ['student-detailed-report', staffInfo?.id, selectedStudent?.id, startDate, endDate],
-    enabled: !!selectedStudent?.id && !!staffInfo?.id && showStudentDetail,
-    refetchOnWindowFocus: false, // Prevent unnecessary refetches
-  });
+  );
 
   const { data: checkInTimeAnalysisData, isLoading: checkInTimeAnalysisLoading } = useGetCheckInTimeAnalysis(staffInfo?.id || '', {
     grade: selectedGrade || undefined,
@@ -243,13 +226,9 @@ const Reports: FC = () => {
     dateRange: selectedDateRange,
     startDate: undefined,
     endDate: undefined,
-  })({
-    queryKey: ['check-in-analysis', staffInfo?.id, selectedGrade, selectedSection, selectedDateRange],
-    enabled: !!staffInfo?.id,
   });
 
-  const { data: studentsData } = useGetStudents(staffInfo?.id || '')({
-    queryKey: ['students', staffInfo?.id],
+  const { data: studentsData } = useGetStudents(staffInfo?.id || '', 1, 1000, {
     enabled: !!staffInfo?.id,
   });
 

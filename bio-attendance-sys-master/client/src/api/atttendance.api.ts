@@ -57,8 +57,8 @@ export const useGetReports = (staffId: string, options: { grade?: string; sectio
   return useBaseQuery<GetReportsResult, BaseError>(`/api/reports/${staffId}?${queryParams.toString()}`);
 };
 
-export const useGetGradesAndSections = (staffId: string) =>
-  useBaseQuery<GetGradesAndSectionsResult, BaseError>(`/api/reports/${staffId}/filters`);
+export const useGetGradesAndSections = (staffId: string, options: { enabled?: boolean } = {}) =>
+  useBaseQuery<GetGradesAndSectionsResult, BaseError>(`/api/reports/${staffId}/filters`, options);
 
 export const useGetStudentReports = (staffId: string, options: { studentId?: string; grade?: string; section?: string; startDate?: string; endDate?: string; dateRange?: string; page?: number; per_page?: number } = {}) => {
   const queryParams = new URLSearchParams();
@@ -102,8 +102,8 @@ export const useMarkStudentAttendance = () =>
     'post'
   );
 
-export const useGetDashboardStats = (staffId: string) =>
-  useBaseQuery<GetDashboardStatsResult, BaseError>(`/api/reports/${staffId}/dashboard`);
+export const useGetDashboardStats = (staffId: string, options: { enabled?: boolean } = {}) =>
+  useBaseQuery<GetDashboardStatsResult, BaseError>(`/api/reports/${staffId}/dashboard`, options);
 
 export const useGetCheckInTimeAnalysis = (staffId: string, options: { grade?: string; section?: string; dateRange?: string; startDate?: string; endDate?: string } = {}) => {
   const queryParams = new URLSearchParams();

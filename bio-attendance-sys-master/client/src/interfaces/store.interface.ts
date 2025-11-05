@@ -28,5 +28,6 @@ export interface State {
   decrement: () => void;
   loginStaff: (data: Tokens & { staff: StaffInfo }) => void;
   logoutStaff: () => void;
+  logout: () => void;
   setStaffSettings: (settings: StaffSettings) => void;
 }

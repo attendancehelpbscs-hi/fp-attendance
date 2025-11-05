@@ -6,7 +6,7 @@ export const loginStaffSchema = Joi.object({
 });
 
 export const logoutStaffSchema = Joi.object({
-  staff_id: Joi.string().required(),
+  staff_id: Joi.string().optional(),
 });
 
 export const refreshStaffTokenSchema = Joi.object({

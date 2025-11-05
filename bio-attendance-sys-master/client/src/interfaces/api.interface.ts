@@ -245,6 +245,52 @@ export interface AddStudentInput {
   staff_id: string;
 }
 
+export interface AddStudentResult {
+  student: Student;
+}
+
+export interface GetStudentsResult {
+  data: {
+    students: Student[];
+    meta: {
+      total_items: number;
+      total_pages: number;
+      page: number;
+      per_page: number;
+    };
+  };
+}
+
+export interface UpdateStudentInput {
+  id: string;
+  name?: string;
+  matric_no?: string;
+  grade?: string;
+  fingerprint?: string;
+  courses?: string[];
+  url: string;
+}
+
+export interface UpdateStudentResult {
+  student: Student;
+}
+
+export interface GetStudentsFingerprintsResult {
+  data: {
+    students: StudentFingerprint[];
+    meta: {
+      total_items: number;
+      total_pages: number;
+      page: number;
+      per_page: number;
+    };
+  };
+}
+
+export interface DeleteStudentResult {
+  deleted: boolean;
+}
+
 export interface AddCourseInput {
   course_name: string;
   course_code: string;

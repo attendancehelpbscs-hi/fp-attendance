@@ -22,6 +22,7 @@ const useStoreBase = create<State>()(
         loginStaff: ({ accessToken, refreshToken, staff }) =>
           set(() => ({ staffInfo: staff, tokens: { accessToken, refreshToken }, isAuthenticated: true })),
         logoutStaff: () => set({ isAuthenticated: false, tokens: null, staffInfo: null, staffSettings: null }),
+        logout: () => set({ isAuthenticated: false, tokens: null, staffInfo: null, staffSettings: null }),
         setStaffSettings: (settings) => set({ staffSettings: settings }),
       }),
       {

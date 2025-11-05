@@ -16,10 +16,12 @@ const Home: FC = () => {
   const staffInfo = useStore.use.staffInfo();
 
   // Fetch dashboard stats if authenticated
-  const dashboardQuery = useGetDashboardStats(
-    isAuthenticated && staffInfo?.id ? staffInfo.id : ''
+  const { data: dashboardData, isLoading: statsLoading } = useGetDashboardStats(
+    isAuthenticated && staffInfo?.id ? staffInfo.id : '',
+    {
+      enabled: isAuthenticated && !!staffInfo?.id,
+    }
   );
-  const { data: dashboardData, isLoading: statsLoading } = dashboardQuery();
 
   // Use real data if available, otherwise fallback to mock data
   const stats = dashboardData?.data || {
@@ -51,13 +53,15 @@ const Home: FC = () => {
       }
     }, 2000);
 
-    // Fetch audit logs
+    // Fetch audit logs if authenticated
     const fetchAuditLogs = async () => {
-      try {
-        const response = await getAuditLogs();
-        setAuditLogs(response.data.logs.slice(0, 3)); // Show last 3 logs for confidentiality
-      } catch (error) {
-        console.error('Failed to fetch audit logs:', error);
+      if (isAuthenticated) {
+        try {
+          const response = await getAuditLogs();
+          setAuditLogs(response.data.logs.slice(0, 3)); // Show last 3 logs for confidentiality
+        } catch (error) {
+          console.error('Failed to fetch audit logs:', error);
+        }
       }
     };
 

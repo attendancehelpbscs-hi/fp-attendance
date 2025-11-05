@@ -28,14 +28,13 @@ export function useBaseQuery<
   TError = unknown,
   TData = TQueryFnData,
   TQueryKey extends QueryKey = QueryKey,
->(url: string) {
-  return (useQueryOptions: Omit<UseQueryOptions<TQueryFnData, TError, TData, TQueryKey>, 'queryFn'> = {}) =>
-    useQuery<TQueryFnData, TError, TData, TQueryKey>({
-      ...useQueryOptions,
-      queryKey: useQueryOptions.queryKey || ([url] as unknown as TQueryKey),
-      queryFn: async () => {
-        const response = await axiosClient.get(url);
-        return response.data;
-      },
-    });
+>(url: string, options: Omit<UseQueryOptions<TQueryFnData, TError, TData, TQueryKey>, 'queryFn'> = {}) {
+  return useQuery<TQueryFnData, TError, TData, TQueryKey>({
+    ...options,
+    queryKey: options.queryKey || ([url] as unknown as TQueryKey),
+    queryFn: async () => {
+      const response = await axiosClient.get(url);
+      return response?.data;
+    },
+  });
 }
