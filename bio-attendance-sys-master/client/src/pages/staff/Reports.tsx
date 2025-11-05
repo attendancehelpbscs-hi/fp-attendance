@@ -688,7 +688,7 @@ const Reports: FC = () => {
     <WithStaffLayout>
       <VStack spacing={2} align="center" marginBottom="2rem">
         <Heading fontSize={28} fontWeight={700} color="teal.600">
-          FP Attendance System - Reports & Analytics
+          Fingerprint-Based Attendance Monitoring System - Reports & Analytics
         </Heading>
         <Text fontSize="lg" color="gray.600" fontWeight="500">
           Bula South Central Elementary School, 2025

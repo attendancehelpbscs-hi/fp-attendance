@@ -33,6 +33,9 @@ export function useBaseQuery<
     useQuery<TQueryFnData, TError, TData, TQueryKey>({
       ...useQueryOptions,
       queryKey: useQueryOptions.queryKey || ([url] as unknown as TQueryKey),
-      queryFn: async () => (await axiosClient.get(url)).data,
+      queryFn: async () => {
+        const response = await axiosClient.get(url);
+        return response.data;
+      },
     });
 }

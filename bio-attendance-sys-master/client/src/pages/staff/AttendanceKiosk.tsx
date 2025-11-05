@@ -1,0 +1,570 @@
+import { useState, useEffect, useRef } from 'react';
+import type { FC } from 'react';
+import {
+  Box,
+  Flex,
+  Heading,
+  Text,
+  Table,
+  Thead,
+  Tbody,
+  Tr,
+  Th,
+  Td,
+  TableContainer,
+  Button,
+  Spinner,
+  Card,
+  Badge,
+  Alert,
+  AlertIcon,
+  AlertTitle,
+  AlertDescription,
+  Switch,
+  HStack,
+  VStack,
+  Image,
+  AlertDialog,
+  AlertDialogBody,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogContent,
+  AlertDialogOverlay,
+  useDisclosure,
+  Select,
+} from '@chakra-ui/react';
+import { ArrowBackIcon, ViewIcon, InfoIcon } from '@chakra-ui/icons';
+import { useNavigate } from 'react-router-dom';
+import { fingerprintControl } from '../../lib/fingerprint';
+import { useMarkAttendance, useAddAttendance, useGetAttendances, useGetAttendanceList } from '../../api/atttendance.api';
+import { useGetStudentsFingerprints } from '../../api/student.api';
+import type { MarkAttendanceInput, StudentFingerprint } from '../../interfaces/api.interface';
+import useStore from '../../store/store';
+import { toast } from 'react-hot-toast';
+import { Base64 } from '@digitalpersona/core';
+import { getFingerprintImgString } from '../../components/AddStudent';
+import axios from 'axios';
+import constants from '../../config/constants.config';
+import dayjs from 'dayjs';
+
+const AttendanceKiosk: FC = () => {
+  const navigate = useNavigate();
+  const staffInfo = useStore.use.staffInfo();
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [currentDate, setCurrentDate] = useState(dayjs().format('MMMM D, YYYY'));
+  const [scannerConnected, setScannerConnected] = useState<boolean>(false);
+  const [scannerStatus, setScannerStatus] = useState<string>('Checking...');
+  const [continuousMode, setContinuousMode] = useState<boolean>(true);
+  const [markInput, setMarkInput] = useState<MarkAttendanceInput>({
+    student_id: '',
+    attendance_id: '',
+    time_type: 'IN',
+    section: '',
+  });
+  const [fingerprints, setFingerprints] = useState<{ newFingerprint: string }>({
+    newFingerprint: '',
+  });
+  const [identifiedStudent, setIdentifiedStudent] = useState<StudentFingerprint | null>(null);
+  const [identificationStatus, setIdentificationStatus] = useState<'idle' | 'scanning' | 'identifying' | 'success' | 'error'>('idle');
+  const [confidence, setConfidence] = useState<number>(0);
+  const [recentScans, setRecentScans] = useState<Array<{ name: string; time: string; status: 'success' | 'error' }>>([]);
+  const [attendanceId, setAttendanceId] = useState<string>('');
+  const [selectedSection, setSelectedSection] = useState<string>('');
+  const [selectedGrade, setSelectedGrade] = useState<string>('');
+  const [timeType, setTimeType] = useState<'IN' | 'OUT'>('IN');
+  const { isOpen: isExitOpen, onOpen: onExitOpen, onClose: onExitClose } = useDisclosure();
+  const cancelRef = useRef<HTMLButtonElement>(null);
+
+  const studentFingerprintsData = useGetStudentsFingerprints(staffInfo?.id as string)({
+    queryKey: ['studentsfingerprints', staffInfo?.id],
+  });
+
+  const { mutate: addAttendance } = useAddAttendance({
+    onSuccess: (data) => {
+      setAttendanceId(data.attendance.id);
+      toast.success('Attendance session created successfully');
+    },
+    onError: (err) => {
+      toast.error((err.response?.data?.message as string) ?? 'Failed to create attendance session');
+    },
+  });
+
+  const attendancesData = useGetAttendances(staffInfo?.id as string, 1, 100)({
+    queryKey: ['attendances', staffInfo?.id],
+  });
+
+  // Real-time attendance data fetching
+  const attendanceListData = useGetAttendanceList(attendanceId, 1, 50)({
+    queryKey: ['attendanceList', attendanceId],
+    enabled: !!attendanceId,
+    refetchInterval: 5000, // Poll every 5 seconds for real-time updates
+  });
+
+  const { isLoading, mutate: markAttendance } = useMarkAttendance({
+    onSuccess: () => {
+      if (continuousMode) {
+        toast.success('Student marked successfully - Ready for next scan');
+        resetScanState();
+      } else {
+        toast.success('Student marked successfully');
+        resetScanState();
+      }
+      // Trigger refetch of attendance data
+      attendanceListData.refetch();
+    },
+    onError: (err) => {
+      toast.error((err.response?.data?.message as string) ?? 'An error occured');
+      resetScanState();
+    },
+  });
+
+  const resetScanState = () => {
+    setFingerprints({ newFingerprint: '' });
+    setIdentifiedStudent(null);
+    setIdentificationStatus('idle');
+    setConfidence(0);
+  };
+
+  // Transform attendance data for display
+  const attendanceData = attendanceListData.data?.data?.attendanceList?.map((record: any) => ({
+    id: record.student.matric_no,
+    name: record.student.name,
+    grade: record.student.grade,
+    section: record.section,
+    timeIn: dayjs(record.created_at).format('hh:mm A'),
+    timeOut: record.time_type === 'OUT' ? dayjs(record.created_at).format('hh:mm A') : null,
+    status: record.status as 'present' | 'absent',
+  })) || [];
+
+  useEffect(() => {
+    // Update time every second
+    const timeInterval = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+
+    // Update date when day changes
+    const dateInterval = setInterval(() => {
+      setCurrentDate(dayjs().format('MMMM D, YYYY'));
+    }, 60000); // Check every minute
+
+    // Auto-create attendance session if none exists
+    if (staffInfo?.id && !attendanceId && attendancesData?.data?.data?.attendances) {
+      const today = dayjs().format('YYYY-MM-DD');
+      const existingSession = attendancesData.data.data.attendances.find((att: any) => dayjs(att.date).format('YYYY-MM-DD') === today);
+      if (existingSession) {
+        setAttendanceId(existingSession.id);
+      } else {
+        // Create new attendance session for today
+        addAttendance({
+          staff_id: staffInfo.id,
+          name: `Daily Attendance - ${dayjs().format('MMMM D, YYYY')}`,
+          date: dayjs().toISOString(),
+        });
+      }
+    }
+
+    return () => {
+      clearInterval(timeInterval);
+      clearInterval(dateInterval);
+    };
+  }, [staffInfo?.id, attendanceId, attendancesData, addAttendance]);
+
+  useEffect(() => {
+    const handleDeviceConnected = () => {
+      setScannerConnected(true);
+      setScannerStatus('Connected');
+    };
+
+    const handleDeviceDisconnected = () => {
+      setScannerConnected(false);
+      setScannerStatus('Disconnected');
+    };
+
+    fingerprintControl.onDeviceConnected = handleDeviceConnected;
+    fingerprintControl.onDeviceDisconnected = handleDeviceDisconnected;
+    fingerprintControl.init();
+
+    setTimeout(() => {
+      if (!scannerConnected) {
+        setScannerStatus('Not Detected');
+      }
+    }, 2000);
+  }, [scannerConnected]);
+
+  const handleSampleAcquired = (event: any) => {
+    const rawImages = event?.samples.map((sample: string) => Base64.fromBase64Url(sample));
+    setFingerprints({ newFingerprint: rawImages[0] });
+    setIdentificationStatus('scanning');
+  };
+
+  const handleFingerprintIdentification = async () => {
+    if (!fingerprints.newFingerprint) return;
+
+    setIdentificationStatus('identifying');
+    const data = new FormData();
+    data.append('file', dataURLtoFile(getFingerprintImgString(fingerprints.newFingerprint), 'scanned_fingerprint.jpeg'));
+    data.append('staff_id', staffInfo?.id as string);
+
+    try {
+      const res = await axios.post(`${constants.matchBaseUrl}/identify/fingerprint`, data, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      const { student_id, confidence } = res.data;
+      setConfidence(confidence);
+
+      if (student_id && confidence > 5) {
+        const student = studentFingerprintsData.data?.data?.students?.find((s: StudentFingerprint) => s.id === student_id);
+        if (student) {
+          setIdentifiedStudent(student);
+          setMarkInput({
+            student_id: student_id,
+            attendance_id: attendanceId,
+            time_type: 'IN',
+            section: (student.courses.length > 0 ? student.courses[0].course_code : student.grade).slice(0, 10),
+          });
+          setIdentificationStatus('success');
+
+          // Add to recent scans
+          setRecentScans(prev => [{
+            name: student.name,
+            time: dayjs().format('hh:mm:ss A'),
+            status: 'success'
+          }, ...prev.slice(0, 9)]); // Keep last 10
+
+          toast.success(`Student identified: ${student.name} (${student.matric_no})`);
+
+          if (continuousMode) {
+            setTimeout(() => markAttendance({
+              student_id: student_id,
+              attendance_id: attendanceId,
+              time_type: timeType,
+              section: (student.courses.length > 0 ? student.courses[0].course_code : student.grade).slice(0, 10),
+            }), 1000);
+          }
+        } else {
+          setIdentificationStatus('error');
+          setRecentScans(prev => [{
+            name: 'Unknown',
+            time: dayjs().format('hh:mm:ss A'),
+            status: 'error'
+          }, ...prev.slice(0, 9)]);
+          toast.error('Student not found in records');
+        }
+      } else {
+        setIdentificationStatus('error');
+        setRecentScans(prev => [{
+          name: 'Unrecognized',
+          time: dayjs().format('hh:mm:ss A'),
+          status: 'error'
+        }, ...prev.slice(0, 9)]);
+        toast.error('Fingerprint not recognized. Please try again.');
+      }
+    } catch (err) {
+      setIdentificationStatus('error');
+      setRecentScans(prev => [{
+        name: 'Error',
+        time: dayjs().format('hh:mm:ss A'),
+        status: 'error'
+      }, ...prev.slice(0, 9)]);
+      toast.error('Could not identify fingerprint');
+      console.error('Err: ', err);
+    }
+  };
+
+  useEffect(() => {
+    if (fingerprints.newFingerprint && identificationStatus === 'scanning') {
+      handleFingerprintIdentification();
+    }
+  }, [fingerprints.newFingerprint, identificationStatus]);
+
+  useEffect(() => {
+    fingerprintControl.onSamplesAcquired = handleSampleAcquired;
+  }, [attendanceId, continuousMode]);
+
+  const dataURLtoFile = (dataurl: string, filename: string) => {
+    const arr = dataurl.split(',');
+    const mime = arr?.[0]?.match(/:(.*?);/)?.[1];
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n) {
+      u8arr[n - 1] = bstr.charCodeAt(n - 1);
+      n -= 1;
+    }
+    return new File([u8arr], filename, { type: mime });
+  };
+
+  const handleExit = () => {
+    navigate('/staff/manage/attendance');
+  };
+
+
+
+  return (
+    <Box minH="100vh" bg="gray.50" p={0} maxW="1400px" mx="auto" overflow="hidden">
+      {/* Header Section */}
+      <Flex
+        bg="var(--bg-primary)"
+        color="white"
+        p={6}
+        justifyContent="space-between"
+        alignItems="center"
+        boxShadow="lg"
+      >
+        <VStack align="start" spacing={1}>
+          <Heading size="lg">Mark Attendance</Heading>
+          <Text fontSize="md">{currentDate}</Text>
+        </VStack>
+
+        <VStack align="center" spacing={1}>
+          <Text fontSize="5xl" fontWeight="bold" fontFamily="monospace">
+            {dayjs(currentTime).format('hh:mm:ss A')}
+          </Text>
+          <Badge
+            colorScheme={scannerConnected ? "green" : "red"}
+            fontSize="md"
+            p={2}
+          >
+            Scanner: {scannerStatus}
+          </Badge>
+        </VStack>
+
+        <Button
+          leftIcon={<ArrowBackIcon />}
+          colorScheme="whiteAlpha"
+          variant="outline"
+          onClick={onExitOpen}
+          size="lg"
+        >
+          Exit Kiosk
+        </Button>
+      </Flex>
+
+      {/* Main Content */}
+      <Flex flex={1} p={4} gap={4}>
+        {/* Left Panel - Live Attendance Log */}
+        <Box flex={1}>
+          <Card h="full" overflow="hidden">
+            <Box p={3} borderBottom="1px" borderColor="gray.200">
+              <Heading size="md">Daily Attendance Log</Heading>
+              <Text color="gray.600" fontSize="sm">Real-time attendance records</Text>
+            </Box>
+            <Box overflowY="auto" h="calc(100% - 70px)">
+              <TableContainer>
+                <Table variant="simple" size="sm">
+                  <Thead position="sticky" top={0} bg="white" zIndex={1}>
+                    <Tr>
+                      <Th minW="100px" fontSize="xs">ID</Th>
+                      <Th fontSize="xs">Name</Th>
+                      <Th fontSize="xs">Grade</Th>
+                      <Th fontSize="xs">Section</Th>
+                      <Th fontSize="xs">Time In</Th>
+                      <Th fontSize="xs">Time Out</Th>
+                      <Th fontSize="xs">Status</Th>
+                    </Tr>
+                  </Thead>
+                  <Tbody>
+                    {attendanceData.map((record, idx) => (
+                      <Tr key={record.id} bg={idx === 0 ? "green.50" : "white"}>
+                        <Td fontWeight={idx === 0 ? "bold" : "normal"} fontSize="xs">{record.id}</Td>
+                        <Td fontWeight={idx === 0 ? "bold" : "normal"} fontSize="xs">{record.name}</Td>
+                        <Td fontSize="xs">{record.grade}</Td>
+                        <Td fontSize="xs">{record.section}</Td>
+                        <Td fontSize="xs">{record.timeIn}</Td>
+                        <Td fontSize="xs">{record.timeOut || '-'}</Td>
+                        <Td>
+                          <Badge colorScheme={record.status === 'present' ? 'green' : 'red'} size="sm" fontSize="xs">
+                            {record.status}
+                          </Badge>
+                        </Td>
+                      </Tr>
+                    ))}
+                  </Tbody>
+                </Table>
+              </TableContainer>
+            </Box>
+          </Card>
+        </Box>
+
+        {/* Right Panel - Scanner Feedback */}
+        <VStack flex={1} spacing={3}>
+          {/* Continuous Mode Toggle */}
+          <Card w="full">
+            <Box p={3}>
+              <HStack justifyContent="space-between">
+                <VStack align="start" spacing={1}>
+                  <Text fontWeight="bold" fontSize="sm">Continuous Mode</Text>
+                  <Text fontSize="xs" color="gray.600">
+                    Auto-mark after successful scan
+                  </Text>
+                </VStack>
+                <Switch
+                  isChecked={continuousMode}
+                  onChange={(e) => setContinuousMode(e.target.checked)}
+                  colorScheme="blue"
+                  size="md"
+                />
+              </HStack>
+            </Box>
+          </Card>
+
+          {/* Mark Student Section */}
+          <Card w="full">
+            <Box p={3}>
+              <Text fontWeight="bold" mb={2} fontSize="sm">Mark Student</Text>
+
+              {/* Time Type Selector - Moved to top for easy access */}
+              <Box mb={2}>
+                <HStack justifyContent="space-between" alignItems="center">
+                  <Text fontWeight="bold" fontSize="xs">Time Type:</Text>
+                  <Select
+                    size="xs"
+                    w="120px"
+                    value={timeType}
+                    onChange={(e) => setTimeType(e.target.value as 'IN' | 'OUT')}
+                  >
+                    <option value="IN">Check In</option>
+                    <option value="OUT">Check Out</option>
+                  </Select>
+                </HStack>
+              </Box>
+
+              <Box mb={2}>
+                <Flex gap="0.3rem" borderLeft="2px solid #534949" padding="0.3rem" alignItems="flex-start">
+                  <InfoIcon boxSize={3} />
+                  <Text fontStyle="italic" fontSize="xs">Scan fingerprint to identify and mark attendance for the student.</Text>
+                </Flex>
+                {scannerConnected && <Text fontSize="xs" color="green.600">✅ System: Fingerprint scanner is connected</Text>}
+              </Box>
+
+              {/* Fingerprint Display - Made smaller */}
+              <Box
+                overflow="hidden"
+                shadow="xs"
+                h={120}
+                w={120}
+                margin="0.3rem auto"
+                border="1px solid rgba(0, 0, 0, 0.04)"
+              >
+                {fingerprints.newFingerprint && <Image src={getFingerprintImgString(fingerprints.newFingerprint)} />}
+              </Box>
+
+
+
+              <Button
+                w="100%"
+                bg="var(--bg-primary)"
+                color="white"
+                size="xs"
+                _hover={{ background: 'var(--bg-primary-light)' }}
+                disabled={isLoading || identificationStatus !== 'success'}
+                onClick={() => {
+                  if (identifiedStudent) {
+                    markAttendance({
+                      student_id: identifiedStudent.id,
+                      attendance_id: attendanceId,
+                      time_type: timeType,
+                      section: (identifiedStudent.courses.length > 0 ? identifiedStudent.courses[0].course_code : identifiedStudent.grade).slice(0, 10),
+                    });
+                  }
+                }}
+              >
+                {isLoading ? 'Marking student...' : 'Mark student'}
+              </Button>
+            </Box>
+          </Card>
+
+          {/* Live Scanner Feedback */}
+          <Card w="full" flex={1}>
+            <Box p={3}>
+              <Text fontWeight="bold" mb={3} fontSize="sm">Live Scanner Feedback</Text>
+
+              {/* Student Info Display */}
+              {identifiedStudent && identificationStatus === 'success' && (
+                <Alert status="success" mb={3} py={2}>
+                  <VStack align="start" spacing={1} w="full">
+                    <AlertTitle fontSize="xs">✅ Student Identified!</AlertTitle>
+                    <Text fontSize="xs"><strong>ID:</strong> {identifiedStudent.matric_no}</Text>
+                    <Text fontSize="xs"><strong>Name:</strong> {identifiedStudent.name}</Text>
+                    <Text fontSize="xs"><strong>Grade:</strong> {identifiedStudent.grade}</Text>
+                    <Text fontSize="xs"><strong>Section:</strong> {identifiedStudent.courses.length > 0 ? identifiedStudent.courses[0].course_code : identifiedStudent.grade}</Text>
+                    <Text fontSize="xs"><strong>Status:</strong> Checked In</Text>
+                    <Text fontSize="xs"><strong>Time:</strong> {dayjs().format('hh:mm A')}</Text>
+                  </VStack>
+                </Alert>
+              )}
+
+              {identificationStatus === 'error' && (
+                <Alert status="error" mb={3} py={2}>
+                  <AlertIcon boxSize={3} />
+                  <AlertTitle fontSize="xs">Unrecognized Fingerprint</AlertTitle>
+                  <AlertDescription fontSize="xs">
+                    Please try scanning again.
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {identificationStatus === 'identifying' && (
+                <Alert status="info" mb={3} py={2}>
+                  <Spinner size="xs" mr={2} />
+                  <AlertTitle fontSize="xs">Identifying student...</AlertTitle>
+                </Alert>
+              )}
+
+              {/* Recent Scans */}
+              <Box>
+                <Text fontWeight="bold" mb={2} fontSize="sm">Recent Scans</Text>
+                <VStack spacing={1} maxH="120px" overflowY="auto">
+                  {recentScans.map((scan, idx) => (
+                    <HStack key={idx} w="full" justify="space-between" p={1} bg={scan.status === 'success' ? 'green.50' : 'red.50'} borderRadius="md">
+                      <Text fontSize="xs">{scan.name}</Text>
+                      <HStack>
+                        <Text fontSize="xs" color="gray.600">{scan.time}</Text>
+                        <Badge colorScheme={scan.status === 'success' ? 'green' : 'red'} size="sm" fontSize="xs">
+                          {scan.status === 'success' ? '✅' : '❌'}
+                        </Badge>
+                      </HStack>
+                    </HStack>
+                  ))}
+                </VStack>
+              </Box>
+            </Box>
+          </Card>
+        </VStack>
+      </Flex>
+
+      {/* Exit Confirmation Dialog */}
+      <AlertDialog
+        isOpen={isExitOpen}
+        leastDestructiveRef={cancelRef}
+        onClose={onExitClose}
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent>
+            <AlertDialogHeader fontSize="lg" fontWeight="bold">
+              Exit Attendance Kiosk
+            </AlertDialogHeader>
+            <AlertDialogBody>
+              Are you sure you want to exit the attendance kiosk? Any unsaved changes will be lost.
+            </AlertDialogBody>
+            <AlertDialogFooter>
+              <Button ref={cancelRef} onClick={onExitClose}>
+                Cancel
+              </Button>
+              <Button colorScheme="red" onClick={handleExit} ml={3}>
+                Exit
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
+    </Box>
+  );
+};
+
+export default AttendanceKiosk;
+
+

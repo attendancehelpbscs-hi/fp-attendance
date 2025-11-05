@@ -306,13 +306,15 @@ export interface LoginStaffInput {
 }
 
 export interface LoginStaffResult {
-  accessToken: string;
-  refreshToken: string;
-  staff: {
-    id: string;
-    name: string;
-    email: string;
-    created_at: string;
+  data: {
+    accessToken: string;
+    refreshToken: string;
+    staff: {
+      id: string;
+      name: string;
+      email: string;
+      created_at: string;
+    };
   };
 }
 

@@ -1,18 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
 import type { FC } from 'react';
+import { useNavigate } from 'react-router-dom';
 import WithStaffLayout from '../../layouts/WithStaffLayout';
 import {
   Heading,
   Flex,
-  IconButton,
-  Table,
-  Thead,
-  Tbody,
-  Tr,
-  Th,
-  Td,
-  TableCaption,
-  TableContainer,
   Button,
   Spinner,
   Box,
@@ -31,15 +23,13 @@ import {
   AlertDialogHeader,
   AlertDialogContent,
   AlertDialogOverlay,
-  Checkbox,
 } from '@chakra-ui/react';
-import { fingerprintControl } from '../../lib/fingerprint';
+
 import AddAttendance from '../../components/AddAttendance';
-import { EditIcon, DeleteIcon, CheckIcon, InfoIcon } from '@chakra-ui/icons';
-import { ClockPlus, Fingerprint, Logs } from 'lucide-react';
+import { ClockPlus } from 'lucide-react';
 import MarkAttendance from '../../components/MarkAttendance';
 
-import { useGetAttendances, useDeleteAttendance } from '../../api/atttendance.api';
+import { useGetAttendances } from '../../api/atttendance.api';
 import useStore from '../../store/store';
 import { toast } from 'react-hot-toast';
 import { queryClient } from '../../lib/query-client';
@@ -48,6 +38,7 @@ import dayjs from 'dayjs';
 import AttendanceList from '../../components/AttendanceList';
 
 const ManageAttendance: FC = () => {
+  const navigate = useNavigate();
   const staffInfo = useStore.use.staffInfo();
   const [drawerOpen, setDrawerOpen] = useState<boolean>(false);
   const [drawerOpen2, setDrawerOpen2] = useState<boolean>(false);
@@ -58,15 +49,7 @@ const ManageAttendance: FC = () => {
   const [activeAttendance2, setActiveAttendance2] = useState<Attendance | null>(null);
   const [activeAttendance3, setActiveAttendance3] = useState<Attendance | null>(null);
 
-  const [scannerConnected, setScannerConnected] = useState<boolean>(false);
-  const [scannerStatus, setScannerStatus] = useState<string>('Checking...');
-  const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
-  const [attendanceToDelete, setAttendanceToDelete] = useState<Attendance | null>(null);
 
-  const cancelRef = useRef<HTMLButtonElement>(null);
-  const [selectedAttendances, setSelectedAttendances] = useState<string[]>([]);
-  const { isOpen: isBulkDeleteOpen, onOpen: onBulkDeleteOpen, onClose: onBulkDeleteClose } = useDisclosure();
-  const bulkCancelRef = useRef<HTMLButtonElement>(null);
   const { data, error, isLoading, isError } = useGetAttendances(
     staffInfo?.id as string,
     page,
@@ -75,19 +58,7 @@ const ManageAttendance: FC = () => {
     queryKey: ['attendances', page],
     keepPreviousData: true,
   });
-  const toastRef = useRef<string>('');
   const btnRef = useRef(null);
-  const { mutate: deleteAttendance } = useDeleteAttendance({
-    onSuccess: () => {
-      queryClient.invalidateQueries(['attendances']);
-      toast.dismiss(toastRef.current);
-      toast.success('Attendance deleted successfully');
-    },
-    onError: (err) => {
-      toast.dismiss(toastRef.current);
-      toast.error((err.response?.data?.message as string) ?? 'An error occured');
-    },
-  });
 
   useEffect(() => {
     if (activeAttendance) {
@@ -105,54 +76,9 @@ const ManageAttendance: FC = () => {
     }
   }, [activeAttendance2]);
 
-  useEffect(() => {
-    const handleDeviceConnected = () => {
-      setScannerConnected(true);
-      setScannerStatus('Connected');
-    };
 
-    const handleDeviceDisconnected = () => {
-      setScannerConnected(false);
-      setScannerStatus('Disconnected');
-    };
-
-    fingerprintControl.onDeviceConnected = handleDeviceConnected;
-    fingerprintControl.onDeviceDisconnected = handleDeviceDisconnected;
-    fingerprintControl.init();
-
-    // Check initial status
-    setTimeout(() => {
-      if (!scannerConnected) {
-        setScannerStatus('Not Detected');
-      }
-    }, 2000);
-  }, [scannerConnected]);
 
   const meta = data?.data?.meta;
-
-  const handleSelectAttendance = (attendanceId: string, isChecked: boolean) => {
-    if (isChecked) {
-      setSelectedAttendances(prev => [...prev, attendanceId]);
-    } else {
-      setSelectedAttendances(prev => prev.filter(id => id !== attendanceId));
-    }
-  };
-
-  const handleSelectAll = (isChecked: boolean) => {
-    if (isChecked) {
-      setSelectedAttendances(data?.data?.attendances?.map(attendance => attendance.id) || []);
-    } else {
-      setSelectedAttendances([]);
-    }
-  };
-
-  const handleBulkDelete = () => {
-    selectedAttendances.forEach(attendanceId => {
-      deleteAttendance({ url: `/${attendanceId}` });
-    });
-    setSelectedAttendances([]);
-    onBulkDeleteClose();
-  };
 
   return (
     <WithStaffLayout>
@@ -161,58 +87,30 @@ const ManageAttendance: FC = () => {
           Manage Attendance
         </Heading>
         <Flex gap={4}>
-          {selectedAttendances.length > 0 && (
-            <Button
-              bg="red.500"
-              color="white"
-              _hover={{ background: 'red.600' }}
-              onClick={onBulkDeleteOpen}
-            >
-              Delete Selected ({selectedAttendances.length})
-            </Button>
-          )}
           <Button
             bg="var(--bg-primary)"
             color="white"
             _hover={{ background: 'var(--bg-primary-light)' }}
             leftIcon={<ClockPlus />}
-            onClick={() => setDrawerOpen(true)}
+            onClick={() => navigate('/staff/manage/attendance/kiosk')}
           >
-            Add New Attendance
+            Open Attendance Kiosk
           </Button>
         </Flex>
       </Flex>
 
-      {/* Scanner Status Alert */}
-      <Alert status={scannerConnected ? "success" : "warning"} marginTop="1rem" marginBottom="1rem" borderRadius="md">
-        <AlertIcon />
-        <AlertTitle>Scanner Status: {scannerStatus}</AlertTitle>
-        <AlertDescription>
-          {scannerConnected
-            ? "Fingerprint scanner is ready for attendance marking."
-            : "Please connect the fingerprint scanner to mark attendance."
-          }
-        </AlertDescription>
-      </Alert>
 
-      {/* Scanner Status Card */}
-      <Card marginBottom="2rem" maxW="400px">
-        <CardHeader padding="1rem">
-          <Flex alignItems="center" justifyContent="space-between">
-            <Box>
-              <Text fontWeight="bold" fontSize="lg">Scanner Status</Text>
-              <Text fontSize="sm" color="gray.600">Hardware Connection</Text>
-            </Box>
-            <Badge
-              colorScheme={scannerConnected ? "green" : scannerStatus === 'Checking...' ? "blue" : "red"}
-              fontSize="0.8em"
-              padding="0.25rem 0.5rem"
-            >
-              {scannerStatus}
-            </Badge>
-          </Flex>
-        </CardHeader>
-      </Card>
+
+      {/* Instructions */}
+      <Box marginBottom="2rem" maxW="600px">
+        <Text fontSize="lg" fontWeight="bold" mb={2}>Getting Started</Text>
+        <Text color="gray.600" mb={2}>
+          To manage attendance sessions, click the "Open Attendance Kiosk" button above to start marking attendance using the fingerprint scanner.
+        </Text>
+        <Text color="gray.600">
+          The kiosk provides real-time attendance tracking and scanner status updates.
+        </Text>
+      </Box>
 
       {isLoading ? (
         <Box marginTop="4rem" display="flex" justifyContent="center">
@@ -222,116 +120,7 @@ const ManageAttendance: FC = () => {
         <Box marginTop="4rem" display="flex" justifyContent="center">
           <Text>Error: {error?.response?.data?.message}</Text>
         </Box>
-      ) : (
-        <TableContainer marginTop={10}>
-          <Table variant="simple">
-            <TableCaption>All Attendance</TableCaption>
-            <Thead>
-              <Tr>
-                <Th>
-                  <Checkbox
-                    isChecked={selectedAttendances.length === data?.data?.attendances?.length && data?.data?.attendances?.length > 0}
-                    isIndeterminate={selectedAttendances.length > 0 && selectedAttendances.length < (data?.data?.attendances?.length || 0)}
-                    onChange={(e) => handleSelectAll(e.target.checked)}
-                  />
-                </Th>
-                <Th>S/N</Th>
-                <Th>Name</Th>
-                <Th>Date</Th>
-                <Th>Action</Th>
-              </Tr>
-            </Thead>
-            <Tbody>
-              {data?.data?.attendances?.map((attendance: Attendance, idx: number) => (
-                <Tr key={idx}>
-                  <Td>
-                    <Checkbox
-                      isChecked={selectedAttendances.includes(attendance.id)}
-                      onChange={(e) => handleSelectAttendance(attendance.id, e.target.checked)}
-                    />
-                  </Td>
-                  <Td>{(page - 1) * per_page + (idx + 1)}</Td>
-                  <Td>{attendance.name}</Td>
-                  <Td>{dayjs(attendance.date).format('DD/MM/YYYY')}</Td>
-                  <Td>
-                    <Flex justifyContent="flex-start" gap={4} alignItems="center">
-                      <Button
-                        leftIcon={<Fingerprint size={18} />}
-                        bg="#16A34A"
-                        color="white"
-                        _hover={{ background: '#15803D' }}
-                        size="sm"
-                        variant="solid"
-                        onClick={() => setActiveAttendance2(attendance)}
-                      >
-                        Mark
-                      </Button>
-                      <Button
-                        leftIcon={<Logs size={18} />}
-                        bg="var(--bg-primary)"
-                        color="white"
-                        _hover={{ background: 'var(--bg-primary-light)' }}
-                        size="sm"
-                        variant="solid"
-                        ref={btnRef}
-                        onClick={() => {
-                          setActiveAttendance3(attendance);
-                          onOpen();
-                        }}
-                      >
-                        List
-                      </Button>
-                      <IconButton
-                        bg="transparent"
-                        _hover={{ color: 'white', background: 'var(--bg-primary)' }}
-                        color="var(--bg-primary)"
-                        aria-label="Edit attendance session"
-                        onClick={() => setActiveAttendance(attendance)}
-                        icon={<EditIcon />}
-                      />
-                      <IconButton
-                        bg="white"
-                        color="#d10d0d"
-                        _hover={{ color: 'white', background: '#d10d0d' }}
-                        aria-label="Delete attendance session"
-                        onClick={() => {
-                          setAttendanceToDelete(attendance);
-                          onDeleteOpen();
-                        }}
-                        icon={<DeleteIcon />}
-                      />
-                    </Flex>
-                  </Td>
-                </Tr>
-              ))}
-            </Tbody>
-          </Table>
-          <Flex flexDirection="column" justifyContent="space-between" alignItems="center" marginBottom="1rem">
-            <Text>Total Attendances: {meta?.total_items}</Text>
-            <Text>
-              Page {meta?.page} of {meta?.total_pages}
-            </Text>
-          </Flex>
-          <Flex justifyContent="space-between" alignItems="center">
-            <Button
-              size="sm"
-              disabled={Number(meta?.page ?? 0) <= 1}
-              onClick={() => !(Number(meta?.page ?? 0) <= 1) && setPage(Number(meta?.page ?? 0) - 1)}
-            >
-              Prev
-            </Button>
-            <Button
-              size="sm"
-              disabled={Number(meta?.page ?? 0) >= Number(meta?.total_pages ?? 0)}
-              onClick={() =>
-                !(Number(meta?.page ?? 0) >= Number(meta?.total_pages ?? 0)) && setPage(Number(meta?.page ?? 0) + 1)
-              }
-            >
-              Next
-            </Button>
-          </Flex>
-        </TableContainer>
-      )}
+      ) : null}
 
       <AddAttendance
         isOpen={drawerOpen}
@@ -361,78 +150,6 @@ const ManageAttendance: FC = () => {
         activeAttendance={activeAttendance2}
       />
       <AttendanceList isOpen={isOpen} onClose={onClose} attendance={activeAttendance3} />
-
-
-      <AlertDialog
-        isOpen={isDeleteOpen}
-        leastDestructiveRef={cancelRef}
-        onClose={onDeleteClose}
-      >
-        <AlertDialogOverlay>
-          <AlertDialogContent>
-            <AlertDialogHeader fontSize="lg" fontWeight="bold">
-              Delete Attendance Session
-            </AlertDialogHeader>
-
-            <AlertDialogBody>
-              Are you sure you want to delete the attendance session "{attendanceToDelete?.name}" for {dayjs(attendanceToDelete?.date).format('DD/MM/YYYY')}?
-              This action cannot be undone and will remove all associated attendance records.
-            </AlertDialogBody>
-
-            <AlertDialogFooter>
-              <Button ref={cancelRef} onClick={onDeleteClose}>
-                Cancel
-              </Button>
-              <Button
-                colorScheme="red"
-                onClick={() => {
-                  if (attendanceToDelete) {
-                    toastRef.current = toast.loading('Deleting attendance session...');
-                    deleteAttendance({ url: `/${attendanceToDelete.id}` });
-                    setAttendanceToDelete(null);
-                    onDeleteClose();
-                  }
-                }}
-                ml={3}
-              >
-                Delete
-              </Button>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialogOverlay>
-      </AlertDialog>
-
-      <AlertDialog
-        isOpen={isBulkDeleteOpen}
-        leastDestructiveRef={bulkCancelRef}
-        onClose={onBulkDeleteClose}
-      >
-        <AlertDialogOverlay>
-          <AlertDialogContent>
-            <AlertDialogHeader fontSize="lg" fontWeight="bold">
-              Delete Selected Attendance Sessions
-            </AlertDialogHeader>
-
-            <AlertDialogBody>
-              Are you sure you want to delete {selectedAttendances.length} selected attendance session(s)?
-              This action cannot be undone and will remove all associated attendance records.
-            </AlertDialogBody>
-
-            <AlertDialogFooter>
-              <Button ref={bulkCancelRef} onClick={onBulkDeleteClose}>
-                Cancel
-              </Button>
-              <Button
-                colorScheme="red"
-                onClick={handleBulkDelete}
-                ml={3}
-              >
-                Delete All
-              </Button>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialogOverlay>
-      </AlertDialog>
     </WithStaffLayout>
   );
 };

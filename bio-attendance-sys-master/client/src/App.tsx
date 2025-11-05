@@ -12,6 +12,7 @@ import Settings from './pages/staff/Settings';
 import ManageAttendance from './pages/staff/ManageAttendance';
 import Reports from './pages/staff/Reports';
 import Help from './pages/staff/Help';
+import AttendanceKiosk from './pages/staff/AttendanceKiosk';
 import useStore from './store/store';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { Toaster } from 'react-hot-toast';
@@ -25,7 +26,7 @@ function App() {
 
   // Load staff settings on app start if authenticated
   useGetStaffSettings({
-    enabled: isAuthenticated,
+    enabled: isAuthenticated && !!useStore.use.tokens(),
     onSuccess: (data) => {
       setStaffSettings(data.settings);
     },
@@ -131,6 +132,16 @@ function App() {
         </WithMainLayout>
       ),
     },
+    {
+      path: '/staff/manage/attendance/kiosk',
+      element: (
+        <WithMainLayout>
+          <AuthLayout routeType="auth">
+            <AttendanceKiosk />
+          </AuthLayout>
+        </WithMainLayout>
+      ),
+    },
   ]);
 
   // useEffect(() => {
@@ -151,3 +162,4 @@ function App() {
 }
 
 export default App;
+

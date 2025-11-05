@@ -20,8 +20,8 @@ const Login: FC = () => {
   const login = useStore.use.loginStaff();
   const { isLoading, mutate: loginStaff } = useLoginStaff({
     onSuccess: (data) => {
-      toast.success('Registration successful');
-      login(data?.data?.staff);
+      toast.success('Login successful');
+      login({ accessToken: data?.data?.accessToken, refreshToken: data?.data?.refreshToken, staff: data?.data?.staff });
     },
     onError: (err) => {
       toast.error((err.response?.data?.message as string) ?? 'An error occured');
@@ -61,9 +61,6 @@ const Login: FC = () => {
 
   return (
     <div>
-      <Heading as="h2" fontSize="1.8rem" margin="2rem auto" textAlign="center">
-        STAFF LOGIN
-      </Heading>
       <Card maxW={400} margin="1rem auto">
         <CardHeader fontWeight={600} fontSize="1.7rem" textAlign="center">
           Login
