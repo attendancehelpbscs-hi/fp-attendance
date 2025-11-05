@@ -24,14 +24,17 @@ function App() {
   useStore();
   const isAuthenticated = useStore.use.isAuthenticated();
   const setStaffSettings = useStore.use.setStaffSettings();
+  
+  // ✅ FIX: Call the hook BEFORE using it in config
+  const tokens = useStore.use.tokens();
 
   // Load staff settings on app start if authenticated
   const { data: staffSettingsData } = useGetStaffSettings({
-    enabled: isAuthenticated && !!useStore.use.tokens(),
+    enabled: isAuthenticated && !!tokens, // ✅ Now using the variable, not calling hook
   });
 
   useEffect(() => {
-    if (staffSettingsData) {
+    if (staffSettingsData?.settings) {
       setStaffSettings(staffSettingsData.settings);
     }
   }, [staffSettingsData, setStaffSettings]);
@@ -163,4 +166,3 @@ function App() {
 }
 
 export default App;
-

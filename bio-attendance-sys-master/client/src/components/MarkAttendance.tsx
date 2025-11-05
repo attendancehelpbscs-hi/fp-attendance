@@ -59,7 +59,7 @@ const MarkAttendance: FC<{
   const [confidence, setConfidence] = useState<number>(0);
   const [continuousMode, setContinuousMode] = useState<boolean>(false);
   const [, forceUpdate] = useState<boolean>(false);
-  const studentFingerprintsData = useGetStudentsFingerprints(staffInfo?.id as string)({
+  const studentFingerprintsData = useGetStudentsFingerprints(staffInfo?.id as string, {
     queryKey: ['studentsfingerprints', staffInfo?.id],
   });
 

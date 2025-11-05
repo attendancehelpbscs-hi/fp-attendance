@@ -9,7 +9,7 @@ export interface ILogger {
 
 export interface PaginationInput {
   page: string;
-  per_page: string;
+  per_page?: string;
 }
 
 export interface PaginationMeta {

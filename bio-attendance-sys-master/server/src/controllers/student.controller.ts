@@ -22,19 +22,20 @@ export const getStudents = async (req: Request, res: Response, next: NextFunctio
   const user_id = (req.user as JwtPayload).id;
   if (!staff_id) return next(new createError.BadRequest('Staff ID is required'));
   if (staff_id !== user_id) return next(new createError.Forbidden('Access denied'));
-  if (!per_page || !page) return next(new createError.BadRequest('Pagination info is required'));
+  if (!page) return next(new createError.BadRequest('Page is required'));
   try {
     const studentCount = await prisma.student.count({
       where: {
         staff_id,
       },
     });
+    const perPage = Number(per_page) || 10;
     const students = await prisma.student.findMany({
       where: {
         staff_id,
       },
-      skip: (Number(page) - 1) * Number(per_page),
-      take: (Number(page) - 1) * Number(per_page) + Number(per_page),
+      skip: (Number(page) - 1) * perPage,
+      take: perPage,
       orderBy: {
         created_at: 'desc',
       },
@@ -54,9 +55,9 @@ export const getStudents = async (req: Request, res: Response, next: NextFunctio
     });
     const meta: PaginationMeta = {
       total_items: studentCount,
-      total_pages: Math.ceil(studentCount / Number(per_page)) || 1,
+      total_pages: Math.ceil(studentCount / perPage) || 1,
       page: Number(page),
-      per_page: Number(per_page),
+      per_page: perPage,
     };
     const studentToSend = students.map((item) => ({
       ...item,

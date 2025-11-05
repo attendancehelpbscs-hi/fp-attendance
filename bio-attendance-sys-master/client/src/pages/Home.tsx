@@ -53,15 +53,18 @@ const Home: FC = () => {
       }
     }, 2000);
 
-    // Fetch audit logs if authenticated
+  // Fetch audit logs if authenticated
     const fetchAuditLogs = async () => {
       if (isAuthenticated) {
         try {
           const response = await getAuditLogs();
-          setAuditLogs(response.data.logs.slice(0, 3)); // Show last 3 logs for confidentiality
+          setAuditLogs(response?.data?.logs?.slice(0, 3) || []); // Show last 3 logs for confidentiality
         } catch (error) {
           console.error('Failed to fetch audit logs:', error);
+          setAuditLogs([]); // Set empty array on error
         }
+      } else {
+        setAuditLogs([]); // Clear logs when not authenticated
       }
     };
 

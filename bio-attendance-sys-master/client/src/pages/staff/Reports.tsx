@@ -209,16 +209,27 @@ const Reports: FC = () => {
     }
   );
 
-  const { data: sectionsForGradeData } = useGetSectionsForGrade(staffInfo?.id || '', selectedGrade);
+  const sectionsForGradeQuery = useGetSectionsForGrade(staffInfo?.id || '', selectedGrade, {
+    enabled: !!staffInfo?.id && !!selectedGrade,
+  });
+  const sectionsForGradeData = sectionsForGradeQuery.data;
 
-  const { data: studentsForGradeAndSectionData } = useGetStudentsForGradeAndSection(staffInfo?.id || '', selectedGrade, selectedSection);
+  const studentsForGradeAndSectionQuery = useGetStudentsForGradeAndSection(staffInfo?.id || '', selectedGrade, selectedSection, {
+    enabled: !!staffInfo?.id && !!selectedGrade && !!selectedSection,
+  });
+  const studentsForGradeAndSectionData = studentsForGradeAndSectionQuery.data;
 
-  const { data: studentDetailedReportData, isLoading: studentDetailedLoading } = useGetStudentDetailedReport(
+  const studentDetailedReportQuery = useGetStudentDetailedReport(
     staffInfo?.id || '',
     selectedStudent?.id || '',
     startDate ? startDate.toISOString().split('T')[0] : undefined,
-    endDate ? endDate.toISOString().split('T')[0] : undefined
+    endDate ? endDate.toISOString().split('T')[0] : undefined,
+    {
+      enabled: !!staffInfo?.id && !!selectedStudent?.id,
+    }
   );
+  const studentDetailedReportData = studentDetailedReportQuery.data;
+  const studentDetailedLoading = studentDetailedReportQuery.isLoading;
 
   const { data: checkInTimeAnalysisData, isLoading: checkInTimeAnalysisLoading } = useGetCheckInTimeAnalysis(staffInfo?.id || '', {
     grade: selectedGrade || undefined,
@@ -228,7 +239,7 @@ const Reports: FC = () => {
     endDate: undefined,
   });
 
-  const { data: studentsData } = useGetStudents(staffInfo?.id || '', 1, 1000, {
+  const { data: studentsData } = useGetStudents(staffInfo?.id || '', 1, 100, {
     enabled: !!staffInfo?.id,
   });
 

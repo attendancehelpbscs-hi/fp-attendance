@@ -76,20 +76,20 @@ const ManageStudents: FC = () => {
     staffInfo?.id as string,
     page,
     per_page,
-  )({
-    queryKey: ['students', page],
-    keepPreviousData: true,
-  });
+    {
+      queryKey: ['students', page],
+      keepPreviousData: true,
+    }
+  );
 
   const { data: studentReportData, isLoading: isReportLoading, error: reportError } = useGetStudentReports(
     staffInfo?.id as string,
     {
       studentId: selectedStudentForHistory?.id as string,
+      queryKey: ['student-reports', selectedStudentForHistory?.id],
+      enabled: !!selectedStudentForHistory?.id,
     }
-  )({
-    queryKey: ['student-reports', selectedStudentForHistory?.id],
-    enabled: !!selectedStudentForHistory?.id,
-  });
+  );
 
   const toastRef = useRef<string>('');
   const { mutate: deleteStudent } = useDeleteStudent({

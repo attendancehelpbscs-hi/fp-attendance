@@ -14,28 +14,29 @@ export const getCourses = async (req: Request, res: Response, next: NextFunction
   const user_id = (req.user as JwtPayload).id;
   if (!staff_id) return next(new createError.BadRequest('Staff ID is required'));
   if (staff_id !== user_id) return next(new createError.Forbidden('Access denied'));
-  if (!per_page || !page) return next(new createError.BadRequest('Pagination info is required'));
+  if (!page) return next(new createError.BadRequest('Page is required'));
   try {
     const courseCount = await prisma.course.count({
       where: {
         staff_id,
       },
     });
+    const perPage = Number(per_page) || 10;
     const courses = await prisma.course.findMany({
       where: {
         staff_id,
       },
-      skip: (Number(page) - 1) * Number(per_page),
-      take: (Number(page) - 1) * Number(per_page) + Number(per_page),
+      skip: (Number(page) - 1) * perPage,
+      take: perPage,
       orderBy: {
         created_at: 'desc',
       },
     });
     const meta: PaginationMeta = {
       total_items: courseCount,
-      total_pages: Math.ceil(courseCount / Number(per_page)) || 1,
+      total_pages: Math.ceil(courseCount / perPage) || 1,
       page: Number(page),
-      per_page: Number(per_page),
+      per_page: perPage,
     };
     return createSuccess(res, 200, 'Course fetched successfully', { courses, meta });
   } catch (err) {

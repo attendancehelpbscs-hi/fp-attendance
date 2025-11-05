@@ -58,10 +58,11 @@ const ManageCourses: FC = () => {
     staffInfo?.id as string,
     page,
     per_page,
-  )({
-    queryKey: ['courses', page],
-    keepPreviousData: true,
-  });
+    {
+      queryKey: ['courses', page],
+      keepPreviousData: true,
+    }
+  );
   const toastRef = useRef<string>('');
   const { mutate: deleteCourse } = useDeleteCourse({
     onSuccess: () => {

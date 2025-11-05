@@ -52,10 +52,11 @@ const ManualMarkAttendance: React.FC<ManualMarkAttendanceProps> = ({
   const { data: studentsData, isLoading: studentsLoading } = useGetStudents(
     staffId,
     1,
-    999 // High number to get all students (max 3 chars)
-  )({
-    queryKey: ['all-students', staffId],
-  });
+    999, // High number to get all students (max 3 chars)
+    {
+      queryKey: ['all-students', staffId],
+    }
+  );
 
   const manualMarkMutation = useManualMarkAttendance();
 

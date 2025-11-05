@@ -75,7 +75,7 @@ const AttendanceKiosk: FC = () => {
   const { isOpen: isExitOpen, onOpen: onExitOpen, onClose: onExitClose } = useDisclosure();
   const cancelRef = useRef<HTMLButtonElement>(null);
 
-  const studentFingerprintsData = useGetStudentsFingerprints(staffInfo?.id as string)({
+  const studentFingerprintsData = useGetStudentsFingerprints(staffInfo?.id as string, {
     queryKey: ['studentsfingerprints', staffInfo?.id],
   });
 
@@ -89,12 +89,12 @@ const AttendanceKiosk: FC = () => {
     },
   });
 
-  const attendancesData = useGetAttendances(staffInfo?.id as string, 1, 100)({
+  const attendancesData = useGetAttendances(staffInfo?.id as string, 1, 100, {
     queryKey: ['attendances', staffInfo?.id],
   });
 
   // Real-time attendance data fetching
-  const attendanceListData = useGetAttendanceList(attendanceId, 1, 50)({
+  const attendanceListData = useGetAttendanceList(attendanceId, 1, 50, {
     queryKey: ['attendanceList', attendanceId],
     enabled: !!attendanceId,
     refetchInterval: 5000, // Poll every 5 seconds for real-time updates

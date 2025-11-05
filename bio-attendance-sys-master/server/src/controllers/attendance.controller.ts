@@ -24,19 +24,20 @@ export const getAttendances = async (req: Request, res: Response, next: NextFunc
   const user_id = (req.user as JwtPayload).id;
   if (!staff_id) return next(new createError.BadRequest('Staff ID is required'));
   if (staff_id !== user_id) return next(new createError.Forbidden('Access denied'));
-  if (!per_page || !page) return next(new createError.BadRequest('Pagination info is required'));
+  if (!page) return next(new createError.BadRequest('Page is required'));
   try {
     const attendanceCount = await prisma.attendance.count({
       where: {
         staff_id,
       },
     });
+    const perPage = Number(per_page) || 10;
     const attendances = await prisma.attendance.findMany({
       where: {
         staff_id,
       },
-      skip: (Number(page) - 1) * Number(per_page),
-      take: (Number(page) - 1) * Number(per_page) + Number(per_page),
+      skip: (Number(page) - 1) * perPage,
+      take: perPage,
       orderBy: {
         created_at: 'desc',
       },
@@ -44,9 +45,9 @@ export const getAttendances = async (req: Request, res: Response, next: NextFunc
     });
     const meta: PaginationMeta = {
       total_items: attendanceCount,
-      total_pages: Math.ceil(attendanceCount / Number(per_page)) || 1,
+      total_pages: Math.ceil(attendanceCount / perPage) || 1,
       page: Number(page),
-      per_page: Number(per_page),
+      per_page: perPage,
     };
 
     return createSuccess(res, 200, 'Attendance fetched successfully', { attendances, meta });
@@ -59,20 +60,21 @@ export const getAttendanceList = async (req: Request, res: Response, next: NextF
   const { attendance_id } = req.params;
   const { per_page, page } = req.query;
   if (!attendance_id) return next(new createError.BadRequest('Attendance ID is required'));
-  if (!per_page || !page) return next(new createError.BadRequest('Pagination info is required'));
+  if (!page) return next(new createError.BadRequest('Page is required'));
   try {
     const attendanceList = await fetchAttendanceStudents(attendance_id);
     const totalItems = attendanceList.length;
-    const totalPages = Math.ceil(totalItems / Number(per_page)) || 1;
-    const startIndex = (Number(page) - 1) * Number(per_page);
-    const endIndex = startIndex + Number(per_page);
+    const perPage = Number(per_page) || 10;
+    const totalPages = Math.ceil(totalItems / perPage) || 1;
+    const startIndex = (Number(page) - 1) * perPage;
+    const endIndex = startIndex + perPage;
     const paginatedList = attendanceList.slice(startIndex, endIndex);
 
     const meta = {
       total_items: totalItems,
       total_pages: totalPages,
       page: Number(page),
-      per_page: Number(per_page),
+      per_page: perPage,
     };
 
     return createSuccess(res, 200, 'Attendance fetched successfully', { attendanceList: paginatedList, meta });

@@ -64,7 +64,8 @@ const AddStudent: FC<{
     staffInfo?.id as string,
     page,
     per_page,
-  )({ queryKey: ['availablecourses', page], keepPreviousData: true });
+    { queryKey: ['availablecourses', page], keepPreviousData: true }
+  );
   const defaultStudentInput = () =>
     setStudentInput((prev: AddStudentInput) => ({ ...prev, name: '', matric_no: '', grade: '', courses: [], fingerprint: '' }));
   const { isLoading, mutate: addStudent } = useAddStudent({

@@ -42,10 +42,11 @@ const EnrolledStudentsModal: FC<EnrolledStudentsModalProps> = ({ isOpen, onClose
     staffInfo?.id as string,
     fetchPage,
     fetchPerPage,
-  )({
-    queryKey: ['students-modal', fetchPage],
-    keepPreviousData: true,
-  });
+    {
+      queryKey: ['students-modal', fetchPage],
+      keepPreviousData: true,
+    }
+  );
 
   // Filter students enrolled in the selected course
   const allEnrolledStudents = data?.data?.students?.filter((student: Student) =>

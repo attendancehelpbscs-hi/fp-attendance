@@ -19,8 +19,18 @@ const useStoreBase = create<State>()(
         isAuthenticated: false,
         increment: () => set((state) => ({ count: state.count + 1 })),
         decrement: () => set((state) => ({ count: state.count - 1 })),
-        loginStaff: ({ accessToken, refreshToken, staff }) =>
-          set(() => ({ staffInfo: staff, tokens: { accessToken, refreshToken }, isAuthenticated: true })),
+        loginStaff: ({ accessToken, refreshToken, staff }) => {
+          console.log('🔍 loginStaff called with:', { accessToken, refreshToken, staff });
+          set(() => ({ 
+            staffInfo: staff, 
+            tokens: { accessToken, refreshToken }, 
+            isAuthenticated: true 
+          }));
+          console.log('🔍 State after set:', {
+            isAuthenticated: useStoreBase.getState().isAuthenticated,
+            tokens: useStoreBase.getState().tokens,
+          });
+        },
         logoutStaff: () => set({ isAuthenticated: false, tokens: null, staffInfo: null, staffSettings: null }),
         logout: () => set({ isAuthenticated: false, tokens: null, staffInfo: null, staffSettings: null }),
         setStaffSettings: (settings) => set({ staffSettings: settings }),

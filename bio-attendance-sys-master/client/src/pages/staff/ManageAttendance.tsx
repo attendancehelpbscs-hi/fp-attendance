@@ -54,10 +54,11 @@ const ManageAttendance: FC = () => {
     staffInfo?.id as string,
     page,
     per_page,
-  )({
-    queryKey: ['attendances', page],
-    keepPreviousData: true,
-  });
+    {
+      queryKey: ['attendances', page],
+      keepPreviousData: true,
+    }
+  );
   const btnRef = useRef(null);
 
   useEffect(() => {

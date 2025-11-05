@@ -28,7 +28,7 @@ const AttendanceList: FC<{ isOpen: boolean; onClose: () => void; attendance: Att
 }) => {
   const [page, setPage] = useState<number>(1);
   const [per_page] = useState<number>(10);
-  const { data, error, isLoading, isError } = useGetAttendanceList(attendance?.id || '', page, per_page)({
+  const { data, error, isLoading, isError } = useGetAttendanceList(attendance?.id || '', page, per_page, {
     queryKey: ['attendance_list', attendance?.id, page, per_page],
     keepPreviousData: true,
     enabled: !!attendance?.id,
