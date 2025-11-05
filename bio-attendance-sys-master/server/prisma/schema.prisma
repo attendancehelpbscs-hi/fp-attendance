@@ -57,6 +57,7 @@ model Course {
   staff_id     String
   course_name  String
   course_code  String          @unique
+  grade        String
   created_at   DateTime
   students      StudentCourse[]
   staff        Staff           @relation(fields: [staff_id], references: [id])
@@ -87,7 +88,7 @@ model StudentAttendance {
   student_id     String
   attendance     Attendance      @relation(fields: [attendance_id], references: [id])
   attendance_id  String
-  time_type      TimeType
+  time_type      TimeType?
   section        String
   status         AttendanceStatus @default(present)
   created_at     DateTime         @default(now())
@@ -102,6 +103,7 @@ enum TimeType {
 
 enum AttendanceStatus {
   present
+  absent
 }
 
 model Token {

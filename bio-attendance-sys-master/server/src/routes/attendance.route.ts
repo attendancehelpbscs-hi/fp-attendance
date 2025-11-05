@@ -8,6 +8,7 @@ import {
   addStudentToAttendance,
   getAttendanceList,
   manualMarkAttendance,
+  markAbsentForUnmarkedDays,
 } from '../controllers/attendance.controller';
 import { addStudentToAttendanceSchema, createAttendanceSchema, updateAttendanceSchema } from '../joi/attendance.joi';
 import joiValidate from '../middlewares/joi.middleware';
@@ -71,5 +72,14 @@ attendanceRoute.put('/attendance/:id', joiValidate(updateAttendanceSchema), auth
 @access 		Private
 */
 attendanceRoute.delete('/attendance/:id', auth, deleteAttendance);
+
+
+
+/*
+@route 			POST /api/attendance/mark-absent-daily (mark absent for unmarked days)
+@description 	mark absent for students who haven't scanned at all for the whole day
+@access 		Private
+*/
+attendanceRoute.post('/attendance/mark-absent-daily', auth, markAbsentForUnmarkedDays);
 
 export default attendanceRoute;

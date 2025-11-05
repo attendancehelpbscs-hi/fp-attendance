@@ -3,6 +3,7 @@ export interface MarkAttendanceInput {
   attendance_id: string;
   time_type: 'IN' | 'OUT';
   section: string;
+  status?: 'present' | 'absent';
 }
 
 export interface ManualMarkAttendanceInput {
@@ -33,6 +34,9 @@ export interface Course {
   id: string;
   course_name: string;
   course_code: string;
+  grade: string;
+  staff_id: string;
+  created_at: string;
 }
 
 export interface AttendanceReportData {
@@ -50,7 +54,7 @@ export interface StudentAttendanceReportData {
   matric_no: string;
   grade: string;
   date: string;
-  status: 'present';
+  status: 'present' | 'absent';
   section: string;
 }
 
@@ -82,7 +86,7 @@ export interface StudentDetailedReport {
   summaries: StudentAttendanceSummary;
   attendanceRecords: {
     date: string;
-    status: 'present';
+    status: 'present' | 'absent';
     time_type: 'IN' | 'OUT' | null;
     section: string;
     created_at: string;
@@ -148,7 +152,7 @@ export interface GetAttendanceListResult {
       };
       time_type: 'IN' | 'OUT';
       section: string;
-      status: 'present' | 'late' | 'absent';
+      status: 'present' | 'absent';
       created_at: string;
     }[];
     meta: {
@@ -197,7 +201,7 @@ export interface GetStudentReportsResult {
 export interface MarkStudentAttendanceInput {
   student_id: string;
   date: string;
-  status: 'present';
+  status: 'present' | 'absent';
   section: string;
 }
 
@@ -294,6 +298,7 @@ export interface DeleteStudentResult {
 export interface AddCourseInput {
   course_name: string;
   course_code: string;
+  grade: string;
   staff_id: string;
 }
 
@@ -317,6 +322,7 @@ export interface UpdateCourseInput {
   id: string;
   course_name?: string;
   course_code?: string;
+  grade?: string;
   url: string;
 }
 

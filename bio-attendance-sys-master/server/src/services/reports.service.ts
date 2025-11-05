@@ -68,49 +68,87 @@ export const getAttendanceReports = async (staff_id: string, filters: { grade?: 
       };
     }
 
-    const page = filters.page || 1;
-    const per_page = filters.per_page || 10;
-    const skip = (page - 1) * per_page;
-
     const studentAttendances = await prisma.studentAttendance.findMany({
       where,
       include: {
         student: true,
         attendance: true,
       },
-      skip,
-      take: per_page,
     });
 
     // Group by date, grade, section
-    const groupedData: Record<string, { present: number; total: number }> = {};
+    const groupedData: Record<string, { presentStudents: Set<string> }> = {};
+    const gradeSections = new Set<string>();
 
     studentAttendances.forEach(sa => {
       // Format date as YYYY-MM-DD to avoid ISO timestamp issues
       const dateStr = sa.attendance.date;
       const key = `${dateStr}|${sa.student.grade}|${sa.section}`;
       if (!groupedData[key]) {
-        groupedData[key] = { present: 0, total: 0 };
+        groupedData[key] = { presentStudents: new Set() };
       }
-      groupedData[key].total += 1;
-      // Only count 'IN' as present, 'OUT' is checkout and doesn't count as attendance
-      if (sa.time_type === 'IN') {
-        groupedData[key].present += 1;
+      gradeSections.add(`${sa.student.grade}|${sa.section}`);
+      // Count unique students who are present (any check-in for the day)
+      if (sa.time_type === 'IN' && sa.status === 'present') {
+        groupedData[key].presentStudents.add(sa.student_id);
       }
     });
 
-    return Object.entries(groupedData).map(([key, counts]) => {
+    // Get total students for each grade-section
+    const totalStudentsMap: Record<string, number> = {};
+    for (const gs of gradeSections) {
+      const [grade, section] = gs.split('|');
+      const count = await prisma.student.count({
+        where: {
+          staff_id,
+          grade,
+          courses: {
+            some: {
+              course: {
+                course_code: section,
+              },
+            },
+          },
+        },
+      });
+      totalStudentsMap[gs] = count;
+    }
+
+    let results = Object.entries(groupedData).map(([key, data]) => {
       const [date, grade, section] = key.split('|');
-      const rate = counts.total > 0 ? (counts.present / counts.total) * 100 : 0;
+      const gs = `${grade}|${section}`;
+      const total = totalStudentsMap[gs] || 0;
+      const present = data.presentStudents.size;
+      const absent = total - present;
+      const rate = total > 0 ? (present / total) * 100 : 0;
       return {
         date,
         grade,
         section,
-        present: counts.present,
-        absent: 0, // Always 0 in simplified system
+        present,
+        absent,
         rate: Math.round(rate * 100) / 100, // Round to 2 decimal places
       };
     });
+
+    // Handle pagination on results
+    const page = filters.page || 1;
+    const per_page = filters.per_page || 10;
+    const totalItems = results.length;
+    const totalPages = Math.ceil(totalItems / per_page) || 1;
+    const startIndex = (page - 1) * per_page;
+    const endIndex = startIndex + per_page;
+    results = results.slice(startIndex, endIndex);
+
+    return {
+      reports: results,
+      meta: {
+        total_items: totalItems,
+        total_pages: totalPages,
+        page,
+        per_page,
+      },
+    };
   } catch (err) {
     throw err;
   }
@@ -118,7 +156,8 @@ export const getAttendanceReports = async (staff_id: string, filters: { grade?: 
 
 export const getAttendanceSummary = async (staff_id: string, filters: { grade?: string; section?: string; dateRange?: string }) => {
   try {
-    const reports = await getAttendanceReports(staff_id, filters);
+    const reportsData = await getAttendanceReports(staff_id, filters);
+    const reports = reportsData.reports;
 
     const totalStudents = reports.reduce((sum, report) => sum + report.present + report.absent, 0);
     const averageRate = reports.length > 0 ? reports.reduce((sum, report) => sum + report.rate, 0) / reports.length : 0;
@@ -266,11 +305,11 @@ export const getStudentAttendanceReports = async (staff_id: string, filters: { s
       student_name: sa.student.name,
       matric_no: sa.student.matric_no,
       grade: sa.student.grade,
-      date: sa.created_at.toISOString(),
-      status: (sa.time_type === 'IN' ? 'present' : 'departure') as 'present' | 'departure',
+      date: sa.attendance.date,
+      status: (sa.time_type === 'OUT' ? 'departure' : sa.status === 'present' ? 'present' : 'absent') as 'present' | 'departure' | 'absent',
       time_type: sa.time_type,
       section: sa.section,
-      created_at: sa.created_at,
+      created_at: sa.status === 'absent' ? null : sa.created_at,
     }));
   } catch (err) {
     throw err;
@@ -364,7 +403,7 @@ export interface StudentDetailedReport {
   };
   attendanceRecords: {
     date: string;
-    status: 'present' | 'departure';
+    status: 'present' | 'departure' | 'absent';
     time_type: 'IN' | 'OUT' | null;
     section: string;
     created_at: string;
@@ -423,8 +462,8 @@ export const getStudentDetailedReport = async (staff_id: string, student_id: str
 
     // Transform records
     const records = attendanceRecords.map(record => ({
-      date: record.created_at.toISOString().split('T')[0], // Use actual check-in date
-      status: (record.time_type === 'IN' ? 'present' : 'departure') as 'present' | 'departure',
+      date: record.attendance.date, // Use attendance date instead of created_at
+      status: (record.time_type === 'OUT' ? 'departure' : record.status === 'present' ? 'present' : 'absent') as 'present' | 'departure' | 'absent',
       time_type: record.time_type,
       section: record.section,
       created_at: record.created_at.toISOString(),

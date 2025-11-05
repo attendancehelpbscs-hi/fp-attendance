@@ -448,7 +448,7 @@ const Reports: FC = () => {
       headers.join(','),
       ...data.map((row: any) => {
         if (selectedReportType === 'daily-records') {
-          return [row.date, row.grade, row.section, row.present].join(',');
+        return [row.date, row.grade, row.section, row.present].join(',');
         } else {
           return [row.student_name, row.matric_no, row.grade, row.date, row.status, row.section].join(',');
         }
@@ -678,11 +678,8 @@ const Reports: FC = () => {
     <WithStaffLayout>
       <VStack spacing={2} align="center" marginBottom="2rem">
         <Heading fontSize={28} fontWeight={700} color="teal.600">
-          Fingerprint-Based Attendance Monitoring System - Reports & Analytics
+          Reports & Analytics
         </Heading>
-        <Text fontSize="lg" color="gray.600" fontWeight="500">
-          Bula South Central Elementary School, 2025
-        </Text>
       </VStack>
 
       {/* Unified Report Filters */}
@@ -723,6 +720,7 @@ const Reports: FC = () => {
                 ))}
               </Select>
             </GridItem>
+
             <GridItem>
               <Text fontWeight="bold" marginBottom="0.5rem">Date Range</Text>
               <Select value={selectedDateRange} onChange={(e) => setSelectedDateRange(e.target.value)}>
@@ -832,8 +830,8 @@ const Reports: FC = () => {
                       <BarChart data={gradeSectionData}>
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="name" />
-                        <YAxis />
-                        <Tooltip formatter={(value: any) => [`${value}`, 'Count']} />
+                        <YAxis tickFormatter={(value) => Math.round(value).toString()} />
+                        <Tooltip formatter={(value: any) => [`${Math.round(value)}`, 'Present']} />
                         <Legend />
                         <Bar dataKey="present" name="Present">
                           {gradeSectionData.map((entry, index) => (
@@ -883,7 +881,6 @@ const Reports: FC = () => {
                         >
                           Present {sortConfig?.key === 'present' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                         </Th>
-
                       </Tr>
                     </Thead>
                     <Tbody>
@@ -978,7 +975,7 @@ const Reports: FC = () => {
                             <Td>{row.grade}</Td>
                             <Td>{new Date(row.date).toLocaleString()}</Td>
                             <Td>
-                              <Badge colorScheme={row.status === 'present' ? 'green' : 'red'}>
+                              <Badge colorScheme={row.status === 'present' ? 'green' : row.status === 'departure' ? 'blue' : 'red'}>
                                 {row.status}
                               </Badge>
                             </Td>
@@ -1038,8 +1035,11 @@ const Reports: FC = () => {
                     <LineChart data={attendanceTrendData}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="date" tickFormatter={(value) => new Date(value).toLocaleDateString()} />
-                      <YAxis />
-                      <Tooltip labelFormatter={(value) => `Date: ${new Date(value).toLocaleDateString()}`} />
+                      <YAxis tickFormatter={(value) => Math.round(value).toString()} />
+                      <Tooltip
+                        labelFormatter={(value) => `Date: ${new Date(value).toLocaleDateString()}`}
+                        formatter={(value: any) => [`${Math.round(value)}`, 'Present']}
+                      />
                       <Legend />
                       <Line type="monotone" dataKey="present" stroke="#38B2AC" name="Present" />
                     </LineChart>
@@ -1058,10 +1058,10 @@ const Reports: FC = () => {
                     <BarChart data={weeklyAttendanceData}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="day" />
-                      <YAxis />
+                      <YAxis tickFormatter={(value) => Math.round(value).toString()} />
                       <Tooltip
                         formatter={(value: any, name: string) => [
-                          name === 'averagePresent' ? `${value} students` : value,
+                          name === 'averagePresent' ? `${Math.round(value)} students` : Math.round(value),
                           name === 'averagePresent' ? 'Average Present' : name
                         ]}
                         labelFormatter={(label) => `Day: ${label}`}
@@ -1139,8 +1139,8 @@ const Reports: FC = () => {
                     <BarChart data={paginatedGradeSectionData}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="name" />
-                      <YAxis />
-                      <Tooltip />
+                      <YAxis tickFormatter={(value) => Math.round(value).toString()} />
+                      <Tooltip formatter={(value: any) => [`${Math.round(value)}`, 'Present']} />
                       <Legend />
                       <Bar dataKey="present" name="Present">
                         {paginatedGradeSectionData.map((entry, index) => (
@@ -1163,8 +1163,8 @@ const Reports: FC = () => {
                     <BarChart data={gradeSectionData}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="name" />
-                      <YAxis />
-                      <Tooltip />
+                      <YAxis tickFormatter={(value) => Math.round(value).toString()} />
+                      <Tooltip formatter={(value: any) => [`${Math.round(value)}`, 'Present']} />
                       <Legend />
                       <Bar dataKey="present" name="Present">
                         {gradeSectionData.map((entry, index) => (
@@ -1210,9 +1210,9 @@ const Reports: FC = () => {
                           height={80}
                           interval={0}
                         />
-                        <YAxis />
+                        <YAxis tickFormatter={(value) => Math.round(value).toString()} />
                         <Tooltip
-                          formatter={(value: any) => [`${value} check-ins`, 'Count']}
+                          formatter={(value: any) => [`${Math.round(value)} check-ins`, 'Count']}
                           labelFormatter={(label) => `Time: ${label}`}
                         />
                         <Legend />

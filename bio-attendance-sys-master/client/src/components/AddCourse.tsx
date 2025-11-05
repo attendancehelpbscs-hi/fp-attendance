@@ -21,6 +21,7 @@ import {
   AlertDialogContent,
   AlertDialogOverlay,
   useDisclosure,
+  Select,
 } from '@chakra-ui/react';
 import { toast } from 'react-hot-toast';
 import useStore from '../store/store';
@@ -39,6 +40,7 @@ const AddCourse: FC<{
     staff_id: staffInfo?.id as string,
     course_name: '',
     course_code: '',
+    grade: '',
   } as AddCourseInput);
   const [, forceUpdate] = useState<boolean>(false);
   const { isOpen: isConfirmOpen, onOpen: onConfirmOpen, onClose: onConfirmClose } = useDisclosure();
@@ -48,7 +50,7 @@ const AddCourse: FC<{
       queryClient.invalidateQueries({ queryKey: ['courses'] });
       closeDrawer();
       toast.success('Course added successfully');
-      setCourseInput((prev: AddCourseInput) => ({ ...prev, course_name: '', course_code: '' }));
+      setCourseInput((prev: AddCourseInput) => ({ ...prev, course_name: '', course_code: '', grade: '' }));
     },
     onError: (err) => {
       toast.error((err.response?.data?.message as string) ?? 'An error occured');
@@ -60,7 +62,7 @@ const AddCourse: FC<{
       setActiveCourse(null);
       closeDrawer();
       toast.success('Course updated successfully');
-      setCourseInput((prev: AddCourseInput) => ({ ...prev, course_name: '', course_code: '' }));
+      setCourseInput((prev: AddCourseInput) => ({ ...prev, course_name: '', course_code: '', grade: '' }));
     },
     onError: (err) => {
       toast.error((err.response?.data?.message as string) ?? 'An error occured');
@@ -72,6 +74,7 @@ const AddCourse: FC<{
         ...prev,
         course_name: activeCourse.course_name,
         course_code: activeCourse.course_code,
+        grade: activeCourse.grade,
       }));
     }
   }, [isOpen, activeCourse]);
@@ -81,7 +84,7 @@ const AddCourse: FC<{
     }),
   );
 
-  const handleInputChange: ChangeEventHandler<HTMLInputElement> = (e) => {
+  const handleInputChange: ChangeEventHandler<HTMLInputElement | HTMLSelectElement> = (e) => {
     const { name, value } = e.target;
     let processedValue = value;
 
@@ -114,11 +117,12 @@ const AddCourse: FC<{
   const confirmUpdate = () => {
     if (activeCourse) {
       // FIXED: Only send the fields that should be updated, excluding staff_id
-      updateCourse({ 
+      updateCourse({
         id: activeCourse.id,
         url: `/${activeCourse.id}`,
         course_name: courseInput.course_name,
         course_code: courseInput.course_code,
+        grade: courseInput.grade,
       });
       onConfirmClose();
     }
@@ -127,7 +131,7 @@ const AddCourse: FC<{
   return (
     <Drawer
       onClose={() => {
-        setCourseInput((prev: AddCourseInput) => ({ ...prev, course_name: '', course_code: '' }));
+        setCourseInput((prev: AddCourseInput) => ({ ...prev, course_name: '', course_code: '', grade: '' }));
         onClose();
       }}
       isOpen={isOpen}
@@ -169,6 +173,28 @@ const AddCourse: FC<{
                 'required|string|between:2,128',
               )}
             </FormControl>
+            <FormControl marginTop="1rem">
+              <FormLabel>Grade</FormLabel>
+              <Select
+                name="grade"
+                required
+                value={courseInput.grade}
+                onChange={handleInputChange}
+                placeholder="Select grade"
+              >
+                <option value="1">Grade 1</option>
+                <option value="2">Grade 2</option>
+                <option value="3">Grade 3</option>
+                <option value="4">Grade 4</option>
+                <option value="5">Grade 5</option>
+                <option value="6">Grade 6</option>
+              </Select>
+              {simpleValidator.current.message(
+                'grade',
+                courseInput.grade,
+                'required|string',
+              )}
+            </FormControl>
             <Button
               w="100%"
               type="submit"
@@ -183,7 +209,7 @@ const AddCourse: FC<{
                 : isLoading && !activeCourse
                 ? 'Adding course...'
                 : activeCourse
-                ? 'Update course'
+                ? 'Update'
                 : 'Add course'}
             </Button>
           </form>

@@ -176,7 +176,7 @@ const AddStudent: FC<{
     }
   };
 
-  const courses = courseData?.data?.courses?.map((course: Course) => ({ value: course.id, label: course.course_code })) ?? [];
+  const courses = courseData?.data?.courses?.map((course: Course) => ({ value: course.id, label: course.course_code, grade: course.grade })) ?? [];
   return (
     <Drawer
       onClose={() => {
@@ -229,23 +229,15 @@ const AddStudent: FC<{
                 ]}
                 className="basic-single-select"
                 classNamePrefix="select"
-                onChange={(newValue: any) =>
-                  setStudentInput((prev: AddStudentInput) => ({ ...prev, grade: newValue ? newValue.value : '' }))
-                }
+                onChange={(newValue: any) => {
+                  setStudentInput((prev: AddStudentInput) => ({ ...prev, grade: newValue ? newValue.value : '', courses: [] }));
+                }}
               />
               {simpleValidator.current.message(
                 'grade',
                 studentInput.grade,
                 'required|string|between:1,6',
               )}
-            </FormControl>
-            <FormControl marginTop="1rem">
-              <FormLabel>Fingerprint</FormLabel>
-              {deviceConnected && <Text>✅ System: Fingerprint scanner is connected</Text>}
-              <Box shadow="xs" h={240} w={240} margin="1rem auto 0" border="1px solid rgba(0, 0, 0, 0.04)">
-                {studentInput.fingerprint && <Image src={getFingerprintImgString(studentInput.fingerprint)} />}
-              </Box>
-              {simpleValidator.current.message('fingerprint', studentInput.fingerprint, 'required|between:2,500000')}
             </FormControl>
             <FormControl marginTop="1rem">
               <FormLabel>Section</FormLabel>
@@ -255,13 +247,28 @@ const AddStudent: FC<{
                   label: courses?.find((course: { value: string; label: string }) => course.value === studentInput.courses[0])?.label,
                 } : null}
                 name="section"
-                options={courses}
+                options={courses.filter(course => course.grade === studentInput.grade)}
                 className="basic-single-select"
                 classNamePrefix="select"
                 onChange={(newValue: any) =>
                   setStudentInput((prev: AddStudentInput) => ({ ...prev, courses: newValue ? [newValue.value] : [] }))
                 }
+                isDisabled={!studentInput.grade}
               />
+            </FormControl>
+            <FormControl marginTop="1rem">
+              <FormLabel>Fingerprint</FormLabel>
+              <Text fontSize="sm" color="gray.500" mb={1}>
+                {deviceConnected
+                  ? "Place your fingerprint on the scanner to capture it."
+                  : "Fingerprint scanner not connected. Please refresh the page and try again."
+                }
+              </Text>
+              {deviceConnected && <Text>✅ System: Fingerprint scanner is connected</Text>}
+              <Box shadow="xs" h={240} w={240} margin="1rem auto 0" border="1px solid rgba(0, 0, 0, 0.04)">
+                {studentInput.fingerprint && <Image src={getFingerprintImgString(studentInput.fingerprint)} />}
+              </Box>
+              {simpleValidator.current.message('fingerprint', studentInput.fingerprint, 'required|between:2,500000')}
             </FormControl>
             <Button
               w="100%"

@@ -32,6 +32,10 @@ import {
   AlertDialogOverlay,
   useDisclosure,
   Select,
+  Slider,
+  SliderTrack,
+  SliderFilledTrack,
+  SliderThumb,
 } from '@chakra-ui/react';
 import { ArrowBackIcon, ViewIcon, InfoIcon } from '@chakra-ui/icons';
 import { useNavigate } from 'react-router-dom';
@@ -46,6 +50,7 @@ import { getFingerprintImgString } from '../../components/AddStudent';
 import axios from 'axios';
 import constants from '../../config/constants.config';
 import dayjs from 'dayjs';
+import { queryClient } from '../../lib/query-client';
 
 const AttendanceKiosk: FC = () => {
   const navigate = useNavigate();
@@ -54,7 +59,7 @@ const AttendanceKiosk: FC = () => {
   const [currentDate, setCurrentDate] = useState(dayjs().format('MMMM D, YYYY'));
   const [scannerConnected, setScannerConnected] = useState<boolean>(false);
   const [scannerStatus, setScannerStatus] = useState<string>('Checking...');
-  const [continuousMode, setContinuousMode] = useState<boolean>(true);
+  const [continuousMode, setContinuousMode] = useState<boolean>(false);
   const [markInput, setMarkInput] = useState<MarkAttendanceInput>({
     student_id: '',
     attendance_id: '',
@@ -72,6 +77,8 @@ const AttendanceKiosk: FC = () => {
   const [selectedSection, setSelectedSection] = useState<string>('');
   const [selectedGrade, setSelectedGrade] = useState<string>('');
   const [timeType, setTimeType] = useState<'IN' | 'OUT'>('IN');
+
+
   const { isOpen: isExitOpen, onOpen: onExitOpen, onClose: onExitClose } = useDisclosure();
   const cancelRef = useRef<HTMLButtonElement>(null);
 
@@ -111,6 +118,8 @@ const AttendanceKiosk: FC = () => {
       }
       // Trigger refetch of attendance data
       attendanceListData.refetch();
+      // Also invalidate and refetch the query cache
+      queryClient.invalidateQueries(['attendanceList', attendanceId]);
     },
     onError: (err) => {
       toast.error((err.response?.data?.message as string) ?? 'An error occured');
@@ -125,16 +134,36 @@ const AttendanceKiosk: FC = () => {
     setConfidence(0);
   };
 
-  // Transform attendance data for display
-  const attendanceData = attendanceListData.data?.data?.attendanceList?.map((record: any) => ({
-    id: record.student.matric_no,
-    name: record.student.name,
-    grade: record.student.grade,
-    section: record.section,
-    timeIn: dayjs(record.created_at).format('hh:mm A'),
-    timeOut: record.time_type === 'OUT' ? dayjs(record.created_at).format('hh:mm A') : null,
-    status: record.status as 'present' | 'absent',
-  })) || [];
+  // Transform attendance data for display - group by student and show latest times
+  const attendanceData = attendanceListData.data?.data?.attendanceList?.reduce((acc: any[], record: any) => {
+    const existing = acc.find(item => item.id === record.student.matric_no);
+    if (existing) {
+      if (record.time_type === 'IN') {
+        if (!existing.timeInRaw || dayjs(record.created_at).isAfter(dayjs(existing.timeInRaw))) {
+          existing.timeIn = dayjs(record.created_at).format('hh:mm A');
+          existing.timeInRaw = record.created_at;
+        }
+      } else if (record.time_type === 'OUT') {
+        if (!existing.timeOutRaw || dayjs(record.created_at).isAfter(dayjs(existing.timeOutRaw))) {
+          existing.timeOut = dayjs(record.created_at).format('hh:mm A');
+          existing.timeOutRaw = record.created_at;
+        }
+      }
+    } else {
+      acc.push({
+        id: record.student.matric_no,
+        name: record.student.name,
+        grade: record.student.grade,
+        section: record.section,
+        timeIn: record.time_type === 'IN' ? dayjs(record.created_at).format('hh:mm A') : null,
+        timeOut: record.time_type === 'OUT' ? dayjs(record.created_at).format('hh:mm A') : null,
+        timeInRaw: record.time_type === 'IN' ? record.created_at : null,
+        timeOutRaw: record.time_type === 'OUT' ? record.created_at : null,
+        status: record.status as 'present' | 'absent',
+      });
+    }
+    return acc;
+  }, []) || [];
 
   useEffect(() => {
     // Update time every second
@@ -232,7 +261,7 @@ const AttendanceKiosk: FC = () => {
             name: student.name,
             time: dayjs().format('hh:mm:ss A'),
             status: 'success'
-          }, ...prev.slice(0, 9)]); // Keep last 10
+          }, ...prev]);
 
           toast.success(`Student identified: ${student.name} (${student.matric_no})`);
 
@@ -250,7 +279,7 @@ const AttendanceKiosk: FC = () => {
             name: 'Unknown',
             time: dayjs().format('hh:mm:ss A'),
             status: 'error'
-          }, ...prev.slice(0, 9)]);
+          }, ...prev]);
           toast.error('Student not found in records');
         }
       } else {
@@ -259,7 +288,7 @@ const AttendanceKiosk: FC = () => {
           name: 'Unrecognized',
           time: dayjs().format('hh:mm:ss A'),
           status: 'error'
-        }, ...prev.slice(0, 9)]);
+        }, ...prev]);
         toast.error('Fingerprint not recognized. Please try again.');
       }
     } catch (err) {
@@ -268,7 +297,7 @@ const AttendanceKiosk: FC = () => {
         name: 'Error',
         time: dayjs().format('hh:mm:ss A'),
         status: 'error'
-      }, ...prev.slice(0, 9)]);
+      }, ...prev]);
       toast.error('Could not identify fingerprint');
       console.error('Err: ', err);
     }
@@ -344,10 +373,156 @@ const AttendanceKiosk: FC = () => {
       </Flex>
 
       {/* Main Content */}
-      <Flex flex={1} p={4} gap={4}>
-        {/* Left Panel - Live Attendance Log */}
-        <Box flex={1}>
-          <Card h="full" overflow="hidden">
+      <Box flex={1} p={4}>
+        <VStack spacing={4} h="full">
+          {/* Top Row - Scanner Controls */}
+          <Flex gap={4} w="full">
+            {/* Continuous Mode Toggle */}
+            <Card flex={1}>
+              <Box p={3}>
+                <HStack justifyContent="space-between">
+                  <VStack align="start" spacing={1}>
+                    <Text fontWeight="bold" fontSize="sm">Continuous Mode</Text>
+                    <Text fontSize="xs" color="gray.600">
+                      Auto-mark after successful scan
+                    </Text>
+                  </VStack>
+                  <Switch
+                    isChecked={continuousMode}
+                    onChange={(e) => setContinuousMode(e.target.checked)}
+                    colorScheme="blue"
+                    size="md"
+                  />
+                </HStack>
+              </Box>
+            </Card>
+
+            {/* Mark Student Section */}
+            <Card flex={1}>
+              <Box p={3}>
+                <Text fontWeight="bold" mb={2} fontSize="sm">Mark Student</Text>
+
+                {/* Time Type Selector */}
+                <Box mb={2}>
+                  <HStack justifyContent="space-between" alignItems="center">
+                    <Text fontWeight="bold" fontSize="xs">Time Type:</Text>
+                    <Select
+                      size="xs"
+                      w="120px"
+                      value={timeType}
+                      onChange={(e) => setTimeType(e.target.value as 'IN' | 'OUT')}
+                    >
+                      <option value="IN">Check In</option>
+                      <option value="OUT">Check Out</option>
+                    </Select>
+                  </HStack>
+                </Box>
+
+                <Box mb={2}>
+                  <Flex gap="0.3rem" borderLeft="2px solid #534949" padding="0.3rem" alignItems="flex-start">
+                    <InfoIcon boxSize={3} />
+                    <Text fontStyle="italic" fontSize="xs">Scan fingerprint to identify and mark attendance for the student.</Text>
+                  </Flex>
+                  {scannerConnected && <Text fontSize="xs" color="green.600">✅ System: Fingerprint scanner is connected</Text>}
+                </Box>
+
+                {/* Fingerprint Display - Made smaller */}
+                <Box
+                  overflow="hidden"
+                  shadow="xs"
+                  h={120}
+                  w={120}
+                  margin="0.3rem auto"
+                  border="1px solid rgba(0, 0, 0, 0.04)"
+                >
+                  {fingerprints.newFingerprint && <Image src={getFingerprintImgString(fingerprints.newFingerprint)} />}
+                </Box>
+
+
+
+                <Button
+                  w="100%"
+                  bg="var(--bg-primary)"
+                  color="white"
+                  size="xs"
+                  _hover={{ background: 'var(--bg-primary-light)' }}
+                  disabled={isLoading || identificationStatus !== 'success'}
+                  onClick={() => {
+                    if (identifiedStudent) {
+                      markAttendance({
+                        student_id: identifiedStudent.id,
+                        attendance_id: attendanceId,
+                        time_type: timeType,
+                        section: (identifiedStudent.courses.length > 0 ? identifiedStudent.courses[0].course_code : identifiedStudent.grade).slice(0, 10),
+                      });
+                    }
+                  }}
+                >
+                  {isLoading ? 'Marking student...' : 'Mark student'}
+                </Button>
+              </Box>
+            </Card>
+
+            {/* Live Scanner Feedback */}
+            <Card flex={1}>
+              <Box p={3}>
+                <Text fontWeight="bold" mb={3} fontSize="sm">Live Scanner Feedback</Text>
+
+                {/* Student Info Display */}
+                {identifiedStudent && identificationStatus === 'success' && (
+                  <Alert status="success" mb={3} py={2}>
+                    <VStack align="start" spacing={1} w="full">
+                      <AlertTitle fontSize="xs">✅ Student Identified!</AlertTitle>
+                      <Text fontSize="xs"><strong>ID:</strong> {identifiedStudent.matric_no}</Text>
+                      <Text fontSize="xs"><strong>Name:</strong> {identifiedStudent.name}</Text>
+                      <Text fontSize="xs"><strong>Grade:</strong> {identifiedStudent.grade}</Text>
+                      <Text fontSize="xs"><strong>Section:</strong> {identifiedStudent.courses.length > 0 ? identifiedStudent.courses[0].course_code : identifiedStudent.grade}</Text>
+                      <Text fontSize="xs"><strong>Status:</strong> Checked In</Text>
+                      <Text fontSize="xs"><strong>Time:</strong> {dayjs().format('hh:mm A')}</Text>
+                    </VStack>
+                  </Alert>
+                )}
+
+                {identificationStatus === 'error' && (
+                  <Alert status="error" mb={3} py={2}>
+                    <AlertIcon boxSize={3} />
+                    <AlertTitle fontSize="xs">Unrecognized Fingerprint</AlertTitle>
+                    <AlertDescription fontSize="xs">
+                      Please try scanning again.
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {identificationStatus === 'identifying' && (
+                  <Alert status="info" mb={3} py={2}>
+                    <Spinner size="xs" mr={2} />
+                    <AlertTitle fontSize="xs">Identifying student...</AlertTitle>
+                  </Alert>
+                )}
+
+                {/* Recent Scans */}
+                <Box>
+                  <Text fontWeight="bold" mb={2} fontSize="sm">Recent Scans</Text>
+                  <VStack spacing={1} maxH="120px" overflowY="auto">
+                    {recentScans.map((scan, idx) => (
+                      <HStack key={idx} w="full" justify="space-between" p={1} bg={scan.status === 'success' ? 'green.50' : 'red.50'} borderRadius="md">
+                        <Text fontSize="xs">{scan.name}</Text>
+                        <HStack>
+                          <Text fontSize="xs" color="gray.600">{scan.time}</Text>
+                          <Badge colorScheme={scan.status === 'success' ? 'green' : 'red'} size="sm" fontSize="xs">
+                            {scan.status === 'success' ? '✅' : '❌'}
+                          </Badge>
+                        </HStack>
+                      </HStack>
+                    ))}
+                  </VStack>
+                </Box>
+              </Box>
+            </Card>
+          </Flex>
+
+          {/* Bottom - Daily Attendance Log */}
+          <Card flex={1} overflow="hidden">
             <Box p={3} borderBottom="1px" borderColor="gray.200">
               <Heading size="md">Daily Attendance Log</Heading>
               <Text color="gray.600" fontSize="sm">Real-time attendance records</Text>
@@ -387,154 +562,8 @@ const AttendanceKiosk: FC = () => {
               </TableContainer>
             </Box>
           </Card>
-        </Box>
-
-        {/* Right Panel - Scanner Feedback */}
-        <VStack flex={1} spacing={3}>
-          {/* Continuous Mode Toggle */}
-          <Card w="full">
-            <Box p={3}>
-              <HStack justifyContent="space-between">
-                <VStack align="start" spacing={1}>
-                  <Text fontWeight="bold" fontSize="sm">Continuous Mode</Text>
-                  <Text fontSize="xs" color="gray.600">
-                    Auto-mark after successful scan
-                  </Text>
-                </VStack>
-                <Switch
-                  isChecked={continuousMode}
-                  onChange={(e) => setContinuousMode(e.target.checked)}
-                  colorScheme="blue"
-                  size="md"
-                />
-              </HStack>
-            </Box>
-          </Card>
-
-          {/* Mark Student Section */}
-          <Card w="full">
-            <Box p={3}>
-              <Text fontWeight="bold" mb={2} fontSize="sm">Mark Student</Text>
-
-              {/* Time Type Selector - Moved to top for easy access */}
-              <Box mb={2}>
-                <HStack justifyContent="space-between" alignItems="center">
-                  <Text fontWeight="bold" fontSize="xs">Time Type:</Text>
-                  <Select
-                    size="xs"
-                    w="120px"
-                    value={timeType}
-                    onChange={(e) => setTimeType(e.target.value as 'IN' | 'OUT')}
-                  >
-                    <option value="IN">Check In</option>
-                    <option value="OUT">Check Out</option>
-                  </Select>
-                </HStack>
-              </Box>
-
-              <Box mb={2}>
-                <Flex gap="0.3rem" borderLeft="2px solid #534949" padding="0.3rem" alignItems="flex-start">
-                  <InfoIcon boxSize={3} />
-                  <Text fontStyle="italic" fontSize="xs">Scan fingerprint to identify and mark attendance for the student.</Text>
-                </Flex>
-                {scannerConnected && <Text fontSize="xs" color="green.600">✅ System: Fingerprint scanner is connected</Text>}
-              </Box>
-
-              {/* Fingerprint Display - Made smaller */}
-              <Box
-                overflow="hidden"
-                shadow="xs"
-                h={120}
-                w={120}
-                margin="0.3rem auto"
-                border="1px solid rgba(0, 0, 0, 0.04)"
-              >
-                {fingerprints.newFingerprint && <Image src={getFingerprintImgString(fingerprints.newFingerprint)} />}
-              </Box>
-
-
-
-              <Button
-                w="100%"
-                bg="var(--bg-primary)"
-                color="white"
-                size="xs"
-                _hover={{ background: 'var(--bg-primary-light)' }}
-                disabled={isLoading || identificationStatus !== 'success'}
-                onClick={() => {
-                  if (identifiedStudent) {
-                    markAttendance({
-                      student_id: identifiedStudent.id,
-                      attendance_id: attendanceId,
-                      time_type: timeType,
-                      section: (identifiedStudent.courses.length > 0 ? identifiedStudent.courses[0].course_code : identifiedStudent.grade).slice(0, 10),
-                    });
-                  }
-                }}
-              >
-                {isLoading ? 'Marking student...' : 'Mark student'}
-              </Button>
-            </Box>
-          </Card>
-
-          {/* Live Scanner Feedback */}
-          <Card w="full" flex={1}>
-            <Box p={3}>
-              <Text fontWeight="bold" mb={3} fontSize="sm">Live Scanner Feedback</Text>
-
-              {/* Student Info Display */}
-              {identifiedStudent && identificationStatus === 'success' && (
-                <Alert status="success" mb={3} py={2}>
-                  <VStack align="start" spacing={1} w="full">
-                    <AlertTitle fontSize="xs">✅ Student Identified!</AlertTitle>
-                    <Text fontSize="xs"><strong>ID:</strong> {identifiedStudent.matric_no}</Text>
-                    <Text fontSize="xs"><strong>Name:</strong> {identifiedStudent.name}</Text>
-                    <Text fontSize="xs"><strong>Grade:</strong> {identifiedStudent.grade}</Text>
-                    <Text fontSize="xs"><strong>Section:</strong> {identifiedStudent.courses.length > 0 ? identifiedStudent.courses[0].course_code : identifiedStudent.grade}</Text>
-                    <Text fontSize="xs"><strong>Status:</strong> Checked In</Text>
-                    <Text fontSize="xs"><strong>Time:</strong> {dayjs().format('hh:mm A')}</Text>
-                  </VStack>
-                </Alert>
-              )}
-
-              {identificationStatus === 'error' && (
-                <Alert status="error" mb={3} py={2}>
-                  <AlertIcon boxSize={3} />
-                  <AlertTitle fontSize="xs">Unrecognized Fingerprint</AlertTitle>
-                  <AlertDescription fontSize="xs">
-                    Please try scanning again.
-                  </AlertDescription>
-                </Alert>
-              )}
-
-              {identificationStatus === 'identifying' && (
-                <Alert status="info" mb={3} py={2}>
-                  <Spinner size="xs" mr={2} />
-                  <AlertTitle fontSize="xs">Identifying student...</AlertTitle>
-                </Alert>
-              )}
-
-              {/* Recent Scans */}
-              <Box>
-                <Text fontWeight="bold" mb={2} fontSize="sm">Recent Scans</Text>
-                <VStack spacing={1} maxH="120px" overflowY="auto">
-                  {recentScans.map((scan, idx) => (
-                    <HStack key={idx} w="full" justify="space-between" p={1} bg={scan.status === 'success' ? 'green.50' : 'red.50'} borderRadius="md">
-                      <Text fontSize="xs">{scan.name}</Text>
-                      <HStack>
-                        <Text fontSize="xs" color="gray.600">{scan.time}</Text>
-                        <Badge colorScheme={scan.status === 'success' ? 'green' : 'red'} size="sm" fontSize="xs">
-                          {scan.status === 'success' ? '✅' : '❌'}
-                        </Badge>
-                      </HStack>
-                    </HStack>
-                  ))}
-                </VStack>
-              </Box>
-            </Box>
-          </Card>
         </VStack>
-      </Flex>
+      </Box>
 
       {/* Exit Confirmation Dialog */}
       <AlertDialog

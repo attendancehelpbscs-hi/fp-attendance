@@ -205,12 +205,12 @@ const ManageStudents: FC = () => {
               />
             </InputGroup>
             <Select placeholder="Filter by Grade" value={gradeFilter} onChange={(e) => setGradeFilter(e.target.value)}>
-              <option value="1">1</option>
-              <option value="2">2</option>
-              <option value="3">3</option>
-              <option value="4">4</option>
-              <option value="5">5</option>
-              <option value="6">6</option>
+              <option value="1">Grade 1</option>
+              <option value="2">Grade 2</option>
+              <option value="3">Grade 3</option>
+              <option value="4">Grade 4</option>
+              <option value="5">Grade 5</option>
+              <option value="6">Grade 6</option>
             </Select>
             <Select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
               <option value="name-asc">Sort by Name (A-Z)</option>

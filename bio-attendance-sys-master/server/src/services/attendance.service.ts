@@ -8,6 +8,71 @@ export const determineAttendanceStatus = (currentTime: Date, schoolStartTime: st
   return 'present';
 };
 
+
+
+
+
+export const markAbsentForUnmarkedDays = async (staff_id: string, date: string): Promise<void> => {
+  // Get all students for this staff
+  const students = await prisma.student.findMany({
+    where: { staff_id },
+    include: {
+      courses: {
+        include: {
+          course: true
+        }
+      }
+    }
+  });
+
+  // Check if attendance record exists for this date
+  let attendance = await prisma.attendance.findFirst({
+    where: {
+      staff_id,
+      date,
+    },
+  });
+
+  // Create attendance record if it doesn't exist
+  if (!attendance) {
+    attendance = await prisma.attendance.create({
+      data: {
+        staff_id,
+        name: `Daily Attendance - ${date}`,
+        date,
+        created_at: new Date(),
+      },
+    });
+  }
+
+  // Get all student attendances for this attendance (whole day)
+  const existingAttendances = await prisma.studentAttendance.findMany({
+    where: { attendance_id: attendance.id },
+    select: { student_id: true }
+  });
+
+  const existingStudentIds = new Set(existingAttendances.map(att => att.student_id));
+
+  // Mark absent for students who haven't scanned at all for the day
+  for (const student of students) {
+    if (!existingStudentIds.has(student.id)) {
+      // Get the first course section for the student
+      const section = student.courses?.[0]?.course?.course_code || '';
+
+      await prisma.studentAttendance.create({
+        data: {
+          student_id: student.id,
+          attendance_id: attendance.id,
+          time_type: null,
+          section,
+          status: 'absent',
+          created_at: new Date(`${date}T00:00:00`) // Set to start of day for absent
+        }
+      });
+    }
+  }
+};
+
 export const fetchOneAttendance = (attendanceId: string): Promise<Attendance> => {
   return new Promise<Attendance>(async (resolve, reject) => {
     try {
@@ -37,7 +102,7 @@ export const saveAttendanceToDb = (attendance: Omit<Attendance, 'id'>): Promise<
   });
 };
 
-export const markStudentAttendance = (studentAttendanceInfo: { attendance_id: string; student_id: string; time_type: 'IN' | 'OUT'; section: string; status?: 'present' }): Promise<StudentAttendance> => {
+export const markStudentAttendance = (studentAttendanceInfo: { attendance_id: string; student_id: string; time_type: 'IN' | 'OUT'; section: string; status?: 'present' | 'absent' }): Promise<StudentAttendance> => {
   return new Promise<StudentAttendance>(async (resolve, reject) => {
     try {
       const studentAttendance = await prisma.studentAttendance.create({
@@ -50,7 +115,7 @@ export const markStudentAttendance = (studentAttendanceInfo: { attendance_id: st
   });
 };
 
-export const manualMarkStudentAttendance = (manualMarkInfo: { student_ids: string[]; attendance_id: string; status: 'present'; dates: string[]; section?: string }): Promise<StudentAttendance[]> => {
+export const manualMarkStudentAttendance = (manualMarkInfo: { student_ids: string[]; attendance_id: string; status: 'present' | 'absent'; dates: string[]; section?: string }): Promise<StudentAttendance[]> => {
   return new Promise<StudentAttendance[]>(async (resolve, reject) => {
     try {
       const { student_ids, attendance_id, status, dates, section } = manualMarkInfo;
@@ -131,6 +196,8 @@ export const checkIfStudentIsMarked = (studentAttendanceInfo: { attendance_id: s
       if (studentAttendanceInfo.time_type) {
         whereClause.time_type = studentAttendanceInfo.time_type;
       }
+
+
 
       const studentAttendance = await prisma.studentAttendance.findFirst({
         where: whereClause,

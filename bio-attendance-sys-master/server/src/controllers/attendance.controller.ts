@@ -97,7 +97,7 @@ export const getSingleAttendance = async (req: Request, res: Response, next: Nex
 
 export const addStudentToAttendance = async (req: Request, res: Response, next: NextFunction) => {
   // create attendance
-  const { attendance_id, student_id, time_type, section } = req.body as { attendance_id: string; student_id: string; time_type: 'IN' | 'OUT'; section: string };
+  const { attendance_id, student_id, time_type, section, status } = req.body as { attendance_id: string; student_id: string; time_type: 'IN' | 'OUT'; section: string; status?: 'present' | 'absent' };
   const user_id = (req.user as JwtPayload).id;
 
   if (!attendance_id || !student_id || !time_type || !section) return next(new createError.BadRequest('Attendance ID, student ID, time type, and section are required'));
@@ -118,23 +118,13 @@ export const addStudentToAttendance = async (req: Request, res: Response, next: 
       );
     }
 
-    // Get staff settings for attendance rules
-    const staff = await prisma.staff.findUnique({
-      where: { id: user_id },
-      select: { grace_period_minutes: true, school_start_time: true, late_threshold_hours: true }
-    });
+    // Use provided status or default to present
+    const finalStatus = status || 'present';
 
-    if (!staff) return next(new createError.NotFound('Staff not found'));
-
-    // Determine status based on current time and settings
-    const currentTime = new Date();
-    const { determineAttendanceStatus } = await import('../services/attendance.service');
-    const status = determineAttendanceStatus(currentTime, staff.school_start_time, staff.grace_period_minutes, staff.late_threshold_hours);
-
-    await markStudentAttendance({ attendance_id, student_id, time_type, section, status });
+    await markStudentAttendance({ attendance_id, student_id, time_type, section, status: finalStatus });
     return createSuccess(res, 200, 'Attendance created successfully', {
       marked: true,
-      status,
+      status: finalStatus,
     });
   } catch (err) {
     return next(err);
@@ -207,6 +197,24 @@ export const deleteAttendance = async (req: Request, res: Response, next: NextFu
     await removeAllStudentAttendance(id);
     await removeAttendanceFromDb(id);
     return createSuccess(res, 200, 'Attendance deleted successfully', { deleted: true });
+  } catch (err) {
+    return next(err);
+  }
+};
+
+
+
+export const markAbsentForUnmarkedDays = async (req: Request, res: Response, next: NextFunction) => {
+  const { date } = req.body;
+  const user_id = (req.user as JwtPayload).id;
+
+  if (!date) return next(new createError.BadRequest('Date is required'));
+
+  try {
+    const { markAbsentForUnmarkedDays: markAbsent } = await import('../services/attendance.service');
+    await markAbsent(user_id, date);
+
+    return createSuccess(res, 200, 'Absent marking completed for unmarked days', { processed: true });
   } catch (err) {
     return next(err);
   }

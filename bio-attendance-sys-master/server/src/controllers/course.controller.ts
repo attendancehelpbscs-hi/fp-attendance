@@ -63,11 +63,14 @@ export const getSingleCourse = async (req: Request, res: Response, next: NextFun
 
 export const createCourse = async (req: Request, res: Response, next: NextFunction) => {
   // create course
-  const { course_name, course_code, staff_id } = req.body as Pick<Course, 'course_name' | 'course_code' | 'staff_id'>;
+  const { course_name, course_code, grade, staff_id } = req.body as Pick<Course, 'course_name' | 'course_code' | 'grade' | 'staff_id'>;
   const user_id = (req.user as JwtPayload).id;
 
   if (!course_code) {
     return next(createError(400, 'The course_code field is required.'));
+  }
+  if (!grade) {
+    return next(createError(400, 'The grade field is required.'));
   }
   if (staff_id !== user_id) {
     return next(createError(403, 'Access denied'));
@@ -87,7 +90,7 @@ export const createCourse = async (req: Request, res: Response, next: NextFuncti
         ),
       );
     }
-    const newCourse = { staff_id, course_name, course_code, created_at: new Date() };
+    const newCourse = { staff_id, course_name, course_code, grade, created_at: new Date() };
     const savedCourse = await saveCourseToDb(newCourse);
     return createSuccess(res, 200, 'Course created successfully', { course: savedCourse });
   } catch (err) {

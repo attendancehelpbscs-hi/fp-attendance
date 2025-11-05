@@ -18,25 +18,15 @@ export const getReports = async (req: Request, res: Response, next: NextFunction
       per_page: per_page ? parseInt(per_page as string, 10) : 10,
     };
 
-    const reports = await getAttendanceReports(staff_id, filters);
+    const reportsData = await getAttendanceReports(staff_id, filters);
     const summary = await getAttendanceSummary(staff_id, filters);
     const previousPeriodSummary = await getPreviousPeriodReports(staff_id, filters);
 
-    // Calculate pagination metadata
-    const totalItems = reports.length; // This is approximate since we're not counting total without pagination
-    const totalPages = Math.ceil(totalItems / filters.per_page);
-    const meta = {
-      total_items: totalItems,
-      total_pages: totalPages,
-      page: filters.page,
-      per_page: filters.per_page,
-    };
-
     return createSuccess(res, 200, 'Reports fetched successfully', {
-      reports,
+      reports: reportsData.reports,
       summary,
       previousPeriodSummary,
-      meta,
+      meta: reportsData.meta,
     });
   } catch (err) {
     return next(err);

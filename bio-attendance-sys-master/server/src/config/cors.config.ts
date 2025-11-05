@@ -1,9 +1,11 @@
 import cors, { CorsOptions } from 'cors';
 
 const whitelist: string[] = [
-  'http://localhost:5000', 
+  'http://localhost:5000',
   'http://localhost:3000',
-  'http://localhost:5173'  // Add this line!
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:5005'  // Add this line!
 ];
 
 const corsOption: CorsOptions = {
