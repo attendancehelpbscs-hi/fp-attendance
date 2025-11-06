@@ -105,11 +105,10 @@ export const useGetStudentDetailedReport = (staffId: string, studentId: string, 
   }, BaseError>(`/api/reports/${staffId}/students/${studentId}/details?${queryParams.toString()}`, options);
 };
 
-export const useMarkStudentAttendance = () =>
-  useBaseMutation<MarkStudentAttendanceResult, BaseError, MarkStudentAttendanceInput & { staffId: string; studentId: string }>(
-    '/api/reports/:staff_id/students/:student_id/mark-attendance',
-    'post'
-  );
+export const useMarkStudentAttendance = useBaseMutation<MarkStudentAttendanceResult, BaseError, MarkStudentAttendanceInput & { staffId: string; studentId: string }, unknown>(
+  '/api/reports/:staff_id/students/:student_id/mark-attendance',
+  'post'
+);
 
 export const useGetDashboardStats = (staffId: string, options: Omit<UseQueryOptions<GetDashboardStatsResult, BaseError>, 'queryFn'> = {}) =>
   useBaseQuery<GetDashboardStatsResult, BaseError>(`/api/reports/${staffId}/dashboard`, options);
@@ -123,4 +122,14 @@ export const useGetCheckInTimeAnalysis = (staffId: string, options: { grade?: st
   if (options.endDate) queryParams.append('endDate', options.endDate);
 
   return useBaseQuery<GetCheckInTimeAnalysisResult, BaseError>(`/api/reports/${staffId}/check-in-analysis?${queryParams.toString()}`, options);
+};
+
+export const useGetStudentsByStatus = (staffId: string, date: string, grade: string, section: string, status: 'present' | 'absent', options: Omit<UseQueryOptions<{ students: { id: string; name: string; matric_no: string; grade: string; section: string; checkin_time?: string; checkout_time?: string }[] }, BaseError>, 'queryFn'> = {}) => {
+  const queryParams = new URLSearchParams();
+  queryParams.append('date', date);
+  queryParams.append('grade', grade);
+  queryParams.append('section', section);
+  queryParams.append('status', status);
+
+  return useBaseQuery<{ students: { id: string; name: string; matric_no: string; grade: string; section: string; checkin_time?: string; checkout_time?: string }[] }, BaseError>(`/api/reports/${staffId}/students/status?${queryParams.toString()}`, options);
 };

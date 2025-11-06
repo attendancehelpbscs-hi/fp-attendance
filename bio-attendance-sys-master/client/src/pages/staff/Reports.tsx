@@ -68,13 +68,14 @@ import {
   Area,
   ComposedChart,
 } from 'recharts';
-import { useGetReports, useGetGradesAndSections, useGetStudentReports, useGetSectionsForGrade, useGetStudentsForGradeAndSection, useGetStudentDetailedReport, useMarkStudentAttendance, useGetCheckInTimeAnalysis } from '../../api/atttendance.api';
+import { useGetReports, useGetGradesAndSections, useGetStudentReports, useGetSectionsForGrade, useGetStudentsForGradeAndSection, useGetStudentDetailedReport, useMarkStudentAttendance, useGetCheckInTimeAnalysis, useGetStudentsByStatus } from '../../api/atttendance.api';
 import { useGetStudents } from '../../api/student.api';
 import { useToast } from '@chakra-ui/react';
 import { Tabs, TabList, TabPanels, Tab, TabPanel } from '@chakra-ui/react';
 import useStore from '../../store/store';
 import type { AttendanceReportData, StudentAttendanceReportData, StudentAttendanceSummary, StudentDetailedReport } from '../../interfaces/api.interface';
 import StudentReportDetail from '../../components/StudentReportDetail';
+import StudentAttendanceModal from '../../components/StudentAttendanceModal';
 
 // Type declarations to fix TypeScript issues
 declare module 'recharts' {
@@ -123,6 +124,7 @@ const Reports: FC = () => {
   const [startDate, setStartDate] = useState<Date | null>(null); // No default date
   const [endDate, setEndDate] = useState<Date | null>(new Date()); // Default to today
   const [searchTerm, setSearchTerm] = useState<string>('');
+  const [searchInput, setSearchInput] = useState<string>('');
 
   // Sorting and pagination
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
@@ -144,6 +146,13 @@ const Reports: FC = () => {
   const [markAttendanceGracePeriod, setMarkAttendanceGracePeriod] = useState<number>(0);
   const [markAttendanceDates, setMarkAttendanceDates] = useState<Date[]>([]);
   const [markAttendanceSection, setMarkAttendanceSection] = useState<string>('');
+
+  // Student Attendance Modal states
+  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+  const [modalStatus, setModalStatus] = useState<'present' | 'absent'>('present');
+  const [modalDate, setModalDate] = useState<string>('');
+  const [modalGrade, setModalGrade] = useState<string>('');
+  const [modalSection, setModalSection] = useState<string>('');
 
   // Pagination states for Grade-Section chart
   const [gradeSectionPage, setGradeSectionPage] = useState<number>(1);
@@ -243,7 +252,36 @@ const Reports: FC = () => {
     enabled: !!staffInfo?.id,
   });
 
+  const markAttendance = useMarkStudentAttendance().mutateAsync;
 
+  // Fetch students for the current modal filters (used when marking attendance via modal)
+  const studentsByStatusQuery = useGetStudentsByStatus(
+    staffInfo?.id || '',
+    modalDate,
+    modalGrade,
+    modalSection,
+    modalStatus,
+    { enabled: !!staffInfo?.id && isModalOpen && !!modalDate && !!modalGrade && !!modalSection }
+  );
+
+  // Reset filters function
+  const resetFilters = () => {
+    setSelectedGrade('');
+    setSelectedSection('');
+    setSelectedDateRange('all');
+    setStartDate(null);
+    setEndDate(new Date());
+    setSearchTerm('');
+    setSearchInput('');
+    setCurrentPage(1);
+    setSelectedStatus('all');
+    setStudentSearchTerm('');
+    setStudentCurrentPage(1);
+    setGradeSectionPage(1);
+    setGradeSectionItemsPerPage(10);
+    setSortConfig(null);
+    setStudentSortConfig(null);
+  };
 
   const sectionsForGrade = sectionsForGradeData?.sections || [];
   const studentsForGradeAndSection = studentsForGradeAndSectionData?.students || [];
@@ -397,8 +435,9 @@ const Reports: FC = () => {
     const data = filteredAttendanceData; // Use daily records data for patterns
     const groups = data.reduce((acc: Record<string, any>, item: any) => {
       const key = `${item.grade} - ${item.section}`;
-      if (!acc[key]) acc[key] = { name: key, present: 0, grade: item.grade };
+      if (!acc[key]) acc[key] = { name: key, present: 0, absent: 0, grade: item.grade };
       acc[key].present += item.present;
+      acc[key].absent += item.absent;
       return acc;
     }, {} as Record<string, any>);
 
@@ -695,9 +734,16 @@ const Reports: FC = () => {
                 </InputLeftElement>
                 <Input
                   placeholder="Search records..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
                 />
+                <Button
+                  colorScheme="blue"
+                  onClick={() => setSearchTerm(searchInput)}
+                  ml={2}
+                >
+                  Search
+                </Button>
               </InputGroup>
             </GridItem>
             <GridItem>
@@ -770,8 +816,14 @@ const Reports: FC = () => {
             </Grid>
           )}
 
-          {/* Export Options */}
-          <Flex justifyContent="flex-end">
+          {/* Export Options and Mark Attendance */}
+          <Flex justifyContent="flex-end" gap={4}>
+            <Button
+              colorScheme="green"
+              onClick={() => setIsModalOpen(true)}
+            >
+              Mark Attendance
+            </Button>
             <Menu>
               <MenuButton as={Button} rightIcon={<ChevronDownIcon />} colorScheme="blue">
                 Export Report
@@ -830,18 +882,23 @@ const Reports: FC = () => {
                       <BarChart data={gradeSectionData}>
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="name" />
-                        <YAxis tickFormatter={(value) => Math.round(value).toString()} />
-                        <Tooltip formatter={(value: any) => [`${Math.round(value)}`, 'Present']} />
+                        <YAxis domain={[0, 'dataMax']} tickCount={5} tickFormatter={(value) => Math.round(value).toString()} />
+                        <Tooltip formatter={(value: any, name: string) => [`${Math.round(value)}`, name]} />
                         <Legend />
-                        <Bar dataKey="present" name="Present">
+                        <Bar dataKey="present" name="Present" fill="#38B2AC">
                           {gradeSectionData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
+                            <Cell key={`cell-present-${index}`} fill="#38B2AC" />
+                          ))}
+                        </Bar>
+                        <Bar dataKey="absent" name="Absent" fill="#E53E3E">
+                          {gradeSectionData.map((entry, index) => (
+                            <Cell key={`cell-absent-${index}`} fill="#E53E3E" />
                           ))}
                         </Bar>
                       </BarChart>
                     </ResponsiveContainer>
                     <Text fontSize="sm" color="gray.600" marginTop="0.5rem">
-                      This chart shows the total number of present students for each grade and section combination. Higher bars indicate better attendance in that specific group.
+                      This chart shows the comparison of present and absent students for each grade and section combination. Green bars represent present students, red bars represent absent students. This provides a clear visual comparison of attendance patterns across different classes.
                     </Text>
                   </Box>
                 </Card>
@@ -854,7 +911,7 @@ const Reports: FC = () => {
                 <Heading size="md" marginBottom="1rem">Detailed Attendance Report</Heading>
 
                 <TableContainer>
-                  <Table variant="simple">
+                    <Table variant="simple">
                     <Thead>
                       <Tr>
                         <Th
@@ -881,6 +938,12 @@ const Reports: FC = () => {
                         >
                           Present {sortConfig?.key === 'present' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                         </Th>
+                        <Th
+                          cursor="pointer"
+                          onClick={() => setSortConfig(sortConfig?.key === 'absent' && sortConfig.direction === 'asc' ? { key: 'absent', direction: 'desc' } : { key: 'absent', direction: 'asc' })}
+                        >
+                          Absent {sortConfig?.key === 'absent' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                        </Th>
                       </Tr>
                     </Thead>
                     <Tbody>
@@ -890,6 +953,7 @@ const Reports: FC = () => {
                           <Td>{row.grade}</Td>
                           <Td>{row.section}</Td>
                           <Td color="green.500">{row.present}</Td>
+                          <Td color="red.500">{row.absent}</Td>
                         </Tr>
                       ))}
                     </Tbody>
@@ -1239,6 +1303,66 @@ const Reports: FC = () => {
 
         </TabPanels>
       </Tabs>
+
+      {/* Student Attendance Modal */}
+      <StudentAttendanceModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        status={modalStatus}
+        setStatus={setModalStatus}
+        date={modalDate}
+        setDate={setModalDate}
+        grade={modalGrade}
+        setGrade={setModalGrade}
+        section={modalSection}
+        setSection={setModalSection}
+        onMarkAttendance={async () => {
+          // Handle marking attendance for all students matching the modal filters
+          try {
+            const students = studentsByStatusQuery.data?.students || [];
+
+            if (!students || students.length === 0) {
+              toast({
+                title: 'No students found',
+                description: 'No students match the selected date/grade/section/status',
+                status: 'info',
+                duration: 3000,
+                isClosable: true,
+              });
+              return;
+            }
+
+            // Call markAttendance for each student. include both studentId (path param) and student_id (body) to satisfy typing and endpoint replacement
+            await Promise.all(students.map((s: any) =>
+              markAttendance({
+                staffId: staffInfo?.id || '',
+                studentId: s.id,
+                student_id: s.id,
+                section: modalSection,
+                date: modalDate,
+                status: modalStatus,
+              })
+            ));
+
+            toast({
+              title: 'Attendance marked successfully',
+              description: `Marked attendance for ${students.length} student(s)`,
+              status: 'success',
+              duration: 3000,
+              isClosable: true,
+            });
+            setIsModalOpen(false);
+          } catch (error) {
+            toast({
+              title: 'Error marking attendance',
+              description: (error as any)?.message || 'Please try again',
+              status: 'error',
+              duration: 3000,
+              isClosable: true,
+            });
+          }
+        }}
+      />
     </WithStaffLayout>
   );
 };

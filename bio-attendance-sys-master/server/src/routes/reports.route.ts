@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getReports, getGradesAndSections, getStudentReports, getSectionsForGradeController, getStudentsForGradeAndSectionController, getStudentDetailedReportController, getDashboardStatsController, getCheckInTimeAnalysisController, markStudentAttendanceController } from '../controllers/reports.controller';
+import { getReports, getGradesAndSections, getStudentReports, getSectionsForGradeController, getStudentsForGradeAndSectionController, getStudentDetailedReportController, getDashboardStatsController, getCheckInTimeAnalysisController, getStudentsByStatusController, markStudentAttendanceController } from '../controllers/reports.controller';
 import joiValidate from '../middlewares/joi.middleware';
 import { getReportsSchema, getStudentReportsSchema, getDashboardStatsSchema } from '../joi/reports.joi';
 import auth from '../middlewares/auth.middleware';
@@ -18,6 +18,8 @@ router.get('/:staff_id/students', auth as any, joiValidate(getStudentReportsSche
 router.get('/:staff_id/grades/:grade/sections', auth as any, getSectionsForGradeController);
 // GET /api/reports/:staff_id/grades/:grade/sections/:section/students - Get students for a specific grade and section
 router.get('/:staff_id/grades/:grade/sections/:section/students', auth as any, getStudentsForGradeAndSectionController);
+// GET /api/reports/:staff_id/students/status - Get students by status for a specific grade and section
+router.get('/:staff_id/students/status', auth as any, getStudentsByStatusController);
 // GET /api/reports/:staff_id/students/:student_id/details - Get detailed report for a specific student
 router.get('/:staff_id/students/:student_id/details', auth as any, getStudentDetailedReportController);
 // POST /api/reports/:staff_id/students/:student_id/mark-attendance - Mark student attendance manually

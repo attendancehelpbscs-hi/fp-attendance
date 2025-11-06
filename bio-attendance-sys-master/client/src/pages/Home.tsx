@@ -3,14 +3,14 @@ import { Card, CardHeader, Heading, Flex, Button, Grid, GridItem, Stat, StatLabe
 import { Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { fingerprintControl } from '../lib/fingerprint';
-import { getAuditLogs } from '../api/audit.api';
+
 import { useGetDashboardStats } from '../api/atttendance.api';
 import useStore from '../store/store';
 
 const Home: FC = () => {
   const [scannerConnected, setScannerConnected] = useState<boolean>(false);
   const [scannerStatus, setScannerStatus] = useState<string>('Checking...');
-  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+
 
   const isAuthenticated = useStore.use.isAuthenticated();
   const staffInfo = useStore.use.staffInfo();
@@ -53,22 +53,7 @@ const Home: FC = () => {
       }
     }, 2000);
 
-  // Fetch audit logs if authenticated
-    const fetchAuditLogs = async () => {
-      if (isAuthenticated) {
-        try {
-          const response = await getAuditLogs();
-          setAuditLogs(response?.data?.logs?.slice(0, 3) || []); // Show last 3 logs for confidentiality
-        } catch (error) {
-          console.error('Failed to fetch audit logs:', error);
-          setAuditLogs([]); // Set empty array on error
-        }
-      } else {
-        setAuditLogs([]); // Clear logs when not authenticated
-      }
-    };
-
-    fetchAuditLogs();
+    // Recent activity / audit logs removed from dashboard to simplify UI
   }, [scannerConnected]);
 
   return (
@@ -108,26 +93,7 @@ const Home: FC = () => {
 
 
 
-      {/* Recent Activity / Audit Logs */}
-      <Card maxW={800} margin="2rem auto" marginBottom="2rem">
-        <CardHeader fontWeight={600} fontSize="1.5rem" textAlign="center">
-          Recent Activity
-        </CardHeader>
-        <Box padding="1rem">
-          {auditLogs.length > 0 ? (
-            <List spacing={3}>
-              {auditLogs.map((log) => (
-                <ListItem key={log.id}>
-                  <ListIcon as={() => <Badge colorScheme={log.action === 'LOGIN' ? 'green' : 'orange'}>{log.action}</Badge>} />
-                  <Text as="span" fontWeight="bold">{log.staff.name}</Text> ({log.staff.email}) - {log.details} at {new Date(log.created_at).toLocaleString()}
-                </ListItem>
-              ))}
-            </List>
-          ) : (
-            <Text textAlign="center" color="gray.500">No recent activities</Text>
-          )}
-        </Box>
-      </Card>
+
 
       {/* Quick Action Buttons */}
       <Card maxW={600} margin="1rem auto">

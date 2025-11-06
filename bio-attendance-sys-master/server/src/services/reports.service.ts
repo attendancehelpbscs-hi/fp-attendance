@@ -669,6 +669,127 @@ export const getCheckInTimeAnalysis = async (staff_id: string, filters: { grade?
   }
 };
 
+export const getStudentsByStatus = async (
+  staff_id: string,
+  date: string,
+  grade: string,
+  section: string,
+  status: 'present' | 'absent'
+) => {
+  try {
+    // Get all students for this grade and section
+    const allStudents = await prisma.student.findMany({
+      where: {
+        staff_id,
+        grade,
+        courses: {
+          some: {
+            course: {
+              course_code: section,
+            },
+          },
+        },
+      },
+      select: {
+        id: true,
+        name: true,
+        matric_no: true,
+      },
+    });
+
+    if (status === 'present') {
+      // Get present students with their check-in and check-out times
+      const presentRecords = await prisma.studentAttendance.findMany({
+        where: {
+          student: {
+            staff_id,
+            grade,
+          },
+          section,
+          attendance: {
+            date,
+          },
+          status: 'present',
+        },
+        include: {
+          student: {
+            select: {
+              id: true,
+              name: true,
+              matric_no: true,
+            },
+          },
+        },
+        orderBy: {
+          created_at: 'asc',
+        },
+      });
+
+      // Group by student to get check-in and check-out times
+      const studentMap = new Map();
+
+      presentRecords.forEach(record => {
+        const studentId = record.student_id;
+        if (!studentMap.has(studentId)) {
+          studentMap.set(studentId, {
+            student: record.student,
+            checkInTime: null,
+            checkOutTime: null,
+          });
+        }
+
+        const studentData = studentMap.get(studentId);
+        if (record.time_type === 'IN') {
+          studentData.checkInTime = record.created_at;
+        } else if (record.time_type === 'OUT') {
+          studentData.checkOutTime = record.created_at;
+        }
+      });
+
+      return Array.from(studentMap.values()).map(item => ({
+        id: item.student.id,
+        name: item.student.name,
+        matric_no: item.student.matric_no,
+        checkInTime: item.checkInTime ? item.checkInTime.toISOString() : null,
+        checkOutTime: item.checkOutTime ? item.checkOutTime.toISOString() : null,
+      }));
+    } else {
+      // Get absent students (students who are not present)
+      const presentStudentIds = new Set(
+        (await prisma.studentAttendance.findMany({
+          where: {
+            student: {
+              staff_id,
+              grade,
+            },
+            section,
+            attendance: {
+              date,
+            },
+            status: 'present',
+            time_type: 'IN',
+          },
+          select: {
+            student_id: true,
+          },
+        })).map(record => record.student_id)
+      );
+
+      return allStudents
+        .filter(student => !presentStudentIds.has(student.id))
+        .map(student => ({
+          id: student.id,
+          name: student.name,
+          matric_no: student.matric_no,
+          checkInTime: null,
+          checkOutTime: null,
+        }));
+    }
+  } catch (err) {
+    throw err;
+  }
+};
+
 export const markStudentAttendance = async (
   staff_id: string,
   student_id: string,
