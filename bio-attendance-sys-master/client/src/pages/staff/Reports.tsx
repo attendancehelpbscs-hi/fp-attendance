@@ -68,14 +68,16 @@ import {
   Area,
   ComposedChart,
 } from 'recharts';
-import { useGetReports, useGetGradesAndSections, useGetStudentReports, useGetSectionsForGrade, useGetStudentsForGradeAndSection, useGetStudentDetailedReport, useMarkStudentAttendance, useGetCheckInTimeAnalysis, useGetStudentsByStatus } from '../../api/atttendance.api';
+import { useGetReports, useGetGradesAndSections, useGetStudentReports, useGetSectionsForGrade, useGetStudentsForGradeAndSection, useGetStudentDetailedReport, useGetCheckInTimeAnalysis, useGetStudentsByStatus } from '../../api/atttendance.api';
 import { useGetStudents } from '../../api/student.api';
 import { useToast } from '@chakra-ui/react';
 import { Tabs, TabList, TabPanels, Tab, TabPanel } from '@chakra-ui/react';
 import useStore from '../../store/store';
+import dayjs from 'dayjs';
 import type { AttendanceReportData, StudentAttendanceReportData, StudentAttendanceSummary, StudentDetailedReport } from '../../interfaces/api.interface';
 import StudentReportDetail from '../../components/StudentReportDetail';
-import StudentAttendanceModal from '../../components/StudentAttendanceModal';
+
+import StudentListModal from '../../components/StudentListModal';
 
 // Type declarations to fix TypeScript issues
 declare module 'recharts' {
@@ -147,12 +149,14 @@ const Reports: FC = () => {
   const [markAttendanceDates, setMarkAttendanceDates] = useState<Date[]>([]);
   const [markAttendanceSection, setMarkAttendanceSection] = useState<string>('');
 
-  // Student Attendance Modal states
-  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
-  const [modalStatus, setModalStatus] = useState<'present' | 'absent'>('present');
-  const [modalDate, setModalDate] = useState<string>('');
-  const [modalGrade, setModalGrade] = useState<string>('');
-  const [modalSection, setModalSection] = useState<string>('');
+
+
+  // Student List Modal states
+  const [isListModalOpen, setIsListModalOpen] = useState<boolean>(false);
+  const [listModalStatus, setListModalStatus] = useState<'present' | 'absent'>('present');
+  const [listModalDate, setListModalDate] = useState<string>('');
+  const [listModalGrade, setListModalGrade] = useState<string>('');
+  const [listModalSection, setListModalSection] = useState<string>('');
 
   // Pagination states for Grade-Section chart
   const [gradeSectionPage, setGradeSectionPage] = useState<number>(1);
@@ -228,6 +232,8 @@ const Reports: FC = () => {
   });
   const studentsForGradeAndSectionData = studentsForGradeAndSectionQuery.data;
 
+
+
   const studentDetailedReportQuery = useGetStudentDetailedReport(
     staffInfo?.id || '',
     selectedStudent?.id || '',
@@ -252,17 +258,9 @@ const Reports: FC = () => {
     enabled: !!staffInfo?.id,
   });
 
-  const markAttendance = useMarkStudentAttendance().mutateAsync;
 
-  // Fetch students for the current modal filters (used when marking attendance via modal)
-  const studentsByStatusQuery = useGetStudentsByStatus(
-    staffInfo?.id || '',
-    modalDate,
-    modalGrade,
-    modalSection,
-    modalStatus,
-    { enabled: !!staffInfo?.id && isModalOpen && !!modalDate && !!modalGrade && !!modalSection }
-  );
+
+
 
   // Reset filters function
   const resetFilters = () => {
@@ -663,9 +661,18 @@ const Reports: FC = () => {
 
   // console.log('Student reports data:', studentReportsData); // Debug log - commented out for production
 
-  // Filtered and searched student data
+  // Group and filter student data to match kiosk display (one row per student per day with latest check-in time)
   const filteredAndSearchedStudentData = useMemo(() => {
-    let data = studentAttendanceData.filter((item: any) => {
+    // First group by student and date, taking the latest record for each
+    const groupedData = studentAttendanceData.reduce((acc: any, item: any) => {
+      const key = `${item.student_id}-${item.date}`;
+      if (!acc[key] || new Date(item.created_at || 0) > new Date(acc[key].created_at || 0)) {
+        acc[key] = item;
+      }
+      return acc;
+    }, {});
+
+    let data = Object.values(groupedData).filter((item: any) => {
       const statusMatch = selectedStatus === 'all' || item.status === selectedStatus;
       const dateMatch = (() => {
         if (!startDate && !endDate) return true;
@@ -683,6 +690,7 @@ const Reports: FC = () => {
       data = data.filter((item: any) =>
         item.date.toLowerCase().includes(studentSearchTerm.toLowerCase()) ||
         item.student_name.toLowerCase().includes(studentSearchTerm.toLowerCase()) ||
+        item.matric_no.toLowerCase().includes(studentSearchTerm.toLowerCase()) ||
         item.status.toLowerCase().includes(studentSearchTerm.toLowerCase())
       );
     }
@@ -816,14 +824,8 @@ const Reports: FC = () => {
             </Grid>
           )}
 
-          {/* Export Options and Mark Attendance */}
+          {/* Export Options */}
           <Flex justifyContent="flex-end" gap={4}>
-            <Button
-              colorScheme="green"
-              onClick={() => setIsModalOpen(true)}
-            >
-              Mark Attendance
-            </Button>
             <Menu>
               <MenuButton as={Button} rightIcon={<ChevronDownIcon />} colorScheme="blue">
                 Export Report
@@ -949,11 +951,54 @@ const Reports: FC = () => {
                     <Tbody>
                       {paginatedData.map((row: any, index: number) => (
                         <Tr key={index}>
-                          <Td>{new Date(row.date).toLocaleString()}</Td>
+                          <Td>{new Date(row.date).toLocaleDateString()}</Td>
                           <Td>{row.grade}</Td>
                           <Td>{row.section}</Td>
-                          <Td color="green.500">{row.present}</Td>
-                          <Td color="red.500">{row.absent}</Td>
+                          <Td
+                            color="green.500"
+                            cursor="pointer"
+                            _hover={{ textDecoration: 'underline' }}
+                            onClick={() => {
+                              console.log('Raw row data:', row); // Debug log
+                              // Format date as YYYY-MM-DD
+                              const dateObj = new Date(row.date);
+                              const modalDate = dateObj.toISOString().split('T')[0];
+                              console.log('Setting modal date to:', modalDate); // Debug log
+                              setListModalDate(modalDate);
+                              setListModalGrade(row.grade);
+                              setListModalSection(row.section);
+                              setListModalStatus('present');
+                              setIsListModalOpen(true);
+                            }}
+                          >
+                            {row.present}
+                          </Td>
+                          <Td
+                            color="red.500"
+                            cursor="pointer"
+                            _hover={{ textDecoration: 'underline' }}
+                            onClick={() => {
+                              const now = new Date();
+                              const currentHour = now.getHours();
+                              if (currentHour < 17) { // Before 5:00 PM
+                                toast({
+                                  title: 'Access Restricted',
+                                  description: 'Absent student list is only available after 5:00 PM due to automation.',
+                                  status: 'warning',
+                                  duration: 5000,
+                                  isClosable: true,
+                                });
+                                return;
+                              }
+                              setListModalDate(row.date.split('T')[0]);
+                              setListModalGrade(row.grade);
+                              setListModalSection(row.section);
+                              setListModalStatus('absent');
+                              setIsListModalOpen(true);
+                            }}
+                          >
+                            {row.absent}
+                          </Td>
                         </Tr>
                       ))}
                     </Tbody>
@@ -1027,6 +1072,7 @@ const Reports: FC = () => {
                           <Th>Matric No</Th>
                           <Th>Grade</Th>
                           <Th>Date</Th>
+                          <Th>Time</Th>
                           <Th>Status</Th>
                           <Th>Section</Th>
                         </Tr>
@@ -1037,7 +1083,8 @@ const Reports: FC = () => {
                             <Td>{row.student_name}</Td>
                             <Td>{row.matric_no}</Td>
                             <Td>{row.grade}</Td>
-                            <Td>{new Date(row.date).toLocaleString()}</Td>
+                            <Td>{new Date(row.date).toLocaleDateString()}</Td>
+                            <Td>{row.created_at ? dayjs(row.created_at).format('hh:mm A') : '-'}</Td>
                             <Td>
                               <Badge colorScheme={row.status === 'present' ? 'green' : row.status === 'departure' ? 'blue' : 'red'}>
                                 {row.status}
@@ -1304,64 +1351,16 @@ const Reports: FC = () => {
         </TabPanels>
       </Tabs>
 
-      {/* Student Attendance Modal */}
-      <StudentAttendanceModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        status={modalStatus}
-        setStatus={setModalStatus}
-        date={modalDate}
-        setDate={setModalDate}
-        grade={modalGrade}
-        setGrade={setModalGrade}
-        section={modalSection}
-        setSection={setModalSection}
-        onMarkAttendance={async () => {
-          // Handle marking attendance for all students matching the modal filters
-          try {
-            const students = studentsByStatusQuery.data?.students || [];
 
-            if (!students || students.length === 0) {
-              toast({
-                title: 'No students found',
-                description: 'No students match the selected date/grade/section/status',
-                status: 'info',
-                duration: 3000,
-                isClosable: true,
-              });
-              return;
-            }
 
-            // Call markAttendance for each student. include both studentId (path param) and student_id (body) to satisfy typing and endpoint replacement
-            await Promise.all(students.map((s: any) =>
-              markAttendance({
-                staffId: staffInfo?.id || '',
-                studentId: s.id,
-                student_id: s.id,
-                section: modalSection,
-                date: modalDate,
-                status: modalStatus,
-              })
-            ));
-
-            toast({
-              title: 'Attendance marked successfully',
-              description: `Marked attendance for ${students.length} student(s)`,
-              status: 'success',
-              duration: 3000,
-              isClosable: true,
-            });
-            setIsModalOpen(false);
-          } catch (error) {
-            toast({
-              title: 'Error marking attendance',
-              description: (error as any)?.message || 'Please try again',
-              status: 'error',
-              duration: 3000,
-              isClosable: true,
-            });
-          }
-        }}
+      {/* Student List Modal */}
+      <StudentListModal
+        isOpen={isListModalOpen}
+        onClose={() => setIsListModalOpen(false)}
+        date={listModalDate}
+        grade={listModalGrade}
+        section={listModalSection}
+        status={listModalStatus}
       />
     </WithStaffLayout>
   );

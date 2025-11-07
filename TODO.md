@@ -8,8 +8,8 @@
 ## Frontend Changes
 - [x] Create new modal component `StudentAttendanceModal` in `client/src/components/`
 - [x] Add new API hook `useGetStudentsByStatus` in `client/src/api/atttendance.api.ts`
-- [ ] Update `Reports.tsx` to make Present/Absent numbers clickable and handle modal state
-- [ ] Add time check for Absent modal (only show after 5:00 PM)
+- [x] Update `Reports.tsx` to make Present/Absent numbers clickable and handle modal state
+- [x] Add time check for Absent modal (only show after 5:00 PM)
 
 ## Testing
 - [ ] Test Present modal functionality

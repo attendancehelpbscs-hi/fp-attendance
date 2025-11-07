@@ -189,11 +189,11 @@ export const markStudentAttendanceController = async (req: Request, res: Respons
   if (!staff_id) return next(new createError.BadRequest('Staff ID is required'));
   if (!student_id) return next(new createError.BadRequest('Student ID is required'));
   if (!dates || !Array.isArray(dates) || dates.length === 0) return next(new createError.BadRequest('Dates array is required'));
-  if (!status || !['late', 'absent'].includes(status)) return next(new createError.BadRequest('Valid status (late or absent) is required'));
+  if (!status || !['present', 'absent'].includes(status)) return next(new createError.BadRequest('Valid status (present or absent) is required'));
   if (!section) return next(new createError.BadRequest('Section is required'));
 
   try {
-    const results = await markStudentAttendance(staff_id, student_id, dates, status, section);
+  const results = await markStudentAttendance(staff_id, student_id, dates, status as 'present' | 'absent', section);
     return createSuccess(res, 200, 'Student attendance marked successfully', { marked: results.length });
   } catch (err) {
     return next(err);

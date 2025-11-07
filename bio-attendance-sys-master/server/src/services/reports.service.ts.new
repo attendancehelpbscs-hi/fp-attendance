@@ -1,0 +1,132 @@
+import createError from 'http-errors';
+import { prisma } from '../db/prisma-client';
+import type { StudentAttendance } from '@prisma/client';
+
+export const getStudentsByStatus = async (
+  staff_id: string,
+  date: string,
+  grade: string,
+  section: string,
+  status: 'present' | 'absent'
+) => {
+  try {
+    console.log('getStudentsByStatus params:', { staff_id, date, grade, section, status });
+
+    // Get attendance record where date starts with the given date (ignoring time part)
+    const attendance = await prisma.attendance.findFirst({
+      where: {
+        staff_id,
+        date: {
+          startsWith: date // This will match '2025-11-06' prefix of any ISO date string
+        }
+      },
+      orderBy: {
+        created_at: 'desc'
+      }
+    });
+
+    console.log('Found attendance record:', attendance);
+
+    if (!attendance) {
+      console.log('No attendance record found for date:', date);
+      return { students: [] };
+    }
+
+    if (status === 'present') {
+      // Get present students with check-in times
+      const presentRecords = await prisma.studentAttendance.findMany({
+        where: {
+          attendance_id: attendance.id,
+          status: 'present',
+          time_type: 'IN', // Only get check-in records
+          section,
+          student: {
+            staff_id,
+            grade,
+            courses: {
+              some: {
+                course: {
+                  course_code: section
+                }
+              }
+            }
+          }
+        },
+        include: {
+          student: true
+        },
+        distinct: ['student_id']
+      });
+
+      console.log('Found present records count:', presentRecords.length);
+
+      // Format present student records
+      const formattedRecords = presentRecords.map(record => ({
+        id: record.student.id,
+        name: record.student.name,
+        matric_no: record.student.matric_no,
+        checkin_time: record.created_at.toISOString(),
+        checkout_time: null // Add checkout time processing if needed
+      }));
+
+      console.log('Returning present students:', formattedRecords);
+      return { students: formattedRecords };
+    } else {
+      // For absent students, get all enrolled students and filter out present ones
+      const allStudents = await prisma.student.findMany({
+        where: {
+          staff_id,
+          grade,
+          courses: {
+            some: {
+              course: {
+                course_code: section
+              }
+            }
+          }
+        },
+        select: {
+          id: true,
+          name: true,
+          matric_no: true
+        }
+      });
+
+      console.log('Total students in section:', allStudents.length);
+
+      // Get IDs of students who were present (checked in) on this date
+      const presentStudentIds = new Set(
+        (await prisma.studentAttendance.findMany({
+          where: {
+            attendance_id: attendance.id,
+            status: 'present',
+            time_type: 'IN',
+            section
+          },
+          select: {
+            student_id: true
+          }
+        })).map(record => record.student_id)
+      );
+
+      console.log('Present student IDs count:', presentStudentIds.size);
+
+      // Students who are not in the presentStudentIds set are absent
+      const formattedRecords = allStudents
+        .filter(student => !presentStudentIds.has(student.id))
+        .map(student => ({
+          id: student.id,
+          name: student.name,
+          matric_no: student.matric_no,
+          checkin_time: null,
+          checkout_time: null
+        }));
+
+      console.log('Returning absent students:', formattedRecords);
+      return { students: formattedRecords };
+    }
+  } catch (err) {
+    console.error('Error in getStudentsByStatus:', err);
+    throw err;
+  }
+};

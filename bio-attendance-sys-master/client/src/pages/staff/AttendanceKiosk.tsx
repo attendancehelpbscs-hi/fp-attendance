@@ -187,7 +187,7 @@ const AttendanceKiosk: FC = () => {
         addAttendance({
           staff_id: staffInfo.id,
           name: `Daily Attendance - ${dayjs().format('MMMM D, YYYY')}`,
-          date: dayjs().toISOString(),
+          date: dayjs().startOf('day').toISOString(),
         });
       }
     }

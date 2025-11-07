@@ -65,6 +65,14 @@ const StudentAttendanceModal: React.FC<StudentAttendanceModalProps> = ({
 
   const [selectedDate, setSelectedDate] = React.useState<Date | null>(date ? new Date(date) : new Date());
 
+  React.useEffect(() => {
+    if (isOpen && !date) {
+      const today = new Date();
+      setSelectedDate(today);
+      setDate(today.toISOString().split('T')[0]);
+    }
+  }, [isOpen, date, setDate]);
+
   const handleDateChange = (date: Date | null) => {
     setSelectedDate(date);
     if (date) {

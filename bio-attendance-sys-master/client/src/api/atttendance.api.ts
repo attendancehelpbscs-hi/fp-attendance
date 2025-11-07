@@ -124,12 +124,28 @@ export const useGetCheckInTimeAnalysis = (staffId: string, options: { grade?: st
   return useBaseQuery<GetCheckInTimeAnalysisResult, BaseError>(`/api/reports/${staffId}/check-in-analysis?${queryParams.toString()}`, options);
 };
 
-export const useGetStudentsByStatus = (staffId: string, date: string, grade: string, section: string, status: 'present' | 'absent', options: Omit<UseQueryOptions<{ students: { id: string; name: string; matric_no: string; grade: string; section: string; checkin_time?: string; checkout_time?: string }[] }, BaseError>, 'queryFn'> = {}) => {
+export const useGetStudentsByStatus = (
+  staffId: string,
+  date: string,
+  grade: string,
+  section: string,
+  status: 'present' | 'absent',
+  options: Omit<
+    UseQueryOptions<
+      { status: string; statusCode: number; message: string; data: { students: { id: string; name: string; matric_no: string; grade: string; section: string; checkin_time?: string; checkout_time?: string }[] } },
+      BaseError
+    >,
+    'queryFn'
+  > = {}
+) => {
   const queryParams = new URLSearchParams();
   queryParams.append('date', date);
   queryParams.append('grade', grade);
   queryParams.append('section', section);
   queryParams.append('status', status);
 
-  return useBaseQuery<{ students: { id: string; name: string; matric_no: string; grade: string; section: string; checkin_time?: string; checkout_time?: string }[] }, BaseError>(`/api/reports/${staffId}/students/status?${queryParams.toString()}`, options);
+  return useBaseQuery<
+    { status: string; statusCode: number; message: string; data: { students: { id: string; name: string; matric_no: string; grade: string; section: string; checkin_time?: string; checkout_time?: string }[] } },
+    BaseError
+  >(`/api/reports/${staffId}/students/status?${queryParams.toString()}`, options);
 };
