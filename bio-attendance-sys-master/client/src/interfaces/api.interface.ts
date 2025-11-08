@@ -214,6 +214,15 @@ export interface GetDashboardStatsResult {
     totalStudents: number;
     presentToday: number;
     attendanceRate: number;
+    gradeStats: {
+      grade: string;
+      data: {
+        date: string;
+        totalStudents: number;
+        presentStudents: number;
+        attendanceRate: number;
+      }[];
+    }[];
   };
 }
 

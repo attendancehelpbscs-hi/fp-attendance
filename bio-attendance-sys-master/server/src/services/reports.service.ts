@@ -319,11 +319,56 @@ export const getStudentDetailedReport = async (staff_id: string, student_id: str
 
 export const getDashboardStats = async (staff_id: string) => {
   try {
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date();
+    const sevenDaysAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const startDate = sevenDaysAgo.toISOString().split('T')[0];
+    const endDate = today.toISOString().split('T')[0];
+
     const totalStudents = await prisma.student.count({ where: { staff_id } });
-    const presentToday = await prisma.studentAttendance.count({ where: { student: { staff_id }, attendance: { date: today }, status: 'present', time_type: 'IN' } });
+    const presentToday = await prisma.studentAttendance.count({ where: { student: { staff_id }, attendance: { date: endDate }, status: 'present', time_type: 'IN' } });
     const attendanceRate = totalStudents > 0 ? ((presentToday / totalStudents) * 100).toFixed(1) : '0.0';
-    return { totalStudents, presentToday, attendanceRate: parseFloat(attendanceRate) };
+
+    // Get historical attendance stats by grade for the last 7 days
+    const gradeStats: any[] = await prisma.$queryRaw`
+      SELECT
+        a.date,
+        s.grade,
+        COUNT(DISTINCT s.id) as total_students,
+        COUNT(DISTINCT CASE WHEN sa.status = 'present' AND sa.time_type = 'IN' THEN s.id END) as present_students
+      FROM student s
+      CROSS JOIN attendance a
+      LEFT JOIN student_attendance sa ON s.id = sa.student_id AND sa.attendance_id = a.id
+      WHERE s.staff_id = ${staff_id}
+        AND a.staff_id = ${staff_id}
+        AND a.date BETWEEN ${startDate} AND ${endDate}
+      GROUP BY a.date, s.grade
+      ORDER BY a.date, s.grade
+    `;
+
+    // Transform data for line chart: group by grade, with dates as x-axis
+    const gradeDataMap: Record<string, any[]> = {};
+    gradeStats.forEach((stat: any) => {
+      const grade = stat.grade;
+      if (!gradeDataMap[grade]) gradeDataMap[grade] = [];
+      gradeDataMap[grade].push({
+        date: stat.date,
+        totalStudents: Number(stat.total_students),
+        presentStudents: Number(stat.present_students),
+        attendanceRate: stat.total_students > 0 ? parseFloat(((stat.present_students / stat.total_students) * 100).toFixed(1)) : 0
+      });
+    });
+
+    const gradeStatsFormatted = Object.keys(gradeDataMap).map(grade => ({
+      grade,
+      data: gradeDataMap[grade]
+    }));
+
+    return {
+      totalStudents,
+      presentToday,
+      attendanceRate: parseFloat(attendanceRate),
+      gradeStats: gradeStatsFormatted
+    };
   } catch (err) {
     throw err;
   }
@@ -363,11 +408,18 @@ export const getStudentsByStatus = async (staff_id: string, date: string, grade:
   try {
     console.log('getStudentsByStatus params:', { staff_id, date, grade, section, status });
     console.log('Searching for attendance with date criteria:', { staff_id, date });
-    const attendance = await prisma.attendance.findFirst({ where: { staff_id, date }, orderBy: { created_at: 'desc' } });
+    let attendance = await prisma.attendance.findFirst({ where: { staff_id, date }, orderBy: { created_at: 'desc' } });
     console.log('Found attendance record:', attendance);
     if (!attendance) {
-      console.log('No attendance record found for date:', date);
-      return { students: [] };
+      console.log('No attendance record found for date, creating one:', date);
+      attendance = await prisma.attendance.create({
+        data: {
+          staff_id,
+          name: `Daily Attendance - ${date}`,
+          date,
+          created_at: new Date(),
+        },
+      });
     }
     await markAbsentForUnmarkedDays(staff_id, date);
     const normalize = (v: any) => (v === null || v === undefined) ? '' : String(v).trim().toUpperCase();

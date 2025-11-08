@@ -66,7 +66,7 @@ export const markAbsentForUnmarkedDays = async (staff_id: string, date: string):
           time_type: null,
           section,
           status: 'absent',
-          created_at: new Date(`${date}T00:00:00`) // Set to start of day for absent
+          created_at: new Date(date.split('T')[0] + 'T00:00:00') // Set to start of day for absent
         }
       });
     }

@@ -857,22 +857,7 @@ const Reports: FC = () => {
           {/* Daily Records Tab */}
           <TabPanel>
 
-              {/* Summary Stats */}
-            <Grid templateColumns={{ base: '1fr' }} gap={6} marginBottom="2rem">
-              <GridItem>
-                <Card>
-                  <Box padding="1rem">
-                    <Stat>
-                      <StatLabel>Total Enrolled Students</StatLabel>
-                      <StatNumber>{updatedSummaryStats.totalStudents}</StatNumber>
-                      <StatHelpText>
-                        Students registered in the system
-                      </StatHelpText>
-                    </Stat>
-                  </Box>
-                </Card>
-              </GridItem>
-            </Grid>
+
 
               {/* Attendance Percentage by Grade Chart */}
             <Grid templateColumns={{ base: '1fr' }} gap={6} marginBottom="2rem">
@@ -960,9 +945,8 @@ const Reports: FC = () => {
                             _hover={{ textDecoration: 'underline' }}
                             onClick={() => {
                               console.log('Raw row data:', row); // Debug log
-                              // Format date as YYYY-MM-DD
-                              const dateObj = new Date(row.date);
-                              const modalDate = dateObj.toISOString().split('T')[0];
+                              // row.date should already be in YYYY-MM-DD format from the API
+                              const modalDate = row.date;
                               console.log('Setting modal date to:', modalDate); // Debug log
                               setListModalDate(modalDate);
                               setListModalGrade(row.grade);
@@ -978,19 +962,9 @@ const Reports: FC = () => {
                             cursor="pointer"
                             _hover={{ textDecoration: 'underline' }}
                             onClick={() => {
-                              const now = new Date();
-                              const currentHour = now.getHours();
-                              if (currentHour < 17) { // Before 5:00 PM
-                                toast({
-                                  title: 'Access Restricted',
-                                  description: 'Absent student list is only available after 5:00 PM due to automation.',
-                                  status: 'warning',
-                                  duration: 5000,
-                                  isClosable: true,
-                                });
-                                return;
-                              }
-                              setListModalDate(row.date.split('T')[0]);
+                              // row.date should already be in YYYY-MM-DD format from the API
+                              const modalDate = row.date;
+                              setListModalDate(modalDate);
                               setListModalGrade(row.grade);
                               setListModalSection(row.section);
                               setListModalStatus('absent');
@@ -1043,22 +1017,7 @@ const Reports: FC = () => {
             <VStack spacing={4} align="stretch">
               <Heading size="md">Student Attendance Summary</Heading>
 
-              {/* Student Summary Stats */}
-              <Grid templateColumns={{ base: '1fr' }} gap={6} marginBottom="2rem">
-                <GridItem>
-                  <Card>
-                    <Box padding="1rem">
-                      <Stat>
-                        <StatLabel>Total Enrolled Students</StatLabel>
-                        <StatNumber>{updatedSummaryStats.totalStudents}</StatNumber>
-                        <StatHelpText>
-                          Students registered in the system
-                        </StatHelpText>
-                      </Stat>
-                    </Box>
-                  </Card>
-                </GridItem>
-              </Grid>
+
 
               {/* Student Attendance Table */}
               <Card>

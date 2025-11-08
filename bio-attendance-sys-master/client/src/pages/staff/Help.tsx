@@ -22,7 +22,7 @@ const Help: FC = () => {
 
       <Card marginBottom="2rem">
         <Box padding="1rem">
-          <Heading size="md" marginBottom="1rem">Welcome to FP Attendance System Help Center</Heading>
+          <Heading size="md" marginBottom="1rem">Welcome to the Help Center</Heading>
           <Text>
             Welcome to the Fingerprint Attendance System! This comprehensive guide will walk you through all the features and functionalities available to staff members. Whether you're new to the system or need a refresher, you'll find detailed instructions on managing students, marking attendance, generating reports, and troubleshooting common issues. Our system uses advanced fingerprint technology for secure and efficient attendance tracking. If you encounter any difficulties or have questions not covered here, please use the contact form below to reach our support team or visit our <Link href="https://tally.so/r/nPMrPB" isExternal color="blue.500" textDecoration="underline">support link</Link> for additional assistance.
           </Text>

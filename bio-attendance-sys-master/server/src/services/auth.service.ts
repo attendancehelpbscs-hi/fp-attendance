@@ -76,14 +76,16 @@ export const delRefreshToken = async (staff_id: string): Promise<number | undefi
       select: { name: true }
     });
 
-    // Log logout
-    await prisma.auditLog.create({
-      data: {
-        staff_id,
-        action: 'LOGOUT',
-        details: `Staff ${staff?.name || 'Unknown'} logged out successfully`,
-      },
-    });
+    // Log logout only if staff exists
+    if (staff) {
+      await prisma.auditLog.create({
+        data: {
+          staff_id,
+          action: 'LOGOUT',
+          details: `Staff ${staff.name} logged out successfully`,
+        },
+      });
+    }
 
     // delete id from database
     await deleteRefreshTokensByStaffId(staff_id);
