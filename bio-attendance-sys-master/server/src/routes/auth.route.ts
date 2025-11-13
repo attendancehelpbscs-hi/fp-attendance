@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { loginStaff, logoutStaff, refreshStaffToken } from '../controllers/auth.controller';
+import { loginStaff, logoutStaff, refreshStaffToken, forgotPassword, resetPassword, fingerprintLogin } from '../controllers/auth.controller';
 import joiValidate from '../middlewares/joi.middleware';
-import { loginStaffSchema, logoutStaffSchema, refreshStaffTokenSchema } from '../joi/auth.joi';
+import { loginStaffSchema, logoutStaffSchema, refreshStaffTokenSchema, forgotPasswordSchema, resetPasswordSchema } from '../joi/auth.joi';
 
 const authRoute = Router();
 
@@ -25,5 +25,26 @@ authRoute.post('/auth/staff/logout', joiValidate(logoutStaffSchema), logoutStaff
 @access 		Public
 */
 authRoute.post('/auth/staff/refresh', joiValidate(refreshStaffTokenSchema), refreshStaffToken);
+
+/*
+@route 			POST /api/auth/forgot-password (forgot password)
+@description 	send password reset email
+@access 		Public
+*/
+authRoute.post('/auth/staff/forgot-password', joiValidate(forgotPasswordSchema), forgotPassword);
+
+/*
+@route 			POST /api/auth/reset-password (reset password)
+@description 	reset password using token
+@access 		Public
+*/
+authRoute.post('/auth/staff/reset-password', joiValidate(resetPasswordSchema), resetPassword);
+
+/*
+@route 			POST /api/auth/fingerprint-login (fingerprint login)
+@description 	login using fingerprint
+@access 		Public
+*/
+authRoute.post('/auth/staff/fingerprint-login', fingerprintLogin);
 
 export default authRoute;

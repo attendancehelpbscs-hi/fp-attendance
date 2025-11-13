@@ -1,17 +1,12 @@
-# TODO: Implement Clickable Present/Absent Numbers in Detailed Attendance Report
+# Fix Fingerprint Login Authentication Issue
 
-## Backend Changes
-- [x] Add new service function `getStudentsByStatus` in `server/src/services/reports.service.ts`
-- [x] Add new controller function `getStudentsByStatusController` in `server/src/controllers/reports.controller.ts`
-- [x] Add new route `/api/reports/:staff_id/students-by-status` in `server/src/routes/reports.route.ts`
+## Problem
+The Python server tries to fetch staff fingerprints from Node.js backend at `/api/staff/fingerprints`, but this endpoint requires authentication. Since fingerprint login is public (no auth yet), this creates a circular dependency.
 
-## Frontend Changes
-- [x] Create new modal component `StudentAttendanceModal` in `client/src/components/`
-- [x] Add new API hook `useGetStudentsByStatus` in `client/src/api/atttendance.api.ts`
-- [x] Update `Reports.tsx` to make Present/Absent numbers clickable and handle modal state
-- [x] Add time check for Absent modal (only show after 5:00 PM)
+## Solution
+Modify the flow so Node.js server fetches staff fingerprints (using authenticated context) and sends them to Python server along with the scanned fingerprint.
 
-## Testing
-- [ ] Test Present modal functionality
-- [ ] Test Absent modal functionality and time restrictions
-- [ ] Verify data accuracy for present/absent students
+## Tasks
+- [x] Modify Node.js `fingerprintLogin` controller to fetch staff fingerprints and send to Python server
+- [x] Modify Python `/identify/staff-fingerprint` endpoint to accept staff fingerprints in request body instead of fetching them
+- [x] Test the fingerprint login flow

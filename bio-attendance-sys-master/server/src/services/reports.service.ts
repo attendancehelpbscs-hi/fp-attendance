@@ -325,43 +325,53 @@ export const getDashboardStats = async (staff_id: string) => {
     const endDate = today.toISOString().split('T')[0];
 
     const totalStudents = await prisma.student.count({ where: { staff_id } });
-    const presentToday = await prisma.studentAttendance.count({ where: { student: { staff_id }, attendance: { date: endDate }, status: 'present', time_type: 'IN' } });
+    const presentRecords = await prisma.studentAttendance.findMany({
+      where: {
+        student: { staff_id },
+        attendance: { date: endDate },
+        status: 'present',
+        time_type: 'IN'
+      },
+      select: { student_id: true },
+      distinct: ['student_id']
+    });
+    const presentToday = presentRecords.length;
     const attendanceRate = totalStudents > 0 ? ((presentToday / totalStudents) * 100).toFixed(1) : '0.0';
 
-    // Get historical attendance stats by grade for the last 7 days
-    const gradeStats: any[] = await prisma.$queryRaw`
-      SELECT
-        a.date,
-        s.grade,
-        COUNT(DISTINCT s.id) as total_students,
-        COUNT(DISTINCT CASE WHEN sa.status = 'present' AND sa.time_type = 'IN' THEN s.id END) as present_students
-      FROM student s
-      CROSS JOIN attendance a
-      LEFT JOIN student_attendance sa ON s.id = sa.student_id AND sa.attendance_id = a.id
-      WHERE s.staff_id = ${staff_id}
-        AND a.staff_id = ${staff_id}
-        AND a.date BETWEEN ${startDate} AND ${endDate}
-      GROUP BY a.date, s.grade
-      ORDER BY a.date, s.grade
-    `;
-
-    // Transform data for line chart: group by grade, with dates as x-axis
-    const gradeDataMap: Record<string, any[]> = {};
-    gradeStats.forEach((stat: any) => {
-      const grade = stat.grade;
-      if (!gradeDataMap[grade]) gradeDataMap[grade] = [];
-      gradeDataMap[grade].push({
-        date: stat.date,
-        totalStudents: Number(stat.total_students),
-        presentStudents: Number(stat.present_students),
-        attendanceRate: stat.total_students > 0 ? parseFloat(((stat.present_students / stat.total_students) * 100).toFixed(1)) : 0
-      });
+    // Get grades
+    const gradeRows = await prisma.student.findMany({
+      where: { staff_id },
+      select: { grade: true },
+      distinct: ['grade']
     });
+    const grades = gradeRows.map(g => g.grade);
 
-    const gradeStatsFormatted = Object.keys(gradeDataMap).map(grade => ({
-      grade,
-      data: gradeDataMap[grade]
-    }));
+    // Build grade stats for today
+    const gradeStatsFormatted = [];
+    for (const grade of grades) {
+      const totalStudentsForGrade = await prisma.student.count({ where: { staff_id, grade } });
+      const presentRecordsForGrade = await prisma.studentAttendance.findMany({
+        where: {
+          student: { staff_id, grade },
+          attendance: { date: endDate },
+          status: 'present',
+          time_type: 'IN'
+        },
+        select: { student_id: true },
+        distinct: ['student_id']
+      });
+      const presentStudents = presentRecordsForGrade.length;
+      const attendanceRateForGrade = totalStudentsForGrade > 0 ? parseFloat(((presentStudents / totalStudentsForGrade) * 100).toFixed(1)) : 0;
+      gradeStatsFormatted.push({
+        grade,
+        data: [{
+          date: endDate,
+          totalStudents: totalStudentsForGrade,
+          presentStudents,
+          attendanceRate: attendanceRateForGrade
+        }]
+      });
+    }
 
     return {
       totalStudents,
@@ -473,6 +483,18 @@ export const markStudentAttendance = async (staff_id: string, student_id: string
       if (!attendance) {
         attendance = await prisma.attendance.create({ data: { staff_id, name: `Manual Attendance - ${date}`, date, created_at: new Date() } });
       }
+
+      // If marking present, remove any existing absent records for this student on the same date
+      if (status === 'present') {
+        await prisma.studentAttendance.deleteMany({
+          where: {
+            student_id,
+            attendance: { date },
+            status: 'absent',
+          },
+        });
+      }
+
       const existingRecord = await prisma.studentAttendance.findFirst({ where: { student_id, attendance_id: attendance.id } });
       if (existingRecord) {
         const updatedRecord = await prisma.studentAttendance.update({ where: { id: existingRecord.id }, data: { status: status as AttendanceStatus, section, time_type: 'IN' } });

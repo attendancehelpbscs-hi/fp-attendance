@@ -4,13 +4,19 @@ import logger from '../helpers/logger.helper';
 import createError from 'http-errors';
 
 const joiValidate = (schema: ObjectSchema, type: 'body' | 'query' = 'body') => {
-  return (req: Request, res: Response, next: NextFunction) => {
-    const { error } = schema.validate(req[type]);
-    if (!error) {
-      next();
-    } else {
-      const { details } = error;
-      const message = details.map((i) => i.message).join(',');
+  return async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { error } = await schema.validateAsync(req[type]);
+      if (!error) {
+        next();
+      } else {
+        const { details } = error;
+        const message = details.map((i: any) => i.message).join(',');
+        logger.error('Validation Error', message);
+        return next(createError(422, ...[{ validation_error: message }]));
+      }
+    } catch (err: any) {
+      const message = err.message || 'Validation failed';
       logger.error('Validation Error', message);
       return next(createError(422, ...[{ validation_error: message }]));
     }

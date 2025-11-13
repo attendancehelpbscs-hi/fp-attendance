@@ -92,12 +92,41 @@ export const getStaffSettings = (staffId: string): Promise<Pick<Staff, 'grace_pe
   });
 };
 
-export const updateStaffProfile = (staffId: string, profileData: { name?: string; password?: string }): Promise<Pick<Staff, 'id' | 'name' | 'email'>> => {
+export const updateStaffProfile = (staffId: string, profileData: { name?: string; password?: string; currentPassword?: string; fingerprint?: string }): Promise<Pick<Staff, 'id' | 'name' | 'email'>> => {
   return new Promise<Pick<Staff, 'id' | 'name' | 'email'>>(async (resolve, reject) => {
     try {
       const updateData: any = {};
       if (profileData.name) updateData.name = profileData.name;
       if (profileData.password) updateData.password = await hashPassword(profileData.password);
+      if (profileData.fingerprint) updateData.fingerprint = profileData.fingerprint;
+
+      // If updating password, verify current password
+      if (profileData.password && profileData.currentPassword) {
+        const staff = await prisma.staff.findUnique({
+          where: { id: staffId },
+          select: { password: true },
+        });
+
+        if (!staff) {
+          throw createError(404, 'Staff not found');
+        }
+
+        const { validatePassword } = await import('../helpers/password.helper');
+        const isValidPassword = await validatePassword(profileData.currentPassword, staff.password);
+        if (!isValidPassword) {
+          throw createError(400, 'Current password is incorrect');
+        }
+
+        // Send email notification for password change
+        const staffInfo = await prisma.staff.findUnique({
+          where: { id: staffId },
+          select: { email: true, name: true },
+        });
+        if (staffInfo) {
+          const { sendPasswordChangeNotification } = await import('../helpers/email.helper');
+          await sendPasswordChangeNotification(staffInfo.email, staffInfo.name);
+        }
+      }
 
       const updatedStaff = await prisma.staff.update({
         where: {

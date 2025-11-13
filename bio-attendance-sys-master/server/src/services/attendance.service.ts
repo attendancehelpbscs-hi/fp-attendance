@@ -56,6 +56,17 @@ export const markAbsentForUnmarkedDays = async (staff_id: string, date: string):
   // Mark absent for students who haven't scanned at all for the day
   for (const student of students) {
     if (!existingStudentIds.has(student.id)) {
+      // Check if the student is already marked as present for this date
+      const existingPresent = await prisma.studentAttendance.findFirst({
+        where: {
+          student_id: student.id,
+          attendance: { date: date.split('T')[0] },
+          status: 'present',
+        },
+      });
+
+      if (existingPresent) continue; // Skip marking absent if already present
+
       // Get the first course section for the student
       const section = student.courses?.[0]?.course?.course_code || '';
 
@@ -105,6 +116,20 @@ export const saveAttendanceToDb = (attendance: Omit<Attendance, 'id'>): Promise<
 export const markStudentAttendance = (studentAttendanceInfo: { attendance_id: string; student_id: string; time_type: 'IN' | 'OUT'; section: string; status?: 'present' | 'absent' }): Promise<StudentAttendance> => {
   return new Promise<StudentAttendance>(async (resolve, reject) => {
     try {
+      // If marking present, remove any existing absent records for this student on the same date
+      if (studentAttendanceInfo.status === 'present') {
+        const attendance = await prisma.attendance.findUnique({ where: { id: studentAttendanceInfo.attendance_id } });
+        if (attendance) {
+          await prisma.studentAttendance.deleteMany({
+            where: {
+              student_id: studentAttendanceInfo.student_id,
+              attendance: { date: attendance.date },
+              status: 'absent',
+            },
+          });
+        }
+      }
+
       const studentAttendance = await prisma.studentAttendance.create({
         data: studentAttendanceInfo,
       });
@@ -135,6 +160,17 @@ export const manualMarkStudentAttendance = (manualMarkInfo: { student_ids: strin
       const existingStudentDatePairs = new Set(
         existingRecords.map(record => `${record.student_id}-${record.created_at.toISOString().split('T')[0]}`)
       );
+
+      // If marking present, remove any existing absent records for these students on the same dates
+      if (status === 'present') {
+        await prisma.studentAttendance.deleteMany({
+          where: {
+            student_id: { in: student_ids },
+            attendance: { date: { in: dates } },
+            status: 'absent',
+          },
+        });
+      }
 
       // Create attendance records for each student and date combination
       const attendanceRecords: StudentAttendance[] = [];

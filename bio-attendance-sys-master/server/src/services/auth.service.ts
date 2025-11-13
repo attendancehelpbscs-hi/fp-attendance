@@ -5,7 +5,7 @@ import { signAccessToken, verifyRefreshToken, signRefreshToken } from '../helper
 import { deleteRefreshTokensByStaffId } from '../helpers/token.helper';
 import { prisma } from '../db/prisma-client';
 
-export const getStaffFromDb = async (staffEmail: string, staffPassword: string): Promise<RegisterReturn | void> => {
+export const getStaffFromDb = async (staffEmail: string, staffPassword: string, isForgotPasswordCheck: boolean = false): Promise<RegisterReturn | any> => {
   //Check for existing staff in that model through password
   const staff = await prisma.staff.findUnique({
     where: {
@@ -13,14 +13,21 @@ export const getStaffFromDb = async (staffEmail: string, staffPassword: string):
     },
   });
   if (!staff) {
+    if (isForgotPasswordCheck) {
+      return null; // Return null for forgot password check without throwing error
+    }
     throw new createError.NotFound('Staff does not exist');
-  } else {
-    const { id, name, email, password, created_at } = staff;
+    } else {
+      if (isForgotPasswordCheck) {
+        return { staff }; // Return staff info for forgot password
+      }
 
-    try {
-      const match = await validatePassword(staffPassword, password);
+      const { id, name, email, password, created_at } = staff;
 
-      if (match) {
+      try {
+        const match = await validatePassword(staffPassword, password);
+
+        if (match) {
         // Log successful login
         await prisma.auditLog.create({
           data: {

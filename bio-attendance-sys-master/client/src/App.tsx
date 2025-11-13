@@ -5,7 +5,8 @@ import WithMainLayout from './layouts/WithMainLayout';
 import Home from './pages/Home';
 import NotFound from './pages/NotFound';
 import Login from './pages/staff/Login';
-import Register from './pages/staff/Register';
+import ForgotPassword from './pages/staff/ForgotPassword';
+import ResetPassword from './pages/staff/ResetPassword';
 import Profile from './pages/staff/Profile';
 import ManageCourses from './pages/staff/ManageCourses';
 import ManageStudents from './pages/staff/ManageStudents';
@@ -55,12 +56,23 @@ function App() {
         </WithMainLayout>
       ),
     },
+
     {
-      path: '/staff/register',
+      path: '/staff/forgot-password',
       element: (
         <WithMainLayout>
           <AuthLayout routeType="noauth">
-            <Register />
+            <ForgotPassword />
+          </AuthLayout>
+        </WithMainLayout>
+      ),
+    },
+    {
+      path: '/staff/reset-password',
+      element: (
+        <WithMainLayout>
+          <AuthLayout routeType="noauth">
+            <ResetPassword />
           </AuthLayout>
         </WithMainLayout>
       ),

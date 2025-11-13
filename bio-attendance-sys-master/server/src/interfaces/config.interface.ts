@@ -5,6 +5,9 @@ export interface IEnvConfig {
   isProduction: boolean;
   isDevelopment: boolean;
   isTest: boolean;
+  EMAIL_USER?: string;
+  EMAIL_PASS?: string;
+  FRONTEND_URL?: string;
 }
 export interface IConstants {
   accessTokenSecret: Secret;

@@ -52,6 +52,7 @@ import { toast } from 'react-hot-toast';
 import { getAuditLogs } from '../../api/audit.api';
 import { useBackupData, useClearAuditLogs, useUpdateStaffProfile } from '../../api/staff.api';
 import noDp from '../../assets/no-dp.png';
+import { FingerprintSigninControl } from '../../lib/fingerprint';
 
 
 const Settings: FC = () => {
@@ -100,8 +101,10 @@ const Settings: FC = () => {
   };
 
   const [profileName, setProfileName] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [fingerprintData, setFingerprintData] = useState<string>('');
 
   // Add this useEffect to sync profileName with staffInfo
   useEffect(() => {
@@ -116,9 +119,15 @@ const Settings: FC = () => {
       return;
     }
 
+    // Validate current password is provided when changing password
+    if (newPassword && !currentPassword) {
+      toast.error('Please provide your current password to change password');
+      return;
+    }
+
     // Validate at least one field is provided
-    if (!profileName.trim() && !newPassword) {
-      toast.error('Please provide at least name or password to update');
+    if (!profileName.trim() && !newPassword && !fingerprintData) {
+      toast.error('Please provide at least name, password, or fingerprint to update');
       return;
     }
 
@@ -131,9 +140,11 @@ const Settings: FC = () => {
       const updateData: any = {};
       if (profileName.trim()) updateData.name = profileName.trim();
       if (newPassword) {
-        updateData.password = newPassword;
+        updateData.currentPassword = currentPassword;
+        updateData.newPassword = newPassword;
         updateData.confirmPassword = confirmNewPassword;
       }
+      if (fingerprintData) updateData.fingerprint = fingerprintData;
 
       await updateProfileMutation.mutateAsync(updateData);
 
@@ -145,8 +156,10 @@ const Settings: FC = () => {
       }
 
       // Clear password fields
+      setCurrentPassword('');
       setNewPassword('');
       setConfirmNewPassword('');
+      setFingerprintData('');
 
       onProfileUpdateClose();
       toast.success('Profile updated successfully');
@@ -211,6 +224,15 @@ const Settings: FC = () => {
                     <Input type="email" disabled value={staffInfo?.email || ''} />
                   </FormControl>
                   <FormControl>
+                    <FormLabel>Current Password</FormLabel>
+                    <Input
+                      type="password"
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      placeholder="Enter current password"
+                    />
+                  </FormControl>
+                  <FormControl>
                     <FormLabel>New Password</FormLabel>
                     <Input
                       type="password"
@@ -227,6 +249,21 @@ const Settings: FC = () => {
                       onChange={(e) => setConfirmNewPassword(e.target.value)}
                       placeholder="Confirm new password"
                     />
+                  </FormControl>
+                  <Divider my={4} />
+                  <FormControl>
+                    <FormLabel>Fingerprint Enrollment</FormLabel>
+                    <Text fontSize="sm" color="gray.600" mb={2}>
+                      Enroll your fingerprint for biometric login. Place your finger on the scanner when prompted.
+                    </Text>
+                    <FingerprintSigninControl onFingerprintCaptured={setFingerprintData} />
+                    {fingerprintData && (
+                      <Box mt={4}>
+                        <Text fontSize="sm" color="green.600" mb={2}>
+                          ✓ Fingerprint captured successfully! Ready to save.
+                        </Text>
+                      </Box>
+                    )}
                   </FormControl>
                   <Button
                     bg="var(--bg-primary)"

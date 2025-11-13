@@ -15,7 +15,7 @@ import type {
 } from '../interfaces/api.interface';
 import { useBaseMutation, useBaseQuery } from '../helpers/store.helper';
 
-export const useRegisterStaff = useBaseMutation<RegisterStaffResult, BaseError, RegisterStaffInput>('/api/staff/register', 'post');
+
 export const useLoginStaff = useBaseMutation<LoginStaffResult, BaseError, LoginStaffInput>('/api/auth/staff/login', 'post');
 export const useUpdateStaffSettings = useBaseMutation<UpdateStaffSettingsResult, BaseError, UpdateStaffSettingsInput>('/api/staff/settings', 'put');
 export const useGetStaffSettings = (options: { enabled?: boolean } = {}) =>
@@ -23,3 +23,7 @@ export const useGetStaffSettings = (options: { enabled?: boolean } = {}) =>
 export const useBackupData = useBaseMutation<BackupDataResult, BaseError, Record<string, never>>('/api/staff/backup', 'post');
 export const useClearAuditLogs = useBaseMutation<ClearAuditLogsResult, BaseError, Record<string, never>>('/api/staff/clear-logs', 'delete');
 export const useUpdateStaffProfile = useBaseMutation<UpdateStaffProfileResult, BaseError, UpdateStaffProfileInput>('/api/staff/profile', 'put');
+
+export const useForgotPassword = useBaseMutation<{ message: string }, BaseError, { email: string }>('/api/auth/staff/forgot-password', 'post');
+export const useResetPassword = useBaseMutation<{ message: string }, BaseError, { token: string; newPassword: string }>('/api/auth/staff/reset-password', 'post');
+export const useFingerprintLogin = useBaseMutation<LoginStaffResult, BaseError, { fingerprint: string }>('/api/auth/staff/fingerprint-login', 'post');

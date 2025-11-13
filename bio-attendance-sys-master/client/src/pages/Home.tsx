@@ -3,7 +3,7 @@ import { Card, CardHeader, Heading, Flex, Button, Grid, GridItem, Stat, StatLabe
 import { Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { fingerprintControl } from '../lib/fingerprint';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 import { useGetDashboardStats } from '../api/atttendance.api';
 import useStore from '../store/store';
@@ -98,7 +98,7 @@ const Home: FC = () => {
         <Card marginBottom="2rem" maxW="800px" marginX="auto">
           <Box padding="1rem">
             {/* Key Stats */}
-            <Grid templateColumns="repeat(3, 1fr)" gap={6} marginBottom="2rem">
+            <Grid templateColumns="repeat(2, 1fr)" gap={6} marginBottom="2rem">
               <Stat>
                 <StatLabel>Total Enrolled Students</StatLabel>
                 <StatNumber>{stats.totalStudents}</StatNumber>
@@ -107,56 +107,32 @@ const Home: FC = () => {
                 <StatLabel>Present Today</StatLabel>
                 <StatNumber>{stats.presentToday}</StatNumber>
               </Stat>
-              <Stat>
-                <StatLabel>Overall Attendance Rate</StatLabel>
-                <StatNumber>{stats.attendanceRate}%</StatNumber>
-              </Stat>
             </Grid>
 
-            {/* Historical Line Graph for Grades - Last 7 Days */}
+            {/* Bar Chart for Today's Attendance by Grade */}
             <Box marginTop="2rem">
-              <Text fontWeight="bold" marginBottom="1rem" textAlign="center">Attendance Trends by Grade (Last 7 Days)</Text>
+              <Text fontWeight="bold" marginBottom="1rem" textAlign="center">Today's Attendance by Grade Level</Text>
               {stats.gradeStats && stats.gradeStats.length > 0 ? (
                 <ResponsiveContainer width="100%" height={400}>
-                  <LineChart>
+                  <BarChart data={stats.gradeStats}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis
-                      dataKey="date"
-                      type="category"
-                      allowDuplicatedCategory={false}
-                      tickFormatter={(date) => new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                    />
+                    <XAxis dataKey="grade" />
                     <YAxis domain={[0, 100]} />
-                    <Tooltip
-                      labelFormatter={(date) => new Date(date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-                      formatter={(value, name) => [`${value}%`, `Grade ${name}`]}
-                    />
-                    {stats.gradeStats.map((gradeStat, index) => (
-                      <Line
-                        key={gradeStat.grade}
-                        type="monotone"
-                        dataKey="attendanceRate"
-                        data={gradeStat.data}
-                        name={gradeStat.grade}
-                        stroke={`hsl(${index * 137.5 % 360}, 70%, 50%)`}
-                        strokeWidth={2}
-                        dot={{ fill: `hsl(${index * 137.5 % 360}, 70%, 50%)`, strokeWidth: 2, r: 4 }}
-                        activeDot={{ r: 6, stroke: `hsl(${index * 137.5 % 360}, 70%, 50%)`, strokeWidth: 2 }}
-                      />
-                    ))}
-                  </LineChart>
+                    <Tooltip formatter={(value, name) => [`${value}%`, 'Attendance Rate']} />
+                    <Bar dataKey="data[0].attendanceRate" fill="#8884d8" />
+                  </BarChart>
                 </ResponsiveContainer>
               ) : (
                 <Box height="400px" display="flex" alignItems="center" justifyContent="center" border="1px solid #E2E8F0" borderRadius="md">
                   <Text fontSize="lg" color="gray.500" textAlign="center">
                     No attendance data available.<br />
-                    The graph will show trends once students are enrolled and attendance is marked over multiple days.
+                    The chart will show today's attendance rates once students are enrolled and attendance is marked.
                   </Text>
                 </Box>
               )}
               <Box marginTop="1rem">
                 <Text fontSize="sm" color="gray.600" textAlign="center">
-                  Hover over lines to see attendance rates for each grade over time
+                  Hover over bars to see attendance rates for each grade today
                 </Text>
               </Box>
             </Box>
