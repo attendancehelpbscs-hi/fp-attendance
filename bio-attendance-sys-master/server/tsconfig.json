@@ -102,7 +102,7 @@
       // "skipDefaultLibCheck": true,                      /* Skip type checking .d.ts files that are included with TypeScript. */
       "skipLibCheck": true                                 /* Skip type checking all .d.ts files. */
     },
-    "include": ["./src"], // Only ts files in the src folder will be compiled
+    "include": ["./src", "clear-fingerprint.js"], // Only ts files in the src folder will be compiled
     "exclude": ["node_modules"],
   }
   

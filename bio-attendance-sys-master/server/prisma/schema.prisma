@@ -57,11 +57,13 @@ model Course {
   id           String          @id @default(uuid())
   staff_id     String
   course_name  String
-  course_code  String          @unique
+  course_code  String
   grade        String
   created_at   DateTime
   students      StudentCourse[]
   staff        Staff           @relation(fields: [staff_id], references: [id])
+
+  @@unique([course_code, staff_id])
 }
 
 model Attendance {

@@ -122,6 +122,25 @@ export const resetPassword = async (req: Request, res: Response, next: NextFunct
   }
 };
 
+// Helper function to clean and fix base64 strings
+function cleanBase64(base64String: string): string {
+  // Remove data URL prefix if present
+  if (base64String.includes(',')) {
+    base64String = base64String.split(',')[1];
+  }
+  
+  // Remove whitespace, newlines, and other non-base64 characters
+  base64String = base64String.replace(/[^A-Za-z0-9+/=]/g, '');
+  
+  // Fix padding - base64 strings must be divisible by 4
+  const missingPadding = base64String.length % 4;
+  if (missingPadding) {
+    base64String += '='.repeat(4 - missingPadding);
+  }
+  
+  return base64String;
+}
+
 export const fingerprintLogin = async (req: Request, res: Response, next: NextFunction) => {
   const { fingerprint } = req.body;
 
@@ -153,24 +172,28 @@ export const fingerprintLogin = async (req: Request, res: Response, next: NextFu
 
     console.log(`Found ${staffWithFingerprints.length} staff members with fingerprints`);
 
-    // Validate that fingerprints are properly stored
-    const validStaffFingerprints = staffWithFingerprints.filter(staff => {
-      if (!staff.fingerprint) return false;
-
-      // Check if fingerprint data looks valid
-      try {
-        const fingerprintStr = staff.fingerprint.startsWith('data:image/')
-          ? staff.fingerprint.split(',')[1]
-          : staff.fingerprint;
-
-        // Try to decode to validate
-        Buffer.from(fingerprintStr, 'base64');
-        return true;
-      } catch (error) {
-        console.error(`Invalid fingerprint data for staff ${staff.id}:`, error instanceof Error ? error.message : String(error));
-        return false;
-      }
-    });
+    // Validate and clean fingerprints
+    const validStaffFingerprints = staffWithFingerprints
+      .filter(staff => staff.fingerprint)
+      .map(staff => {
+        try {
+          // Clean the fingerprint data
+          const cleanedFingerprint = cleanBase64(staff.fingerprint!);
+          
+          // Validate by attempting to decode
+          Buffer.from(cleanedFingerprint, 'base64');
+          
+          return {
+            id: staff.id,
+            name: staff.name,
+            fingerprint: cleanedFingerprint
+          };
+        } catch (error) {
+          console.error(`Invalid fingerprint data for staff ${staff.id}:`, error instanceof Error ? error.message : String(error));
+          return null;
+        }
+      })
+      .filter((staff): staff is NonNullable<typeof staff> => staff !== null);
 
     if (validStaffFingerprints.length === 0) {
       console.log('No valid staff fingerprints found after validation');
@@ -179,6 +202,17 @@ export const fingerprintLogin = async (req: Request, res: Response, next: NextFu
 
     console.log(`Found ${validStaffFingerprints.length} valid staff fingerprints`);
 
+    // Clean the scanned fingerprint
+    let cleanedScannedFingerprint: string;
+    try {
+      cleanedScannedFingerprint = cleanBase64(fingerprint);
+      // Validate by attempting to decode
+      Buffer.from(cleanedScannedFingerprint, 'base64');
+    } catch (error) {
+      console.error('Invalid base64 fingerprint data received:', error instanceof Error ? error.message : String(error));
+      throw createError(400, 'Invalid fingerprint data format');
+    }
+
     // Send fingerprint and staff data to Python server for identification
     const axios = require('axios');
     const fs = require('fs');
@@ -186,17 +220,7 @@ export const fingerprintLogin = async (req: Request, res: Response, next: NextFu
     const FormData = require('form-data');
 
     // Convert base64 fingerprint to image file
-    let base64Data: string;
-    try {
-      base64Data = fingerprint.replace(/^data:image\/png;base64,/, '');
-      // Validate base64
-      Buffer.from(base64Data, 'base64');
-    } catch (error) {
-      console.error('Invalid base64 fingerprint data received:', error instanceof Error ? error.message : String(error));
-      throw createError(400, 'Invalid fingerprint data format');
-    }
-
-    const buffer = Buffer.from(base64Data, 'base64');
+    const buffer = Buffer.from(cleanedScannedFingerprint, 'base64');
     const tempPath = path.join(__dirname, '../../temp_fingerprint.png');
     fs.writeFileSync(tempPath, buffer);
 
@@ -210,6 +234,7 @@ export const fingerprintLogin = async (req: Request, res: Response, next: NextFu
     // Call Python server
     const pythonResponse = await axios.post('http://localhost:5050/identify/staff-fingerprint', form, {
       headers: form.getHeaders(),
+      timeout: 30000
     });
 
     // Clean up temp file

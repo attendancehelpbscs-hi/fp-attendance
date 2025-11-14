@@ -1,6 +1,7 @@
 import os
 import base64
 import json
+import re
 from flask import (
     Flask,
     jsonify,
@@ -18,6 +19,25 @@ import logging
 
 UPLOAD_FOLDER = 'fingerprints'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'BMP', 'bmp'}
+
+def clean_base64(base64_string):
+    """Clean and fix base64 string for proper decoding"""
+    if not base64_string:
+        return base64_string
+    
+    # Remove data URL prefix if present
+    if ',' in base64_string:
+        base64_string = base64_string.split(',')[1]
+    
+    # Remove whitespace, newlines, and other non-base64 characters
+    base64_string = re.sub(r'[^A-Za-z0-9+/=]', '', base64_string)
+    
+    # Fix padding - base64 strings must be divisible by 4
+    missing_padding = len(base64_string) % 4
+    if missing_padding:
+        base64_string += '=' * (4 - missing_padding)
+    
+    return base64_string
 
 def get_fingerprint_match_score(fingerprint1_path, fingerprint2_path):
     try:
@@ -78,8 +98,9 @@ def identify_fingerprint(scanned_fingerprint_path, students_fingerprints):
 
     for student in students_fingerprints:
         try:
-            # Decode base64 fingerprint to image
-            fingerprint_data = base64.b64decode(student['fingerprint'])
+            # Clean and decode base64 fingerprint to image
+            fingerprint_str = clean_base64(student['fingerprint'])
+            fingerprint_data = base64.b64decode(fingerprint_str)
             nparr = np.frombuffer(fingerprint_data, np.uint8)
             stored_fingerprint = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
@@ -142,29 +163,47 @@ def identify_staff_fingerprint(scanned_fingerprint_path, staff_fingerprints):
                 logging.info(f"Staff {staff['id']} has no fingerprint enrolled")
                 continue
 
-            # Log fingerprint data for debugging
+            # Get fingerprint string
             fingerprint_str = staff['fingerprint']
-            logging.info(f"Processing fingerprint for staff {staff['id']}, length: {len(fingerprint_str)}")
+            logging.info(f"Processing fingerprint for staff {staff['id']}, original length: {len(fingerprint_str)}")
 
-            # Decode base64 fingerprint to image (handle data URL prefix if present)
-            if fingerprint_str.startswith('data:image/'):
-                # Remove data URL prefix
-                fingerprint_str = fingerprint_str.split(',')[1]
+            # Clean the base64 string
+            fingerprint_str = clean_base64(fingerprint_str)
+            logging.info(f"Cleaned fingerprint for staff {staff['id']}, new length: {len(fingerprint_str)}")
 
-            # Validate base64 string
+            # Decode base64 fingerprint to image
             try:
-                # Check if it's valid base64 by attempting to decode
                 fingerprint_data = base64.b64decode(fingerprint_str)
+                logging.info(f"Successfully decoded base64 for staff {staff['id']}, data length: {len(fingerprint_data)}")
             except Exception as decode_error:
-                logging.error(f"Invalid base64 fingerprint data for staff {staff['id']}: {str(decode_error)}")
+                logging.error(f"Failed to decode base64 for staff {staff['id']}: {str(decode_error)}")
                 continue
 
             nparr = np.frombuffer(fingerprint_data, np.uint8)
-            stored_fingerprint = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-
+            
+            # Try different color modes for better compatibility
+            stored_fingerprint = cv2.imdecode(nparr, cv2.IMREAD_UNCHANGED)
+            
+            if stored_fingerprint is None:
+                logging.warning(f"Failed to decode with IMREAD_UNCHANGED, trying IMREAD_ANYDEPTH | IMREAD_ANYCOLOR")
+                stored_fingerprint = cv2.imdecode(nparr, cv2.IMREAD_ANYDEPTH | cv2.IMREAD_ANYCOLOR)
+            
             if stored_fingerprint is None:
                 logging.warning(f"Failed to decode fingerprint image for staff {staff['id']}")
+                # Save corrupted data for debugging
+                debug_path = os.path.join('fingerprints', f"corrupted_{staff['id']}.bin")
+                with open(debug_path, 'wb') as f:
+                    f.write(fingerprint_data)
+                logging.error(f"Saved corrupted data to {debug_path} for inspection")
                 continue
+            
+            # Convert to color if needed
+            if len(stored_fingerprint.shape) == 2:
+                stored_fingerprint = cv2.cvtColor(stored_fingerprint, cv2.COLOR_GRAY2BGR)
+            elif stored_fingerprint.shape[2] == 4:
+                stored_fingerprint = cv2.cvtColor(stored_fingerprint, cv2.COLOR_BGRA2BGR)
+
+            logging.info(f"Successfully decoded image for staff {staff['id']}, shape: {stored_fingerprint.shape}")
 
             # Save temporary file for comparison
             temp_path = os.path.join('fingerprints', f"temp_staff_{staff['id']}.png")
@@ -187,6 +226,8 @@ def identify_staff_fingerprint(scanned_fingerprint_path, staff_fingerprints):
 
         except Exception as e:
             logging.error(f"Error processing staff {staff['id']}: {str(e)}")
+            import traceback
+            logging.error(traceback.format_exc())
             continue
 
     logging.info(f"Staff identification complete. Best match: {best_match}")
@@ -211,42 +252,32 @@ def store_fingerprint_images(app, file, idx):
         flash('No selected file')
         return redirect(request.url)
     if file and allowed_file(file.filename):
-        # filename = secure_filename(file.filename)
         file.save(os.path.join(app.config['UPLOAD_FOLDER'], "fingerprint_{no}.jpeg".format(no=idx+1)))
 
-# Function that create the app
-def create_app(test_config=None ):
-    # create and configure the app
+def create_app(test_config=None):
     app = Flask(__name__)
     CORS(app)
     app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
     app.config['SECRET_KEY'] = 'dev'
 
-    # Set up logging
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-    # Ensure upload folder exists
     if not os.path.exists(UPLOAD_FOLDER):
         os.makedirs(UPLOAD_FOLDER)
         logging.info(f"Created upload folder: {UPLOAD_FOLDER}")
 
-    # Simple route
     @app.route('/')
     def home():
-        return jsonify({
-           "status": "success",
-        })
+        return jsonify({"status": "success"})
 
     @app.route('/verify/fingerprint', methods=['GET', 'POST'])
     def verify_fingerprint():
         if request.method == 'POST':
             app.logger.info(request.files.getlist('file'))
             app.logger.info(request.files.get('file'))
-            # check if the post request has the file part
             if 'file' not in request.files:
                 flash('No file part')
                 abort(400)
-            # log files;
             upload_files = request.files.getlist('file')
             app.logger.info(upload_files)
             for idx, file in enumerate(upload_files):
@@ -257,88 +288,59 @@ def create_app(test_config=None ):
                 "fingerprints/fingerprint_2.jpeg"
             )
             app.logger.info(f"Match score calculated: {match_score}")
-            # Temporarily keep files for debugging
-            # for idx in range(2):
-            #    os.remove(os.path.join(app.config['UPLOAD_FOLDER'], "fingerprint_{no}.jpeg".format(no=idx+1)))
-            # If the user does not select a file, the browser submits an
-            # empty file without a filename.
             flash('done')
-            return  jsonify({
+            return jsonify({
                 "status": "success",
                 "message": "Verification completed successfully",
                 "match_score": match_score
             })
         else:
-            return jsonify({ "status": "success" })
+            return jsonify({"status": "success"})
 
     @app.route('/identify/fingerprint', methods=['POST'])
     def identify_fingerprint_endpoint():
         try:
             if request.method == 'POST':
-                # check if the post request has the file part
                 if 'file' not in request.files:
                     logging.error("No file part in request")
-                    return jsonify({
-                        "status": "error",
-                        "message": "No file part"
-                    }), 400
+                    return jsonify({"status": "error", "message": "No file part"}), 400
 
-                # Get staff_id from request
                 staff_id = request.form.get('staff_id')
                 if not staff_id:
                     logging.error("Staff ID is required")
-                    return jsonify({
-                        "status": "error",
-                        "message": "Staff ID is required"
-                    }), 400
+                    return jsonify({"status": "error", "message": "Staff ID is required"}), 400
 
-                # Get students' fingerprints from Node.js backend
                 try:
-                    backend_url = "http://localhost:5005"  # Adjust if different
+                    backend_url = "http://localhost:5005"
                     logging.info(f"Fetching fingerprints for staff_id: {staff_id}")
                     response = requests.get(f"{backend_url}/api/students/fingerprints/{staff_id}")
                     if response.status_code != 200:
                         logging.error(f"Failed to fetch students' fingerprints: {response.status_code}")
-                        return jsonify({
-                            "status": "error",
-                            "message": "Failed to fetch students' fingerprints"
-                        }), 500
+                        return jsonify({"status": "error", "message": "Failed to fetch students' fingerprints"}), 500
 
                     students_fingerprints = response.json().get('data', {}).get('students', [])
                     if not students_fingerprints:
                         logging.warning(f"No students found for staff_id: {staff_id}")
-                        return jsonify({
-                            "status": "error",
-                            "message": "No students found for this staff"
-                        }), 404
+                        return jsonify({"status": "error", "message": "No students found for this staff"}), 404
 
                     logging.info(f"Fetched {len(students_fingerprints)} student fingerprints")
 
                 except requests.RequestException as e:
                     logging.error(f"Failed to connect to backend: {str(e)}")
-                    return jsonify({
-                        "status": "error",
-                        "message": f"Failed to connect to backend: {str(e)}"
-                    }), 500
+                    return jsonify({"status": "error", "message": f"Failed to connect to backend: {str(e)}"}), 500
 
-                # Store the scanned fingerprint
                 file = request.files['file']
                 if file.filename == '':
                     logging.error("No file selected")
-                    return jsonify({
-                        "status": "error",
-                        "message": "No file selected"
-                    }), 400
+                    return jsonify({"status": "error", "message": "No file selected"}), 400
 
                 if file and allowed_file(file.filename):
                     scanned_path = os.path.join(app.config['UPLOAD_FOLDER'], "scanned_fingerprint.png")
                     file.save(scanned_path)
                     logging.info(f"Saved scanned fingerprint to: {scanned_path}")
 
-                    # Identify fingerprint
                     identification_result = identify_fingerprint(scanned_path, students_fingerprints)
 
-                    # Clean up scanned file
                     if os.path.exists(scanned_path):
                         os.remove(scanned_path)
                         logging.info("Cleaned up scanned fingerprint file")
@@ -351,75 +353,49 @@ def create_app(test_config=None ):
                     })
                 else:
                     logging.error("Invalid file type")
-                    return jsonify({
-                        "status": "error",
-                        "message": "Invalid file type"
-                    }), 400
+                    return jsonify({"status": "error", "message": "Invalid file type"}), 400
             else:
-                return jsonify({ "status": "success" })
+                return jsonify({"status": "success"})
         except Exception as e:
             logging.error(f"Unexpected error in identify_fingerprint_endpoint: {str(e)}")
-            return jsonify({
-                "status": "error",
-                "message": "Internal server error"
-            }), 500
+            return jsonify({"status": "error", "message": "Internal server error"}), 500
 
     @app.route('/identify/staff-fingerprint', methods=['POST'])
     def identify_staff_fingerprint_endpoint():
         try:
             if request.method == 'POST':
-                # check if the post request has the file part
                 if 'file' not in request.files:
                     logging.error("No file part in request")
-                    return jsonify({
-                        "status": "error",
-                        "message": "No file part"
-                    }), 400
+                    return jsonify({"status": "error", "message": "No file part"}), 400
 
-                # Get staff fingerprints from request form data (sent by Node.js server)
                 staff_fingerprints_json = request.form.get('staff_fingerprints')
                 if not staff_fingerprints_json:
                     logging.error("No staff fingerprints provided in request")
-                    return jsonify({
-                        "status": "error",
-                        "message": "No staff fingerprints provided"
-                    }), 400
+                    return jsonify({"status": "error", "message": "No staff fingerprints provided"}), 400
 
                 try:
                     staff_fingerprints = json.loads(staff_fingerprints_json)
                     logging.info(f"Received {len(staff_fingerprints)} staff fingerprints from Node.js server")
                 except json.JSONDecodeError as e:
                     logging.error(f"Failed to parse staff fingerprints JSON: {str(e)}")
-                    return jsonify({
-                        "status": "error",
-                        "message": "Invalid staff fingerprints format"
-                    }), 400
+                    return jsonify({"status": "error", "message": "Invalid staff fingerprints format"}), 400
 
                 if not staff_fingerprints:
                     logging.warning("No staff found with fingerprints")
-                    return jsonify({
-                        "status": "error",
-                        "message": "No staff found with fingerprints"
-                    }), 404
+                    return jsonify({"status": "error", "message": "No staff found with fingerprints"}), 404
 
-                # Store the scanned fingerprint
                 file = request.files['file']
                 if file.filename == '':
                     logging.error("No file selected")
-                    return jsonify({
-                        "status": "error",
-                        "message": "No file selected"
-                    }), 400
+                    return jsonify({"status": "error", "message": "No file selected"}), 400
 
                 if file and allowed_file(file.filename):
                     scanned_path = os.path.join(app.config['UPLOAD_FOLDER'], "scanned_staff_fingerprint.png")
                     file.save(scanned_path)
                     logging.info(f"Saved scanned staff fingerprint to: {scanned_path}")
 
-                    # Identify fingerprint
                     identification_result = identify_staff_fingerprint(scanned_path, staff_fingerprints)
 
-                    # Clean up scanned file
                     if os.path.exists(scanned_path):
                         os.remove(scanned_path)
                         logging.info("Cleaned up scanned staff fingerprint file")
@@ -432,23 +408,18 @@ def create_app(test_config=None ):
                     })
                 else:
                     logging.error("Invalid file type")
-                    return jsonify({
-                        "status": "error",
-                        "message": "Invalid file type"
-                    }), 400
+                    return jsonify({"status": "error", "message": "Invalid file type"}), 400
             else:
-                return jsonify({ "status": "success" })
+                return jsonify({"status": "success"})
         except Exception as e:
             logging.error(f"Unexpected error in identify_staff_fingerprint_endpoint: {str(e)}")
-            return jsonify({
-                "status": "error",
-                "message": "Internal server error"
-            }), 500
+            import traceback
+            logging.error(traceback.format_exc())
+            return jsonify({"status": "error", "message": "Internal server error"}), 500
 
-    return app # do not forget to return the app
+    return app
 
 APP = create_app()
 
 if __name__ == '__main__':
     APP.run(host='0.0.0.0', port=5050, debug=True)
-    # APP.run(debug=True)
