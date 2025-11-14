@@ -5,7 +5,7 @@ import { getAttendanceReports, getAttendanceSummary, getUniqueGradesAndSections,
 
 export const getReports = async (req: Request, res: Response, next: NextFunction) => {
   const { staff_id } = req.params;
-  const { grade, section, dateRange, page, per_page } = req.query;
+  const { grade, section, dateRange, startDate, endDate, page, per_page } = req.query;
 
   if (!staff_id) return next(new createError.BadRequest('Staff ID is required'));
 
@@ -14,6 +14,8 @@ export const getReports = async (req: Request, res: Response, next: NextFunction
       grade: grade as string,
       section: section as string,
       dateRange: dateRange as string,
+      startDate: startDate as string,
+      endDate: endDate as string,
       page: page ? parseInt(page as string, 10) : 1,
       per_page: per_page ? parseInt(per_page as string, 10) : 10,
     };

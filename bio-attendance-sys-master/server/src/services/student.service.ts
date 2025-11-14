@@ -156,19 +156,18 @@ export const updateStudentInDb = (id: string, newUpdate: Partial<Student>): Prom
   });
 };
 
-export const checkIfStudentExists = (matric_no: string, staff_id: string): Promise<boolean> => {
+export const checkIfStudentExists = (matric_no: string): Promise<boolean> => {
   return new Promise<boolean>(async (resolve, reject) => {
     try {
-      const course = await prisma.student.findFirst({
+      const student = await prisma.student.findUnique({
         where: {
           matric_no,
-          staff_id,
         },
         select: {
           id: true,
         },
       });
-      if (course) resolve(true);
+      if (student) resolve(true);
       resolve(false);
     } catch (err) {
       reject(err);

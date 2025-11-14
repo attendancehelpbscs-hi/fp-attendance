@@ -144,6 +144,95 @@ def identify_fingerprint(scanned_fingerprint_path, students_fingerprints):
     logging.info(f"Returning best match with confidence: {best_match['confidence']:.2f}%")
     return best_match
 
+def repair_png_data(fingerprint_data):
+    """
+    Attempt to repair corrupted PNG data by fixing common issues
+    """
+    try:
+        # Check if it's a valid PNG by examining the header
+        if len(fingerprint_data) < 8 or fingerprint_data[:8] != b'\x89PNG\r\n\x1a\n':
+            return None
+
+        # Try to use PIL/Pillow for PNG repair if available
+        try:
+            from PIL import Image
+            import io
+
+            # Try to open with PIL which is more forgiving
+            img_buffer = io.BytesIO(fingerprint_data)
+            img = Image.open(img_buffer)
+
+            # Convert to RGB if necessary
+            if img.mode != 'RGB':
+                img = img.convert('RGB')
+
+            # Save back to bytes
+            output_buffer = io.BytesIO()
+            img.save(output_buffer, format='PNG')
+            repaired_data = output_buffer.getvalue()
+            logging.info("Successfully repaired PNG using PIL")
+            return repaired_data
+
+        except ImportError:
+            logging.warning("PIL not available for PNG repair")
+        except Exception as pil_error:
+            logging.warning(f"PIL repair failed: {str(pil_error)}")
+            # If PIL fails, try to convert to JPEG and back to PNG as a last resort
+            try:
+                # Try to decode with OpenCV with different flags
+                nparr = np.frombuffer(fingerprint_data, np.uint8)
+
+                # Try different decoding options
+                img = None
+                for flag in [cv2.IMREAD_UNCHANGED, cv2.IMREAD_ANYDEPTH | cv2.IMREAD_ANYCOLOR, cv2.IMREAD_GRAYSCALE, cv2.IMREAD_COLOR]:
+                    img = cv2.imdecode(nparr, flag)
+                    if img is not None:
+                        logging.info(f"Successfully decoded with OpenCV flag: {flag}")
+                        break
+
+                if img is not None:
+                    # Ensure image has proper dimensions and channels
+                    if len(img.shape) == 2:
+                        img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+                    elif img.shape[2] == 4:
+                        img = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
+
+                    # Convert to JPEG first
+                    success, jpeg_data = cv2.imencode('.jpg', img)
+                    if success:
+                        # Convert back to PNG
+                        img_jpeg = cv2.imdecode(jpeg_data, cv2.IMREAD_COLOR)
+                        success_png, png_data = cv2.imencode('.png', img_jpeg)
+                        if success_png:
+                            logging.info("Successfully repaired PNG by converting through JPEG")
+                            return png_data.tobytes()
+            except Exception as cv_error:
+                logging.warning(f"OpenCV repair failed: {str(cv_error)}")
+
+        # Fallback: try to fix CRC errors by rebuilding the PNG
+        try:
+            # This is a basic approach - in a real scenario you'd use a proper PNG library
+            # For now, we'll try to extract the IHDR and rebuild minimal PNG
+            if len(fingerprint_data) > 24:
+                # Extract width and height from IHDR (bytes 16-23)
+                width = int.from_bytes(fingerprint_data[16:20], 'big')
+                height = int.from_bytes(fingerprint_data[20:24], 'big')
+
+                # Create a minimal valid PNG with the same dimensions
+                # This is a placeholder - proper PNG reconstruction would be more complex
+                logging.warning(f"PNG dimensions: {width}x{height}, attempting minimal reconstruction")
+
+                # For now, return None to indicate repair failed
+                return None
+
+        except Exception as crc_error:
+            logging.error(f"CRC repair failed: {str(crc_error)}")
+            return None
+
+    except Exception as e:
+        logging.error(f"PNG repair failed: {str(e)}")
+        return None
+
 def identify_staff_fingerprint(scanned_fingerprint_path, staff_fingerprints):
     """
     Identify fingerprint by comparing against all staff fingerprints
@@ -183,18 +272,60 @@ def identify_staff_fingerprint(scanned_fingerprint_path, staff_fingerprints):
             
             # Try different color modes for better compatibility
             stored_fingerprint = cv2.imdecode(nparr, cv2.IMREAD_UNCHANGED)
-            
+
             if stored_fingerprint is None:
                 logging.warning(f"Failed to decode with IMREAD_UNCHANGED, trying IMREAD_ANYDEPTH | IMREAD_ANYCOLOR")
                 stored_fingerprint = cv2.imdecode(nparr, cv2.IMREAD_ANYDEPTH | cv2.IMREAD_ANYCOLOR)
-            
+
             if stored_fingerprint is None:
-                logging.warning(f"Failed to decode fingerprint image for staff {staff['id']}")
-                # Save corrupted data for debugging
+                logging.warning(f"Failed to decode fingerprint image for staff {staff['id']}, trying fallback methods")
+                # Try to repair PNG data using the repair function
+                repaired_data = repair_png_data(fingerprint_data)
+                if repaired_data:
+                    logging.info(f"Successfully repaired PNG data for staff {staff['id']}")
+                    nparr_repaired = np.frombuffer(repaired_data, np.uint8)
+                    stored_fingerprint = cv2.imdecode(nparr_repaired, cv2.IMREAD_UNCHANGED)
+
+                # If repair didn't work, try the original fallback methods
+                if stored_fingerprint is None:
+                    try:
+                        # Attempt to fix PNG header if corrupted
+                        if len(fingerprint_data) > 8:
+                            # Check if PNG header is corrupted
+                            expected_png_header = b'\x89PNG\r\n\x1a\n'
+                            actual_header = fingerprint_data[:8]
+                            if actual_header != expected_png_header:
+                                logging.warning(f"PNG header corrupted for staff {staff['id']}, attempting to fix")
+                                # Replace corrupted header with correct one
+                                fixed_data = expected_png_header + fingerprint_data[8:]
+                                nparr_fixed = np.frombuffer(fixed_data, np.uint8)
+                                stored_fingerprint = cv2.imdecode(nparr_fixed, cv2.IMREAD_UNCHANGED)
+                                if stored_fingerprint is not None:
+                                    logging.info(f"Successfully fixed PNG header for staff {staff['id']}")
+                            else:
+                                # Header looks correct, try different decoding options
+                                logging.warning(f"PNG header looks correct for staff {staff['id']}, trying alternative decoding")
+                                # Try with different flags
+                                stored_fingerprint = cv2.imdecode(nparr, cv2.IMREAD_GRAYSCALE)
+                                if stored_fingerprint is None:
+                                    stored_fingerprint = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+                    except Exception as fix_error:
+                        logging.error(f"Failed to fix PNG header for staff {staff['id']}: {str(fix_error)}")
+
+            if stored_fingerprint is None:
+                logging.warning(f"Failed to decode fingerprint image for staff {staff['id']} after all attempts")
+                # Check if this is a known CRC error case
+                if len(fingerprint_data) > 8 and fingerprint_data[:8] == b'\x89PNG\r\n\x1a\n':
+                    logging.warning(f"Staff {staff['id']} has corrupted PNG fingerprint data (CRC error in PLTE chunk)")
+                    logging.info(f"Staff {staff['id']} should re-enroll their fingerprint")
+                else:
+                    logging.warning(f"Staff {staff['id']} has invalid fingerprint data format")
+                # Save corrupted data for debugging (only if not already saved)
                 debug_path = os.path.join('fingerprints', f"corrupted_{staff['id']}.bin")
-                with open(debug_path, 'wb') as f:
-                    f.write(fingerprint_data)
-                logging.error(f"Saved corrupted data to {debug_path} for inspection")
+                if not os.path.exists(debug_path):
+                    with open(debug_path, 'wb') as f:
+                        f.write(fingerprint_data)
+                    logging.error(f"Saved corrupted data to {debug_path} for inspection")
                 continue
             
             # Convert to color if needed

@@ -114,8 +114,8 @@ export const createStudent = async (req: Request, res: Response, next: NextFunct
     return next(createError(403, 'Access denied'));
   }
   try {
-    const courseExists = await checkIfStudentExists(matric_no, staff_id);
-    if (courseExists) {
+    const studentExists = await checkIfStudentExists(matric_no);
+    if (studentExists) {
       return next(
         createError(
           400,
