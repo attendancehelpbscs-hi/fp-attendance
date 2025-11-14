@@ -661,18 +661,9 @@ const Reports: FC = () => {
 
   // console.log('Student reports data:', studentReportsData); // Debug log - commented out for production
 
-  // Group and filter student data to match kiosk display (one row per student per day with latest check-in time)
+  // Filter student data to show separate logs for IN and OUT records
   const filteredAndSearchedStudentData = useMemo(() => {
-    // First group by student and date, taking the latest record for each
-    const groupedData = studentAttendanceData.reduce((acc: any, item: any) => {
-      const key = `${item.student_id}-${item.date}`;
-      if (!acc[key] || new Date(item.created_at || 0) > new Date(acc[key].created_at || 0)) {
-        acc[key] = item;
-      }
-      return acc;
-    }, {});
-
-    let data = Object.values(groupedData).filter((item: any) => {
+    let data = studentAttendanceData.filter((item: any) => {
       const statusMatch = selectedStatus === 'all' || item.status === selectedStatus;
       const dateMatch = (() => {
         if (!startDate && !endDate) return true;

@@ -118,6 +118,24 @@ export const addStudentToAttendance = async (req: Request, res: Response, next: 
       );
     }
 
+    // For check-out (Departure), ensure check-in exists first
+    if (time_type === 'OUT') {
+      const existingCheckIn = await checkIfStudentIsMarked({ attendance_id, student_id, time_type: 'IN' });
+      if (!existingCheckIn) {
+        return next(
+          createError(
+            400,
+            ...[
+              {
+                message: 'Student must check in before checking out.',
+                errorType: 'NO_CHECK_IN_FOUND',
+              },
+            ],
+          ),
+        );
+      }
+    }
+
     // Use provided status or default to present
     const finalStatus = status || 'present';
 

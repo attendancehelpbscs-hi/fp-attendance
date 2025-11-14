@@ -3,8 +3,19 @@ import { prisma } from '../db/prisma-client';
 import type { Attendance, StudentAttendance, Student } from '@prisma/client';
 import type { PrismaBatchPayload } from '../interfaces/helper.interface';
 
-export const determineAttendanceStatus = (currentTime: Date, schoolStartTime: string, gracePeriodMinutes: number, lateThresholdHours: number): 'present' => {
-  // Always return 'present' as per simplified attendance system
+export const determineAttendanceStatus = (currentTime: Date, schoolStartTime: string, gracePeriodMinutes: number, lateThresholdHours: number): 'present' | 'absent' => {
+  const currentHour = currentTime.getHours();
+  const currentMinute = currentTime.getMinutes();
+  const currentTimeInMinutes = currentHour * 60 + currentMinute;
+
+  // Absent if no check-in recorded after 5:00 PM (17:00)
+  const fivePMInMinutes = 17 * 60;
+  if (currentTimeInMinutes > fivePMInMinutes) {
+    return 'absent';
+  }
+
+  // For now, return present for check-ins before 5 PM
+  // This can be extended with more complex logic if needed
   return 'present';
 };
 
@@ -48,25 +59,15 @@ export const markAbsentForUnmarkedDays = async (staff_id: string, date: string):
   // Get all student attendances for this attendance (whole day)
   const existingAttendances = await prisma.studentAttendance.findMany({
     where: { attendance_id: attendance.id },
-    select: { student_id: true }
+    select: { student_id: true, status: true }
   });
 
   const existingStudentIds = new Set(existingAttendances.map(att => att.student_id));
+  const presentStudentIds = new Set(existingAttendances.filter(att => att.status === 'present').map(att => att.student_id));
 
-  // Mark absent for students who haven't scanned at all for the day
+  // Mark absent for students who haven't scanned at all for the day and aren't already marked present
   for (const student of students) {
-    if (!existingStudentIds.has(student.id)) {
-      // Check if the student is already marked as present for this date
-      const existingPresent = await prisma.studentAttendance.findFirst({
-        where: {
-          student_id: student.id,
-          attendance: { date: date.split('T')[0] },
-          status: 'present',
-        },
-      });
-
-      if (existingPresent) continue; // Skip marking absent if already present
-
+    if (!existingStudentIds.has(student.id) && !presentStudentIds.has(student.id)) {
       // Get the first course section for the student
       const section = student.courses?.[0]?.course?.course_code || '';
 
@@ -116,6 +117,53 @@ export const saveAttendanceToDb = (attendance: Omit<Attendance, 'id'>): Promise<
 export const markStudentAttendance = (studentAttendanceInfo: { attendance_id: string; student_id: string; time_type: 'IN' | 'OUT'; section: string; status?: 'present' | 'absent' }): Promise<StudentAttendance> => {
   return new Promise<StudentAttendance>(async (resolve, reject) => {
     try {
+      // Verify check-in exists before allowing check-out
+      if (studentAttendanceInfo.time_type === 'OUT') {
+        const attendance = await prisma.attendance.findUnique({ where: { id: studentAttendanceInfo.attendance_id } });
+        if (!attendance) {
+          return reject(new createError.NotFound('Attendance session not found'));
+        }
+
+        // Check if student has checked in today
+        const existingCheckIn = await prisma.studentAttendance.findFirst({
+          where: {
+            student_id: studentAttendanceInfo.student_id,
+            attendance_id: studentAttendanceInfo.attendance_id,
+            time_type: 'IN',
+          },
+        });
+
+        if (!existingCheckIn) {
+          return reject(new createError.BadRequest('Student must check in before checking out'));
+        }
+
+        // Check if student has already checked out today
+        const existingCheckOut = await prisma.studentAttendance.findFirst({
+          where: {
+            student_id: studentAttendanceInfo.student_id,
+            attendance_id: studentAttendanceInfo.attendance_id,
+            time_type: 'OUT',
+          },
+        });
+
+        if (existingCheckOut) {
+          return reject(new createError.BadRequest('Student has already checked out today'));
+        }
+
+        // Create a new OUT record for check-out
+        const checkOutRecord = await prisma.studentAttendance.create({
+          data: {
+            student_id: studentAttendanceInfo.student_id,
+            attendance_id: studentAttendanceInfo.attendance_id,
+            time_type: 'OUT',
+            section: studentAttendanceInfo.section,
+            status: 'present', // Check-out maintains present status
+            created_at: new Date(),
+          },
+        });
+        return resolve(checkOutRecord);
+      }
+
       // If marking present, remove any existing absent records for this student on the same date
       if (studentAttendanceInfo.status === 'present') {
         const attendance = await prisma.attendance.findUnique({ where: { id: studentAttendanceInfo.attendance_id } });

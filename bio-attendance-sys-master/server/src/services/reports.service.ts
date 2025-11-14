@@ -182,7 +182,7 @@ export const getPreviousPeriodReports = async (staff_id: string, filters: Filter
 
 export const getStudentAttendanceReports = async (staff_id: string, filters: Filters) => {
   try {
-    const where: any = { student: { staff_id } };
+    const where: any = { student: { staff_id }, time_type: { in: ['IN', 'OUT'] }, status: { not: 'absent' } };
     if (filters.student_id) where.student_id = filters.student_id;
     if (filters.grade) where.student.grade = filters.grade;
     if (filters.section) where.section = filters.section;
@@ -228,24 +228,32 @@ export const getStudentAttendanceReports = async (staff_id: string, filters: Fil
     const page = filters.page || 1;
     const per_page = filters.per_page || 10;
     const skip = (page - 1) * per_page;
-    const studentAttendances = await prisma.studentAttendance.findMany({
+
+    // Get all records as separate logs for IN/OUT
+    const allStudentAttendances = await prisma.studentAttendance.findMany({
       where,
       include: { student: true, attendance: true },
       orderBy: { created_at: 'desc' },
       skip,
       take: per_page,
     });
-    return studentAttendances.map(sa => ({
+
+    // Map to separate records for each IN/OUT
+    const records = allStudentAttendances.map(sa => ({
       student_id: sa.student_id,
       student_name: sa.student.name,
       matric_no: sa.student.matric_no,
       grade: sa.student.grade,
       date: sa.attendance.date,
-      status: (sa.time_type === 'OUT' ? 'departure' : sa.status === 'present' ? 'present' : 'absent'),
+      status: sa.time_type === 'IN' ? 'present' : sa.time_type === 'OUT' ? 'departure' : sa.status,
       time_type: sa.time_type,
       section: sa.section,
-      created_at: sa.status === 'absent' ? null : sa.created_at,
+      created_at: sa.created_at,
+      checkin_time: sa.time_type === 'IN' ? sa.created_at : null,
+      checkout_time: sa.time_type === 'OUT' ? sa.created_at : null,
     }));
+
+    return records;
   } catch (err) {
     throw err;
   }
@@ -294,22 +302,50 @@ export const getStudentDetailedReport = async (staff_id: string, student_id: str
     const student = await prisma.student.findFirst({ where: { id: student_id, staff_id }, select: { id: true, name: true, matric_no: true, grade: true } });
     if (!student) throw createError.NotFound('Student not found');
     const attendanceRecords = await prisma.studentAttendance.findMany({ where: { student_id }, include: { attendance: true }, orderBy: { created_at: 'desc' } });
-    const records = attendanceRecords.map(record => ({ date: record.attendance.date, status: (record.time_type === 'OUT' ? 'departure' : record.status === 'present' ? 'present' : 'absent'), time_type: record.time_type, section: record.section, created_at: record.created_at.toISOString() }));
+
+    // Group records by date to combine IN/OUT
+    const groupedRecords: Record<string, any> = {};
+    attendanceRecords.forEach(record => {
+      const date = record.attendance.date;
+      if (!groupedRecords[date]) {
+        groupedRecords[date] = {
+          date,
+          status: 'absent',
+          time_type: null,
+          section: record.section,
+          created_at: null,
+          checkin_time: null,
+          checkout_time: null,
+        };
+      }
+
+      if (record.time_type === 'IN' && record.status === 'present') {
+        groupedRecords[date].checkin_time = record.created_at.toISOString();
+        groupedRecords[date].status = 'present';
+        groupedRecords[date].created_at = record.created_at.toISOString();
+      } else if (record.time_type === 'OUT') {
+        groupedRecords[date].checkout_time = record.created_at.toISOString();
+        groupedRecords[date].status = 'departure';
+      }
+    });
+
+    const records = Object.values(groupedRecords);
+
     const now = new Date();
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth();
     const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     const weeklyRecords = records.filter((r: any) => new Date(r.date) >= weekStart);
-    const weeklyPresent = weeklyRecords.filter((r: any) => r.status === 'present' && r.time_type === 'IN').length;
-    const weeklyAbsent = 0;
+    const weeklyPresent = weeklyRecords.filter((r: any) => r.status === 'present').length;
+    const weeklyAbsent = weeklyRecords.filter((r: any) => r.status === 'absent').length;
     const weeklySummary = { total_days: weeklyRecords.length, present_days: weeklyPresent, absent_days: weeklyAbsent };
     const monthlyRecords = records.filter((r: any) => { const recordDate = new Date(r.date); return recordDate.getFullYear() === currentYear && recordDate.getMonth() === currentMonth; });
-    const monthlyPresent = monthlyRecords.filter((r: any) => r.status === 'present' && r.time_type === 'IN').length;
-    const monthlyAbsent = 0;
+    const monthlyPresent = monthlyRecords.filter((r: any) => r.status === 'present').length;
+    const monthlyAbsent = monthlyRecords.filter((r: any) => r.status === 'absent').length;
     const monthlySummary = { total_days: monthlyRecords.length, present_days: monthlyPresent, absent_days: monthlyAbsent };
     const yearlyRecords = records.filter((r: any) => new Date(r.date).getFullYear() === currentYear);
-    const yearlyPresent = yearlyRecords.filter((r: any) => r.status === 'present' && r.time_type === 'IN').length;
-    const yearlyAbsent = 0;
+    const yearlyPresent = yearlyRecords.filter((r: any) => r.status === 'present').length;
+    const yearlyAbsent = yearlyRecords.filter((r: any) => r.status === 'absent').length;
     const yearlySummary = { total_days: yearlyRecords.length, present_days: yearlyPresent, absent_days: yearlyAbsent };
     return { student, attendanceRecords: records, summaries: { weekly: weeklySummary, monthly: monthlySummary, yearly: yearlySummary } };
   } catch (err) {
@@ -453,9 +489,31 @@ export const getStudentsByStatus = async (staff_id: string, date: string, grade:
     });
     console.log('Filtered records by grade/section:', filteredRecords.length);
     if (status === 'present') {
-      const presentRecords = filteredRecords.filter(rec => rec.status === 'present' || rec.time_type === 'IN');
-      console.log('Present records count:', presentRecords.length);
-      const result = presentRecords.map(record => ({ id: record.student.id, name: record.student.name, matric_no: record.student.matric_no, checkin_time: record.created_at ? record.created_at.toISOString() : null, checkout_time: null }));
+      // Group records by student to combine IN/OUT
+      const studentMap: Record<string, any> = {};
+      filteredRecords.forEach(rec => {
+        if (rec.status === 'present' || rec.time_type === 'IN' || rec.time_type === 'OUT') {
+          const studentId = rec.student.id;
+          if (!studentMap[studentId]) {
+            studentMap[studentId] = {
+              id: rec.student.id,
+              name: rec.student.name,
+              matric_no: rec.student.matric_no,
+              checkin_time: null,
+              checkout_time: null,
+            };
+          }
+
+          if (rec.time_type === 'IN' && rec.status === 'present') {
+            studentMap[studentId].checkin_time = rec.created_at ? rec.created_at.toISOString() : null;
+          } else if (rec.time_type === 'OUT') {
+            studentMap[studentId].checkout_time = rec.created_at ? rec.created_at.toISOString() : null;
+          }
+        }
+      });
+
+      const result = Object.values(studentMap);
+      console.log('Present students count:', result.length);
       console.log('Returning present students:', result);
       return { students: result };
     } else {

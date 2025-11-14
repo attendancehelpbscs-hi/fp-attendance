@@ -122,7 +122,12 @@ const AttendanceKiosk: FC = () => {
       queryClient.invalidateQueries(['attendanceList', attendanceId]);
     },
     onError: (err) => {
-      toast.error((err.response?.data?.message as string) ?? 'An error occured');
+      const errorMessage = err.response?.data?.message as string;
+      if (errorMessage?.includes('must check in before checking out')) {
+        toast.error('Cannot check out: Student has not checked in today');
+      } else {
+        toast.error(errorMessage ?? 'An error occurred');
+      }
       resetScanState();
     },
   });
