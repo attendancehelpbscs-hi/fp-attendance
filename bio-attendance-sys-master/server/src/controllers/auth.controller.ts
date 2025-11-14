@@ -122,23 +122,32 @@ export const resetPassword = async (req: Request, res: Response, next: NextFunct
   }
 };
 
-// Helper function to clean and fix base64 strings
-function cleanBase64(base64String: string): string {
-  // Remove data URL prefix if present
-  if (base64String.includes(',')) {
-    base64String = base64String.split(',')[1];
+// Helper function to clean and validate base64 strings (same as student enrollment)
+function cleanBase64(base64String: string): string | null {
+  try {
+    // Remove data URL prefix if present
+    let cleanedString = base64String;
+    if (base64String.includes(',')) {
+      cleanedString = base64String.split(',')[1];
+    }
+
+    // Remove whitespace, newlines, and other non-base64 characters
+    cleanedString = cleanedString.replace(/[^A-Za-z0-9+/=]/g, '');
+
+    // Fix padding - base64 strings must be divisible by 4
+    const missingPadding = cleanedString.length % 4;
+    if (missingPadding) {
+      cleanedString += '='.repeat(4 - missingPadding);
+    }
+
+    // Validate by attempting to decode
+    Buffer.from(cleanedString, 'base64');
+
+    return cleanedString;
+  } catch (error) {
+    console.error('Invalid base64 data:', error instanceof Error ? error.message : String(error));
+    return null;
   }
-  
-  // Remove whitespace, newlines, and other non-base64 characters
-  base64String = base64String.replace(/[^A-Za-z0-9+/=]/g, '');
-  
-  // Fix padding - base64 strings must be divisible by 4
-  const missingPadding = base64String.length % 4;
-  if (missingPadding) {
-    base64String += '='.repeat(4 - missingPadding);
-  }
-  
-  return base64String;
 }
 
 export const fingerprintLogin = async (req: Request, res: Response, next: NextFunction) => {
@@ -176,22 +185,22 @@ export const fingerprintLogin = async (req: Request, res: Response, next: NextFu
     const validStaffFingerprints = staffWithFingerprints
       .filter(staff => staff.fingerprint)
       .map(staff => {
-        try {
-          // Clean the fingerprint data
-          const cleanedFingerprint = cleanBase64(staff.fingerprint!);
-          
-          // Validate by attempting to decode
-          Buffer.from(cleanedFingerprint, 'base64');
-          
-          return {
-            id: staff.id,
-            name: staff.name,
-            fingerprint: cleanedFingerprint
-          };
-        } catch (error) {
-          console.error(`Invalid fingerprint data for staff ${staff.id}:`, error instanceof Error ? error.message : String(error));
+        // Clean the fingerprint data
+        const cleanedFingerprint = cleanBase64(staff.fingerprint!);
+
+        if (!cleanedFingerprint) {
+          console.error(`Invalid fingerprint data for staff ${staff.id}`);
           return null;
         }
+
+        // Validate by attempting to decode
+        Buffer.from(cleanedFingerprint, 'base64');
+
+        return {
+          id: staff.id,
+          name: staff.name,
+          fingerprint: cleanedFingerprint
+        };
       })
       .filter((staff): staff is NonNullable<typeof staff> => staff !== null);
 
@@ -202,16 +211,14 @@ export const fingerprintLogin = async (req: Request, res: Response, next: NextFu
 
     console.log(`Found ${validStaffFingerprints.length} valid staff fingerprints`);
 
-    // Clean the scanned fingerprint
-    let cleanedScannedFingerprint: string;
-    try {
-      cleanedScannedFingerprint = cleanBase64(fingerprint);
-      // Validate by attempting to decode
-      Buffer.from(cleanedScannedFingerprint, 'base64');
-    } catch (error) {
-      console.error('Invalid base64 fingerprint data received:', error instanceof Error ? error.message : String(error));
+    // Clean the scanned fingerprint (same as student enrollment)
+    const cleanedScannedFingerprint = cleanBase64(fingerprint);
+    if (!cleanedScannedFingerprint) {
       throw createError(400, 'Invalid fingerprint data format');
     }
+
+    // Validate by attempting to decode
+    Buffer.from(cleanedScannedFingerprint, 'base64');
 
     // Send fingerprint and staff data to Python server for identification
     const axios = require('axios');
@@ -270,7 +277,7 @@ export const fingerprintLogin = async (req: Request, res: Response, next: NextFu
       data: {
         staff_id: staff.id,
         action: 'LOGIN',
-        details: `Staff ${staff.name} logged in via fingerprint (confidence: ${identificationResult.confidence.toFixed(2)}%)`,
+        details: `Staff ${staff.name} logged in via fingerprint`,
       },
     });
 
@@ -281,9 +288,12 @@ export const fingerprintLogin = async (req: Request, res: Response, next: NextFu
       refreshToken,
       staff: {
         id: staff.id,
+        firstName: staff.firstName,
+        lastName: staff.lastName,
         name: staff.name,
         email: staff.email,
         created_at: staff.created_at,
+        profilePicture: staff.profilePicture,
       },
     });
   } catch (err) {

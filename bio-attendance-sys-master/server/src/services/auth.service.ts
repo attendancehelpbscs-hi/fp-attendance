@@ -22,7 +22,8 @@ export const getStaffFromDb = async (staffEmail: string, staffPassword: string, 
         return { staff }; // Return staff info for forgot password
       }
 
-      const { id, name, email, password, created_at } = staff;
+      const { id, firstName, lastName, name, email, password, created_at, profilePicture } = staff;
+      const profilePictureData = profilePicture || undefined;
 
       try {
         const match = await validatePassword(staffPassword, password);
@@ -33,7 +34,7 @@ export const getStaffFromDb = async (staffEmail: string, staffPassword: string, 
           data: {
             staff_id: id,
             action: 'LOGIN',
-            details: `Staff ${name} logged in successfully`,
+            details: `Staff ${name} logged in via email/password`,
           },
         });
 
@@ -45,9 +46,12 @@ export const getStaffFromDb = async (staffEmail: string, staffPassword: string, 
             refreshToken,
             staff: {
               id,
+              firstName,
+              lastName,
               name,
               email,
               created_at,
+              profilePicture: profilePictureData,
             },
           }),
         );
@@ -89,7 +93,7 @@ export const delRefreshToken = async (staff_id: string): Promise<number | undefi
         data: {
           staff_id,
           action: 'LOGOUT',
-          details: `Staff ${staff.name} logged out successfully`,
+          details: `Staff ${staff.name} logged out`,
         },
       });
     }

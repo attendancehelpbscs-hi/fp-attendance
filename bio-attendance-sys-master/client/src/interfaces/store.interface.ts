@@ -1,8 +1,11 @@
 export interface StaffInfo {
   id: string;
-  name: string;
+  firstName: string;
+  lastName: string;
+  name: string; // Keep for backward compatibility
   email: string;
   created_at: string;
+  profilePicture?: string;
 }
 
 export interface StaffSettings {
@@ -27,6 +30,7 @@ export interface State {
   increment: () => void;
   decrement: () => void;
   loginStaff: (data: Tokens & { staff: StaffInfo }) => void;
+  updateStaffProfile: (profileData: Partial<StaffInfo>) => void;
   logoutStaff: () => void;
   logout: () => void;
   setStaffSettings: (settings: StaffSettings) => void;

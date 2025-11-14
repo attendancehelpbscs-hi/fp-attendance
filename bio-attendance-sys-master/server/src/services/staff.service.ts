@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 export const addStaffToDb = async (newStaff: NewStaff): Promise<RegisterReturn | void> => {
-  const { name, email, password } = newStaff;
+  const { firstName, lastName, name, email, password } = newStaff;
   //Check for existing staff in that model through password
   const staff = await prisma.staff.findUnique({
     where: {
@@ -21,6 +21,8 @@ export const addStaffToDb = async (newStaff: NewStaff): Promise<RegisterReturn |
     //create new staff from the model
 
     const newStaff = {
+      firstName,
+      lastName,
       name,
       email,
       password,
@@ -32,7 +34,7 @@ export const addStaffToDb = async (newStaff: NewStaff): Promise<RegisterReturn |
       const savedStaff = await prisma.staff.create({
         data: newStaff,
       });
-      const { id, name, email, created_at } = savedStaff;
+      const { id, firstName, lastName, name, email, created_at, profilePicture } = savedStaff;
 
       const accessToken = await signAccessToken({ id });
       const refreshToken = await signRefreshToken({ id });
@@ -43,9 +45,12 @@ export const addStaffToDb = async (newStaff: NewStaff): Promise<RegisterReturn |
           refreshToken,
           staff: {
             id,
+            firstName,
+            lastName,
             name,
             email,
             created_at,
+          profilePicture: profilePicture || undefined,
           },
         }),
       );
@@ -92,13 +97,16 @@ export const getStaffSettings = (staffId: string): Promise<Pick<Staff, 'grace_pe
   });
 };
 
-export const updateStaffProfile = (staffId: string, profileData: { name?: string; password?: string; currentPassword?: string; fingerprint?: string }): Promise<Pick<Staff, 'id' | 'name' | 'email'>> => {
-  return new Promise<Pick<Staff, 'id' | 'name' | 'email'>>(async (resolve, reject) => {
+export const updateStaffProfile = (staffId: string, profileData: { firstName?: string; lastName?: string; name?: string; password?: string; currentPassword?: string; fingerprint?: string; profilePicture?: string }): Promise<Pick<Staff, 'id' | 'firstName' | 'lastName' | 'name' | 'email'>> => {
+  return new Promise<Pick<Staff, 'id' | 'firstName' | 'lastName' | 'name' | 'email'>>(async (resolve, reject) => {
     try {
       const updateData: any = {};
+      if (profileData.firstName) updateData.firstName = profileData.firstName;
+      if (profileData.lastName) updateData.lastName = profileData.lastName;
       if (profileData.name) updateData.name = profileData.name;
       if (profileData.password) updateData.password = await hashPassword(profileData.password);
       if (profileData.fingerprint) updateData.fingerprint = profileData.fingerprint;
+      if (profileData.profilePicture) updateData.profilePicture = profileData.profilePicture;
 
       // If updating password, verify current password
       if (profileData.password && profileData.currentPassword) {
@@ -135,8 +143,11 @@ export const updateStaffProfile = (staffId: string, profileData: { name?: string
         data: updateData,
         select: {
           id: true,
+          firstName: true,
+          lastName: true,
           name: true,
           email: true,
+          profilePicture: true,
         },
       });
       resolve(updatedStaff);

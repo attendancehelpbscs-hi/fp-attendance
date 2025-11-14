@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import type { FC, ChangeEventHandler, FormEventHandler } from 'react';
 import { Card, CardHeader, Heading, FormControl, FormLabel, Input, Button, Link, Text, InputGroup, InputRightElement, IconButton, Tabs, TabList, TabPanels, Tab, TabPanel, Box } from '@chakra-ui/react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
@@ -9,7 +9,8 @@ import { useLoginStaff, useFingerprintLogin } from '../../api/staff.api';
 import { toast } from 'react-hot-toast';
 import useStore from '../../store/store';
 import SimpleReactValidator from 'simple-react-validator';
-import { FingerprintSigninControl } from '../../lib/fingerprint';
+import { fingerprintControl } from '../../lib/fingerprint';
+import { Base64 } from '@digitalpersona/core';
 
 const Login: FC = () => {
   const [loginInput, setLoginInput] = useState<LoginStaffInput>({
@@ -21,6 +22,7 @@ const Login: FC = () => {
   const login = useStore.use.loginStaff();
   const navigate = useNavigate();
   const [fingerprintData, setFingerprintData] = useState<string>('');
+  const [deviceConnected, setDeviceConnected] = useState<boolean>(false);
 
   const { isLoading, mutate: loginStaff } = useLoginStaff({
     onSuccess: (response) => {
@@ -162,6 +164,37 @@ const Login: FC = () => {
     }
   };
 
+  // Handle device connection events (same as student enrollment)
+  const handleDeviceConnected = () => {
+    console.log('Fingerprint device connected');
+    setDeviceConnected(true);
+  };
+
+  const handleDeviceDisconnected = () => {
+    console.log('Fingerprint device disconnected');
+    setDeviceConnected(false);
+  };
+
+  // Handle sample acquisition (same as student enrollment)
+  const handleSampleAcquired = (event: any) => {
+    console.log('Fingerprint sample acquired:', event?.samples);
+    const rawImages = event?.samples.map((sample: string) => Base64.fromBase64Url(sample));
+    setFingerprintData(rawImages[0]);
+  };
+
+  // Initialize fingerprint control on component mount
+  useEffect(() => {
+    fingerprintControl.onDeviceConnected = handleDeviceConnected;
+    fingerprintControl.onDeviceDisconnected = handleDeviceDisconnected;
+    fingerprintControl.onSamplesAcquired = handleSampleAcquired;
+    fingerprintControl.init();
+
+    // Cleanup on unmount
+    return () => {
+      fingerprintControl.destroy();
+    };
+  }, []);
+
   return (
     <div>
       <Card maxW={400} margin="1rem auto">
@@ -221,7 +254,15 @@ const Login: FC = () => {
                 <Text fontSize="sm" color="gray.600" mb={4}>
                   Place your enrolled finger on the scanner to login
                 </Text>
-                <FingerprintSigninControl onFingerprintCaptured={setFingerprintData} />
+                <Text fontSize="sm" color="gray.500" mb={2}>
+                  {deviceConnected
+                    ? "✅ System: Fingerprint scanner is connected"
+                    : "❌ System: Fingerprint scanner not connected. Please refresh the page and try again."
+                  }
+                </Text>
+                <Box shadow="xs" h={120} w={120} margin="1rem auto" border="1px solid rgba(0, 0, 0, 0.04)">
+                  {fingerprintData && <img src={`data:image/png;base64,${fingerprintData}`} alt="Fingerprint" />}
+                </Box>
                 <Button
                   w="100%"
                   bg="var(--bg-primary)"

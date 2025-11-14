@@ -25,10 +25,13 @@ datasource db {
 // MODELS
 model Staff {
   id                   String     @id @default(uuid())
-  name                 String
+  firstName            String     @default("")
+  lastName             String     @default("")
+  name                 String     // Keep for backward compatibility
   email                String     @unique
   password             String
   fingerprint          String?    @db.LongText // Optional fingerprint field for biometric login
+  profilePicture       String?    @db.LongText // Optional profile picture as base64
   grace_period_minutes Int        @default(15)
   school_start_time    String     @default("08:00")
   late_threshold_hours Int        @default(1)

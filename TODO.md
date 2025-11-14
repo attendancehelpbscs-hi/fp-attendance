@@ -1,12 +1,24 @@
-# TODO: Fix Fingerprint Login Error
+# TODO: Update Staff Profile with First Name, Last Name, and Profile Picture
 
-## Steps to Complete
-- [x] Modify convertToJpeg function in fingerprint.tsx to use Blob and URL.createObjectURL instead of data URL to avoid ERR_INVALID_URL
-- [x] Fix atob error by treating data as raw binary string instead of base64
-- [x] Add fallback to return original sample as base64 JPEG data URL if conversion fails
-- [x] Add server-side fallback to save fingerprint data as-is if canvas conversion fails
-- [x] Add PNG header corruption fix in Python server for stored fingerprints
-- [x] Add alternative PNG decoding options when header is correct but decoding fails
-- [x] Add comprehensive PNG repair function using PIL for corrupted PNG data
-- [ ] Test the fingerprint login functionality after the fix
-- [ ] If conversion still fails, investigate if the PNG data from the reader is corrupted
+## Database Changes
+- [x] Update Prisma schema to add firstName, lastName, profilePicture fields to Staff model
+- [x] Generate and run Prisma migration
+
+## Backend Changes
+- [x] Update server interfaces for staff to include new fields
+- [x] Update staff service to handle new fields
+- [x] Update staff controller to handle profile picture file upload
+- [x] Update Joi validation schemas
+- [x] Update API interfaces on client side
+
+## Frontend Changes
+- [x] Update store interfaces to include firstName, lastName, profilePicture
+- [x] Update Settings.tsx to have separate First Name and Last Name inputs
+- [x] Add profile picture upload functionality in Settings.tsx
+- [x] Update API calls to handle new fields
+- [x] Handle file upload in the form submission
+
+## Testing
+- [x] Test profile update with new fields
+- [x] Test profile picture upload and display
+- [x] Verify backward compatibility with existing data

@@ -1,5 +1,5 @@
 import create from 'zustand';
-import type { State } from '../interfaces/store.interface';
+import type { State, StaffInfo } from '../interfaces/store.interface';
 import { createSelectorFunctions } from 'auto-zustand-selectors-hook';
 import { mountStoreDevtool } from 'simple-zustand-devtools';
 import envConfig from '../config/environment.config';
@@ -21,15 +21,20 @@ const useStoreBase = create<State>()(
         decrement: () => set((state) => ({ count: state.count - 1 })),
         loginStaff: ({ accessToken, refreshToken, staff }) => {
           console.log('🔍 loginStaff called with:', { accessToken, refreshToken, staff });
-          set(() => ({ 
-            staffInfo: staff, 
-            tokens: { accessToken, refreshToken }, 
-            isAuthenticated: true 
+          set(() => ({
+            staffInfo: staff,
+            tokens: { accessToken, refreshToken },
+            isAuthenticated: true
           }));
           console.log('🔍 State after set:', {
             isAuthenticated: useStoreBase.getState().isAuthenticated,
             tokens: useStoreBase.getState().tokens,
           });
+        },
+        updateStaffProfile: (profileData: Partial<StaffInfo>) => {
+          set((state) => ({
+            staffInfo: state.staffInfo ? { ...state.staffInfo, ...profileData } : null
+          }));
         },
         logoutStaff: () => set({ isAuthenticated: false, tokens: null, staffInfo: null, staffSettings: null }),
         logout: () => set({ isAuthenticated: false, tokens: null, staffInfo: null, staffSettings: null }),

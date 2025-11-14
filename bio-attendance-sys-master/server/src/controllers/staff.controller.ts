@@ -108,12 +108,12 @@ export const backupDataController = async (req: Request, res: Response, next: Ne
 };
 
 export const updateProfile = async (req: Request, res: Response, next: NextFunction) => {
-  const { name, password, confirmPassword, currentPassword, fingerprint } = req.body;
+  const { name, firstName, lastName, password, confirmPassword, currentPassword, fingerprint, profilePicture } = req.body;
   const user_id = (req.user as JwtPayload).id;
 
   // Validate input
-  if (!name && !password && !fingerprint) {
-    return next(createError(400, 'Please provide at least name, password, or fingerprint to update'));
+  if (!name && !firstName && !lastName && !password && !fingerprint && !profilePicture) {
+    return next(createError(400, 'Please provide at least name, firstName, lastName, password, fingerprint, or profilePicture to update'));
   }
 
   if (password && password !== confirmPassword) {
@@ -121,71 +121,44 @@ export const updateProfile = async (req: Request, res: Response, next: NextFunct
   }
 
   try {
-    const profileData: { name?: string; password?: string; currentPassword?: string; fingerprint?: string } = {};
+    const profileData: {
+      name?: string;
+      firstName?: string;
+      lastName?: string;
+      password?: string;
+      currentPassword?: string;
+      fingerprint?: string;
+      profilePicture?: string;
+    } = {};
     if (name) profileData.name = name;
+    if (firstName) profileData.firstName = firstName;
+    if (lastName) profileData.lastName = lastName;
     if (password) profileData.password = password;
     if (currentPassword) profileData.currentPassword = currentPassword;
-    
-    // Validate and clean fingerprint data before saving
+
+    // Validate and clean fingerprint data before saving (same as student enrollment)
     if (fingerprint) {
       console.log('Received fingerprint data, length:', fingerprint.length);
 
-      // Convert to JPEG to avoid PNG corruption issues
+      const cleanedFingerprint = cleanAndValidateFingerprint(fingerprint);
+      if (!cleanedFingerprint) {
+        return next(createError(400, 'Invalid fingerprint data. Please ensure your fingerprint scanner is working properly and try again.'));
+      }
+
+      profileData.fingerprint = cleanedFingerprint;
+    }
+
+    // Handle profile picture upload
+    if (profilePicture) {
+      // Validate base64 image data
       try {
-        const { createCanvas, loadImage } = require('canvas');
-
-        let cleanedFingerprint = fingerprint;
-        if (fingerprint.includes(',')) {
-          cleanedFingerprint = fingerprint.split(',')[1];
+        const buffer = Buffer.from(profilePicture, 'base64');
+        if (buffer.length > 5 * 1024 * 1024) { // 5MB limit
+          return next(createError(400, 'Profile picture too large. Maximum size is 5MB.'));
         }
-        cleanedFingerprint = cleanedFingerprint.replace(/[^A-Za-z0-9+/=]/g, '');
-        const missingPadding = cleanedFingerprint.length % 4;
-        if (missingPadding) {
-          cleanedFingerprint += '='.repeat(4 - missingPadding);
-        }
-
-        const buffer = Buffer.from(cleanedFingerprint, 'base64');
-        console.log('Original fingerprint buffer size:', buffer.length);
-
-        const img = await loadImage(buffer);
-
-        const canvas = createCanvas(img.width, img.height);
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0);
-
-        // Export as JPEG with high quality
-        const jpegBuffer = canvas.toBuffer('image/jpeg', { quality: 0.95 });
-        console.log('Converted to JPEG, new size:', jpegBuffer.length);
-
-        const jpegBase64 = jpegBuffer.toString('base64');
-        profileData.fingerprint = jpegBase64;
-
-      } catch (conversionError) {
-        console.error('Canvas conversion failed, rejecting corrupted fingerprint:', conversionError);
-        // Fallback: save the cleaned fingerprint data as-is if conversion fails
-        try {
-          let cleanedFingerprint = fingerprint;
-          if (fingerprint.includes(',')) {
-            cleanedFingerprint = fingerprint.split(',')[1];
-          }
-          cleanedFingerprint = cleanedFingerprint.replace(/[^A-Za-z0-9+/=]/g, '');
-          const missingPadding = cleanedFingerprint.length % 4;
-          if (missingPadding) {
-            cleanedFingerprint += '='.repeat(4 - missingPadding);
-          }
-
-          const buffer = Buffer.from(cleanedFingerprint, 'base64');
-          // Check if buffer is not empty and has reasonable size
-          if (buffer.length >= 1000 && buffer.length <= 5000000) {
-            console.log('Saving fingerprint as-is due to conversion failure, size:', buffer.length);
-            profileData.fingerprint = cleanedFingerprint;
-          } else {
-            return next(createError(400, 'Invalid fingerprint data size. Please ensure your fingerprint scanner is working properly and try again.'));
-          }
-        } catch (fallbackError) {
-          console.error('Fallback fingerprint processing also failed:', fallbackError);
-          return next(createError(400, 'Corrupted fingerprint data detected. Please ensure your fingerprint scanner is working properly and try again.'));
-        }
+        profileData.profilePicture = profilePicture;
+      } catch (error) {
+        return next(createError(400, 'Invalid profile picture data.'));
       }
     }
 

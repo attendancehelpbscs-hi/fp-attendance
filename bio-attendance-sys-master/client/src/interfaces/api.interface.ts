@@ -372,9 +372,12 @@ export interface LoginStaffResult {
     refreshToken: string;
     staff: {
       id: string;
+      firstName: string;
+      lastName: string;
       name: string;
       email: string;
       created_at: string;
+      profilePicture?: string;
     };
   };
 }
@@ -408,15 +411,22 @@ export interface ClearAuditLogsResult {
 }
 
 export interface UpdateStaffProfileInput {
-  name?: string;
+  firstName?: string;
+  lastName?: string;
+  name?: string; // Keep for backward compatibility
   password?: string;
   confirmPassword?: string;
+  profilePicture?: string;
 }
 
 export interface UpdateStaffProfileResult {
   staff: {
     id: string;
-    name: string;
+    firstName: string;
+    lastName: string;
+    name: string; // Keep for backward compatibility
     email: string;
+    created_at: string;
+    profilePicture?: string;
   };
 }

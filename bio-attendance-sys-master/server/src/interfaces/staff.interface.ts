@@ -1,5 +1,7 @@
 export interface NewStaff {
-  name: string;
+  firstName: string;
+  lastName: string;
+  name: string; // Keep for backward compatibility
   email: string;
   password: string;
   retype_password: string;
@@ -10,8 +12,11 @@ export interface RegisterReturn {
   refreshToken: string | undefined;
   staff: {
     id: string;
-    name: string;
+    firstName: string;
+    lastName: string;
+    name: string; // Keep for backward compatibility
     email: string;
     created_at: Date;
+    profilePicture?: string;
   };
 }

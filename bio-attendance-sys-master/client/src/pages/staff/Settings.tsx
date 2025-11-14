@@ -47,12 +47,15 @@ import {
   Image,
 } from '@chakra-ui/react';
 import { DownloadIcon, DeleteIcon, ViewIcon } from '@chakra-ui/icons';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import useStore from '../../store/store';
 import { toast } from 'react-hot-toast';
 import { getAuditLogs } from '../../api/audit.api';
 import { useBackupData, useClearAuditLogs, useUpdateStaffProfile } from '../../api/staff.api';
 import noDp from '../../assets/no-dp.png';
-import { FingerprintSigninControl } from '../../lib/fingerprint';
+import { fingerprintControl } from '../../lib/fingerprint';
+import { Base64 } from '@digitalpersona/core';
 
 
 const Settings: FC = () => {
@@ -71,7 +74,7 @@ const Settings: FC = () => {
 
   const backupMutation = useBackupData();
   const clearLogsMutation = useClearAuditLogs();
-  const updateProfileMutation = useUpdateStaffProfile();
+  const updateProfileMutation = useUpdateStaffProfile()();
 
 
 
@@ -100,17 +103,119 @@ const Settings: FC = () => {
     }
   };
 
-  const [profileName, setProfileName] = useState('');
+  const handlePrintPDF = () => {
+    const doc = new jsPDF();
+
+    // Add title
+    doc.setFontSize(18);
+    doc.text('Access & Audit Logs Report', 14, 20);
+
+    // Add generation date
+    doc.setFontSize(12);
+    doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 30);
+
+    // Prepare table data
+    const tableColumn = ['Action', 'User', 'Timestamp', 'Details'];
+    const tableRows = auditLogs.map(log => [
+      log.action,
+      log.staff?.name || 'Unknown',
+      new Date(log.created_at).toLocaleString(),
+      log.details || 'N/A'
+    ]);
+
+    // Add table
+    autoTable(doc, {
+      head: [tableColumn],
+      body: tableRows,
+      startY: 40,
+      styles: {
+        fontSize: 8,
+        cellPadding: 3,
+      },
+      headStyles: {
+        fillColor: [41, 128, 185],
+        textColor: 255,
+      },
+      alternateRowStyles: {
+        fillColor: [245, 245, 245],
+      },
+    });
+
+    // Add footer
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.text(`Page ${i} of ${pageCount}`, 14, doc.internal.pageSize.height - 10);
+    }
+
+    // Save the PDF
+    doc.save(`audit-logs-${new Date().toISOString().split('T')[0]}.pdf`);
+    toast.success('PDF generated successfully');
+  };
+
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [profileName, setProfileName] = useState(''); // Keep for backward compatibility
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [fingerprintData, setFingerprintData] = useState<string>('');
+  const [deviceConnected, setDeviceConnected] = useState<boolean>(false);
+  const [profilePicture, setProfilePicture] = useState<string>('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
-  // Add this useEffect to sync profileName with staffInfo
+  // Sync firstName, lastName, and profilePicture with staffInfo, but allow profileName to be edited independently
   useEffect(() => {
-    setProfileName(staffInfo?.name || '');
+    setFirstName(staffInfo?.firstName || '');
+    setLastName(staffInfo?.lastName || '');
+    setProfilePicture(staffInfo?.profilePicture || '');
   }, [staffInfo]);
 
+  // Handle device connection events (same as student enrollment)
+  const handleDeviceConnected = () => {
+    console.log('Fingerprint device connected');
+    setDeviceConnected(true);
+  };
+
+  const handleDeviceDisconnected = () => {
+    console.log('Fingerprint device disconnected');
+    setDeviceConnected(false);
+  };
+
+  // Handle sample acquisition (same as student enrollment)
+  const handleSampleAcquired = (event: any) => {
+    console.log('Fingerprint sample acquired:', event?.samples);
+    const rawImages = event?.samples.map((sample: string) => Base64.fromBase64Url(sample));
+    setFingerprintData(rawImages[0]);
+  };
+
+  // Initialize fingerprint control on component mount
+  useEffect(() => {
+    fingerprintControl.onDeviceConnected = handleDeviceConnected;
+    fingerprintControl.onDeviceDisconnected = handleDeviceDisconnected;
+    fingerprintControl.onSamplesAcquired = handleSampleAcquired;
+    fingerprintControl.init();
+
+    // Cleanup on unmount
+    return () => {
+      fingerprintControl.destroy();
+    };
+  }, []);
+
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const base64 = e.target?.result as string;
+        setProfilePicture(base64);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const handleSaveProfile = async () => {
     // Validate passwords match
@@ -126,8 +231,8 @@ const Settings: FC = () => {
     }
 
     // Validate at least one field is provided
-    if (!profileName.trim() && !newPassword && !fingerprintData) {
-      toast.error('Please provide at least name, password, or fingerprint to update');
+    if (!firstName.trim() && !lastName.trim() && !newPassword && !fingerprintData && !profilePicture) {
+      toast.error('Please provide at least first name, last name, password, fingerprint, or profile picture to update');
       return;
     }
 
@@ -138,32 +243,47 @@ const Settings: FC = () => {
   const confirmProfileUpdate = async () => {
     try {
       const updateData: any = {};
-      if (profileName.trim()) updateData.name = profileName.trim();
+      if (firstName.trim()) updateData.firstName = firstName.trim();
+      if (lastName.trim()) updateData.lastName = lastName.trim();
+      if (profileName.trim()) updateData.name = profileName.trim(); // Allow updating the legacy name if provided
       if (newPassword) {
         updateData.currentPassword = currentPassword;
         updateData.newPassword = newPassword;
         updateData.confirmPassword = confirmNewPassword;
       }
       if (fingerprintData) updateData.fingerprint = fingerprintData;
-
-      await updateProfileMutation.mutateAsync(updateData);
-
-      // Update local state
-      if (profileName.trim()) {
-        useStore.setState((state) => ({
-          staffInfo: state.staffInfo ? { ...state.staffInfo, name: profileName.trim() } : null,
-        }));
+      if (profilePicture) {
+        // Remove the data URL prefix if present
+        const base64Data = profilePicture.includes(',') ? profilePicture.split(',')[1] : profilePicture;
+        updateData.profilePicture = base64Data;
       }
+
+      // Update the store immediately for instant UI feedback
+      const optimisticUpdate = {
+        firstName: firstName.trim() || staffInfo?.firstName || '',
+        lastName: lastName.trim() || staffInfo?.lastName || '',
+        name: profileName.trim() || staffInfo?.name || '', // Update with the new legacy name if provided
+        profilePicture: profilePicture || staffInfo?.profilePicture || '',
+      };
+      useStore.getState().updateStaffProfile(optimisticUpdate);
+
+      const result = await updateProfileMutation.mutateAsync(updateData);
+
+      // Update the store with the server response (in case there are differences)
+      useStore.getState().updateStaffProfile(result.staff);
 
       // Clear password fields
       setCurrentPassword('');
       setNewPassword('');
       setConfirmNewPassword('');
       setFingerprintData('');
+      setSelectedFile(null);
 
       onProfileUpdateClose();
       toast.success('Profile updated successfully');
     } catch (error: any) {
+      // Revert the optimistic update on error
+      useStore.getState().updateStaffProfile(staffInfo || {});
       toast.error(error?.response?.data?.message || 'Failed to update profile');
       console.error('Profile update error:', error);
     }
@@ -211,17 +331,73 @@ const Settings: FC = () => {
                 <Heading size="md" marginBottom="1rem">Update Profile</Heading>
                 <VStack spacing={4} align="stretch">
                   <FormControl>
-                    <FormLabel>Name</FormLabel>
+                    <FormLabel>First Name</FormLabel>
+                    <Input
+                      type="text"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      placeholder="Enter your first name"
+                    />
+                  </FormControl>
+                  <FormControl>
+                    <FormLabel>Last Name</FormLabel>
+                    <Input
+                      type="text"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                      placeholder="Enter your last name"
+                    />
+                  </FormControl>
+                  <FormControl>
+                    <FormLabel>Name (Legacy)</FormLabel>
                     <Input
                       type="text"
                       value={profileName}
                       onChange={(e) => setProfileName(e.target.value)}
-                      placeholder="Enter your name"
+                      placeholder="Enter your full name (legacy field)"
                     />
                   </FormControl>
                   <FormControl>
                     <FormLabel>Email address</FormLabel>
                     <Input type="email" disabled value={staffInfo?.email || ''} />
+                  </FormControl>
+                  <FormControl>
+                    <FormLabel>Profile Picture</FormLabel>
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileChange}
+                      display="none"
+                      id="profile-picture-upload"
+                    />
+                    <VStack spacing={2}>
+                      <Button
+                        as="label"
+                        htmlFor="profile-picture-upload"
+                        cursor="pointer"
+                        colorScheme="blue"
+                        variant="outline"
+                        size="sm"
+                      >
+                        Choose Profile Picture
+                      </Button>
+                      {profilePicture && (
+                        <Image
+                          src={profilePicture}
+                          alt="Profile Preview"
+                          boxSize="100px"
+                          objectFit="cover"
+                          borderRadius="full"
+                          border="2px solid"
+                          borderColor="blue.200"
+                        />
+                      )}
+                      {selectedFile && (
+                        <Text fontSize="sm" color="gray.600">
+                          Selected: {selectedFile.name}
+                        </Text>
+                      )}
+                    </VStack>
                   </FormControl>
                   <FormControl>
                     <FormLabel>Current Password</FormLabel>
@@ -254,9 +430,17 @@ const Settings: FC = () => {
                   <FormControl>
                     <FormLabel>Fingerprint Enrollment</FormLabel>
                     <Text fontSize="sm" color="gray.600" mb={2}>
-                      Enroll your fingerprint for biometric login. Place your finger on the scanner when prompted.
+                      Enroll your fingerprint for biometric login. Place your finger on the scanner.
                     </Text>
-                    <FingerprintSigninControl onFingerprintCaptured={setFingerprintData} />
+                    <Text fontSize="sm" color="gray.500" mb={2}>
+                      {deviceConnected
+                        ? "✅ System: Fingerprint scanner is connected"
+                        : "❌ System: Fingerprint scanner not connected. Please refresh the page and try again."
+                      }
+                    </Text>
+                    <Box shadow="xs" h={120} w={120} margin="1rem auto" border="1px solid rgba(0, 0, 0, 0.04)">
+                      {fingerprintData && <img src={`data:image/png;base64,${fingerprintData}`} alt="Fingerprint" />}
+                    </Box>
                     {fingerprintData && (
                       <Box mt={4}>
                         <Text fontSize="sm" color="green.600" mb={2}>
@@ -316,26 +500,26 @@ const Settings: FC = () => {
 
           {/* Audit Logs Tab */}
           <TabPanel>
-            <Card maxW={800} margin="1rem auto">
+            <Card maxW={1200} margin="1rem auto">
               <Box padding="1rem">
                 <Heading size="md" marginBottom="1rem">Access & Audit Logs</Heading>
                 <TableContainer>
-                  <Table variant="simple">
+                  <Table variant="simple" size="sm">
                     <Thead>
                       <Tr>
-                        <Th>Action</Th>
-                        <Th>User</Th>
-                        <Th>Timestamp</Th>
-                        <Th>Details</Th>
+                        <Th width="15%">Action</Th>
+                        <Th width="20%">User</Th>
+                        <Th width="25%">Timestamp</Th>
+                        <Th width="40%">Details</Th>
                       </Tr>
                     </Thead>
                     <Tbody>
                       {auditLogs.map((log) => (
                         <Tr key={log.id}>
-                          <Td>{log.action}</Td>
-                          <Td>{log.staff?.name || 'Unknown'}</Td>
-                          <Td>{new Date(log.created_at).toLocaleString()}</Td>
-                          <Td>{log.details || 'N/A'}</Td>
+                          <Td fontSize="sm">{log.action}</Td>
+                          <Td fontSize="sm">{log.staff?.name || 'Unknown'}</Td>
+                          <Td fontSize="sm">{new Date(log.created_at).toLocaleString()}</Td>
+                          <Td fontSize="sm" wordBreak="break-word">{log.details || 'N/A'}</Td>
                         </Tr>
                       ))}
                     </Tbody>
@@ -362,9 +546,14 @@ const Settings: FC = () => {
                     </Button>
                   </HStack>
                 </Box>
-                <Button leftIcon={<ViewIcon />} colorScheme="teal" marginTop="1rem" onClick={onViewLogsOpen}>
-                  View Full Logs
-                </Button>
+                <HStack spacing={4} marginTop="1rem">
+                  <Button leftIcon={<ViewIcon />} colorScheme="teal" onClick={onViewLogsOpen}>
+                    View Full Logs
+                  </Button>
+                  <Button leftIcon={<DownloadIcon />} colorScheme="blue" onClick={handlePrintPDF}>
+                    Print PDF
+                  </Button>
+                </HStack>
               </Box>
             </Card>
           </TabPanel>
@@ -425,27 +614,27 @@ const Settings: FC = () => {
       {/* View Full Logs Modal */}
       <Modal isOpen={isViewLogsOpen} onClose={onViewLogsClose} size="6xl">
         <ModalOverlay />
-        <ModalContent>
+        <ModalContent maxW="90vw">
           <ModalHeader>Full Audit Logs</ModalHeader>
           <ModalCloseButton />
           <ModalBody>
             <TableContainer>
-              <Table variant="simple">
+              <Table variant="simple" size="sm">
                 <Thead>
                   <Tr>
-                    <Th>Action</Th>
-                    <Th>User</Th>
-                    <Th>Timestamp</Th>
-                    <Th>Details</Th>
+                    <Th width="15%">Action</Th>
+                    <Th width="20%">User</Th>
+                    <Th width="25%">Timestamp</Th>
+                    <Th width="40%">Details</Th>
                   </Tr>
                 </Thead>
                 <Tbody>
                   {auditLogs.map((log) => (
                     <Tr key={log.id}>
-                      <Td>{log.action}</Td>
-                      <Td>{log.staff?.name || 'Unknown'}</Td>
-                      <Td>{new Date(log.created_at).toLocaleString()}</Td>
-                      <Td>{log.details || 'N/A'}</Td>
+                      <Td fontSize="sm">{log.action}</Td>
+                      <Td fontSize="sm">{log.staff?.name || 'Unknown'}</Td>
+                      <Td fontSize="sm">{new Date(log.created_at).toLocaleString()}</Td>
+                      <Td fontSize="sm" wordBreak="break-word">{log.details || 'N/A'}</Td>
                     </Tr>
                   ))}
                 </Tbody>

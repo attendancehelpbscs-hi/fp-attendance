@@ -22,10 +22,17 @@ const Profile: FC = () => {
           margin="0 auto"
           marginBottom="-40px"
         >
-          <Image src={noDp} alt="" transform="scale(1.25)" />
+          <Image
+            src={staffInfo?.profilePicture ? `data:image/jpeg;base64,${staffInfo.profilePicture}` : noDp}
+            alt="Profile Picture"
+            transform="scale(1.25)"
+            fallbackSrc={noDp}
+          />
         </Box>
         <Heading textAlign="center" fontSize={22} fontWeight={600}>
-          {staffInfo?.name}
+          {staffInfo?.firstName || staffInfo?.lastName
+            ? `${staffInfo?.firstName || ''} ${staffInfo?.lastName || ''}`.trim() + (staffInfo?.name ? ` (${staffInfo.name})` : '')
+            : staffInfo?.name || 'Staff Member'}
         </Heading>
         <Text textAlign="center" marginTop="0.5rem">
           {staffInfo?.email}
