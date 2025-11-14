@@ -5,9 +5,6 @@ import rollupNodePolyFill from 'rollup-plugin-polyfill-node';
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
-  server: {
-    maxHeaderSize: 16384, // Increase from default 8192 to handle large headers (e.g., base64 images)
-  },
   define: { global: 'globalThis' },
   resolve: {
     alias: {

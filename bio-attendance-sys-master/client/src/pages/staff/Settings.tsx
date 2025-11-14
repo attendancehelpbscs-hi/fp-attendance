@@ -161,6 +161,7 @@ const Settings: FC = () => {
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [fingerprintData, setFingerprintData] = useState<string>('');
+  const [profilePictureBase64, setProfilePictureBase64] = useState<string>('');
   const [deviceConnected, setDeviceConnected] = useState<boolean>(false);
   const [profilePicture, setProfilePicture] = useState<string>('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -169,7 +170,12 @@ const Settings: FC = () => {
   useEffect(() => {
     setFirstName(staffInfo?.firstName || '');
     setLastName(staffInfo?.lastName || '');
-    setProfilePicture(staffInfo?.profilePicture || '');
+    // Create blob URL for display if profilePicture exists
+    if (staffInfo?.profilePicture) {
+      setProfilePicture(`data:image/jpeg;base64,${staffInfo.profilePicture}`);
+    } else {
+      setProfilePicture('');
+    }
   }, [staffInfo]);
 
   // Handle device connection events (same as student enrollment)
@@ -208,10 +214,15 @@ const Settings: FC = () => {
     const file = event.target.files?.[0];
     if (file) {
       setSelectedFile(file);
+      // Create blob URL for display to avoid 431 header size error
+      const blobUrl = URL.createObjectURL(file);
+      setProfilePicture(blobUrl);
+
+      // Store base64 for API submission
       const reader = new FileReader();
       reader.onload = (e) => {
         const base64 = e.target?.result as string;
-        setProfilePicture(base64);
+        setProfilePictureBase64(base64.split(',')[1]);
       };
       reader.readAsDataURL(file);
     }
@@ -252,10 +263,8 @@ const Settings: FC = () => {
         updateData.confirmPassword = confirmNewPassword;
       }
       if (fingerprintData) updateData.fingerprint = fingerprintData;
-      if (profilePicture) {
-        // Remove the data URL prefix if present
-        const base64Data = profilePicture.includes(',') ? profilePicture.split(',')[1] : profilePicture;
-        updateData.profilePicture = base64Data;
+      if (profilePictureBase64) {
+        updateData.profilePicture = profilePictureBase64;
       }
 
       // Update the store immediately for instant UI feedback
@@ -263,7 +272,7 @@ const Settings: FC = () => {
         firstName: firstName.trim() || staffInfo?.firstName || '',
         lastName: lastName.trim() || staffInfo?.lastName || '',
         name: profileName.trim() || staffInfo?.name || '', // Update with the new legacy name if provided
-        profilePicture: profilePicture || staffInfo?.profilePicture || '',
+        profilePicture: profilePicture.startsWith('data:image') ? profilePicture : staffInfo?.profilePicture || '',
       };
       useStore.getState().updateStaffProfile(optimisticUpdate);
 
@@ -277,7 +286,14 @@ const Settings: FC = () => {
       setNewPassword('');
       setConfirmNewPassword('');
       setFingerprintData('');
+      setProfilePictureBase64('');
       setSelectedFile(null);
+      // Reset profile picture to current staff info
+      if (staffInfo?.profilePicture) {
+        setProfilePicture(`data:image/jpeg;base64,${staffInfo.profilePicture}`);
+      } else {
+        setProfilePicture('');
+      }
 
       onProfileUpdateClose();
       toast.success('Profile updated successfully');
@@ -349,12 +365,12 @@ const Settings: FC = () => {
                     />
                   </FormControl>
                   <FormControl>
-                    <FormLabel>Name (Legacy)</FormLabel>
+                    <FormLabel>System Role</FormLabel>
                     <Input
                       type="text"
                       value={profileName}
                       onChange={(e) => setProfileName(e.target.value)}
-                      placeholder="Enter your full name (legacy field)"
+                      placeholder="Enter your Role (here)"
                     />
                   </FormControl>
                   <FormControl>
