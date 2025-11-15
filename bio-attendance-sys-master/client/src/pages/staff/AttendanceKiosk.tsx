@@ -482,7 +482,7 @@ const AttendanceKiosk: FC = () => {
                       <Text fontSize="xs"><strong>Name:</strong> {identifiedStudent.name}</Text>
                       <Text fontSize="xs"><strong>Grade:</strong> {identifiedStudent.grade}</Text>
                       <Text fontSize="xs"><strong>Section:</strong> {identifiedStudent.courses.length > 0 ? identifiedStudent.courses[0].course_code : identifiedStudent.grade}</Text>
-                      <Text fontSize="xs"><strong>Status:</strong> Checked In</Text>
+                      <Text fontSize="xs"><strong>Status:</strong> {timeType === 'IN' ? 'Checked In' : 'Checked Out'}</Text>
                       <Text fontSize="xs"><strong>Time:</strong> {dayjs().format('hh:mm A')}</Text>
                     </VStack>
                   </Alert>

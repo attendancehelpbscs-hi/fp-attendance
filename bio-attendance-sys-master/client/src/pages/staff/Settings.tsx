@@ -45,6 +45,7 @@ import {
   HStack,
   Divider,
   Image,
+  Flex,
 } from '@chakra-ui/react';
 import { DownloadIcon, DeleteIcon, ViewIcon } from '@chakra-ui/icons';
 import jsPDF from 'jspdf';
@@ -272,7 +273,7 @@ const Settings: FC = () => {
         firstName: firstName.trim() || staffInfo?.firstName || '',
         lastName: lastName.trim() || staffInfo?.lastName || '',
         name: profileName.trim() || staffInfo?.name || '', // Update with the new legacy name if provided
-        profilePicture: profilePicture.startsWith('data:image') ? profilePicture : staffInfo?.profilePicture || '',
+        profilePicture: profilePictureBase64 || staffInfo?.profilePicture || '',
       };
       useStore.getState().updateStaffProfile(optimisticUpdate);
 
@@ -417,12 +418,31 @@ const Settings: FC = () => {
                   </FormControl>
                   <FormControl>
                     <FormLabel>Current Password</FormLabel>
-                    <Input
-                      type="password"
-                      value={currentPassword}
-                      onChange={(e) => setCurrentPassword(e.target.value)}
-                      placeholder="Enter current password"
-                    />
+                    <Flex gap={2} alignItems="center">
+                      <Input
+                        type="password"
+                        value={currentPassword}
+                        onChange={(e) => setCurrentPassword(e.target.value)}
+                        placeholder="Enter current password"
+                      />
+                      <Button
+                        size="sm"
+                        colorScheme="blue"
+                        variant="outline"
+                        onClick={() => {
+                          // Confirm logout and navigation to forgot password
+                          const confirmLogout = window.confirm(
+                            'You will be logged out and redirected to the forgot password page. Continue?'
+                          );
+                          if (confirmLogout) {
+                            useStore.getState().logoutStaff();
+                            window.location.href = '/staff/forgot-password';
+                          }
+                        }}
+                      >
+                        Forgot Password?
+                      </Button>
+                    </Flex>
                   </FormControl>
                   <FormControl>
                     <FormLabel>New Password</FormLabel>

@@ -122,7 +122,8 @@ const ManageStudents: FC = () => {
     const matchesSearch = student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          student.matric_no.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          student.grade.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         student.courses?.some(course => course.course_code.toLowerCase().includes(searchTerm.toLowerCase()));
+                         student.courses?.some(course => course.course_code.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                         student.courses?.some(course => course.matric_no && course.matric_no.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesGrade = !gradeFilter || student.grade === gradeFilter;
     return matchesSearch && matchesGrade;
   }).sort((a: StudentType, b: StudentType) => {
@@ -199,7 +200,7 @@ const ManageStudents: FC = () => {
                 <SearchIcon color="gray.300" />
               </InputLeftElement>
               <Input
-                placeholder="Search by name, ID, grade, or section"
+                placeholder="Search by name, ID, grade, section, or teacher ID"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -245,7 +246,6 @@ const ManageStudents: FC = () => {
                     onChange={(e) => handleSelectAll(e.target.checked)}
                   />
                 </Th>
-                <Th>S/N</Th>
                 <Th>Name</Th>
                 <Th>ID Number</Th>
                 <Th>Grade</Th>
@@ -262,7 +262,6 @@ const ManageStudents: FC = () => {
                       onChange={(e) => handleSelectStudent(student.id, e.target.checked)}
                     />
                   </Td>
-                  <Td>{(page - 1) * per_page + (idx + 1)}</Td>
                   <Td>{student.name}</Td>
                   <Td>{student.matric_no}</Td>
                   <Td>{student.grade}</Td>

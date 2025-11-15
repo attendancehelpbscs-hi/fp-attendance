@@ -63,7 +63,7 @@ export const getSingleCourse = async (req: Request, res: Response, next: NextFun
 
 export const createCourse = async (req: Request, res: Response, next: NextFunction) => {
   // create course
-  const { course_name, course_code, grade, staff_id } = req.body as Pick<Course, 'course_name' | 'course_code' | 'grade' | 'staff_id'>;
+  const { course_name, course_code, grade, staff_id, matric_no } = req.body as Pick<Course, 'course_name' | 'course_code' | 'grade' | 'staff_id'> & { matric_no?: string };
   const user_id = (req.user as JwtPayload).id;
 
   if (!course_code) {
@@ -90,7 +90,7 @@ export const createCourse = async (req: Request, res: Response, next: NextFuncti
         ),
       );
     }
-    const newCourse = { staff_id, course_name, course_code, grade, created_at: new Date() };
+    const newCourse = { staff_id, course_name, course_code, grade, matric_no: matric_no || null, created_at: new Date() };
     const savedCourse = await saveCourseToDb(newCourse);
     return createSuccess(res, 200, 'Course created successfully', { course: savedCourse });
   } catch (err) {

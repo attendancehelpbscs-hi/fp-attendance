@@ -70,42 +70,27 @@ export const getAttendanceReports = async (staff_id: string, filters: Filters) =
       },
     });
 
-    const groupedData: Record<string, { presentStudents: Set<string> }> = {};
-    const gradeSections = new Set<string>();
+    const groupedData: Record<string, { presentStudents: Set<string>, absentStudents: Set<string> }> = {};
 
     studentAttendances.forEach(sa => {
       const dateStr = sa.attendance.date;
       const key = `${dateStr}|${sa.student.grade}|${sa.section}`;
       if (!groupedData[key]) {
-        groupedData[key] = { presentStudents: new Set() };
+        groupedData[key] = { presentStudents: new Set(), absentStudents: new Set() };
       }
-      gradeSections.add(`${sa.student.grade}|${sa.section}`);
       if (sa.time_type === 'IN' && sa.status === 'present') {
         groupedData[key].presentStudents.add(sa.student_id);
       }
+      if (sa.status === 'absent') {
+        groupedData[key].absentStudents.add(sa.student_id);
+      }
     });
-
-    const totalStudentsMap: Record<string, number> = {};
-    for (const gs of gradeSections) {
-      const [grade, section] = gs.split('|');
-      const count = await prisma.student.count({
-        where: {
-          staff_id,
-          grade,
-          courses: {
-            some: { course: { course_code: section } },
-          },
-        },
-      });
-      totalStudentsMap[gs] = count;
-    }
 
     let results = Object.entries(groupedData).map(([key, data]) => {
       const [date, grade, section] = key.split('|');
-      const gs = `${grade}|${section}`;
-      const total = totalStudentsMap[gs] || 0;
       const present = data.presentStudents.size;
-      const absent = total - present;
+      const absent = data.absentStudents.size;
+      const total = present + absent;
       const rate = total > 0 ? (present / total) * 100 : 0;
       return {
         date,
@@ -360,6 +345,9 @@ export const getDashboardStats = async (staff_id: string) => {
     const startDate = sevenDaysAgo.toISOString().split('T')[0];
     const endDate = today.toISOString().split('T')[0];
 
+    // Ensure absent records are created for unmarked students
+    await markAbsentForUnmarkedDays(staff_id, endDate);
+
     const totalStudents = await prisma.student.count({ where: { staff_id } });
     const presentRecords = await prisma.studentAttendance.findMany({
       where: {
@@ -372,7 +360,17 @@ export const getDashboardStats = async (staff_id: string) => {
       distinct: ['student_id']
     });
     const presentToday = presentRecords.length;
-    const attendanceRate = totalStudents > 0 ? ((presentToday / totalStudents) * 100).toFixed(1) : '0.0';
+    const absentRecords = await prisma.studentAttendance.findMany({
+      where: {
+        student: { staff_id },
+        attendance: { date: endDate },
+        status: 'absent'
+      },
+      select: { student_id: true },
+      distinct: ['student_id']
+    });
+    const absentToday = absentRecords.length;
+    const attendanceRate = presentToday + absentToday > 0 ? parseFloat(((presentToday / (presentToday + absentToday)) * 100).toFixed(1)) : 0;
 
     // Get grades
     const gradeRows = await prisma.student.findMany({
@@ -397,13 +395,24 @@ export const getDashboardStats = async (staff_id: string) => {
         distinct: ['student_id']
       });
       const presentStudents = presentRecordsForGrade.length;
-      const attendanceRateForGrade = totalStudentsForGrade > 0 ? parseFloat(((presentStudents / totalStudentsForGrade) * 100).toFixed(1)) : 0;
+      const absentRecordsForGrade = await prisma.studentAttendance.findMany({
+        where: {
+          student: { staff_id, grade },
+          attendance: { date: endDate },
+          status: 'absent'
+        },
+        select: { student_id: true },
+        distinct: ['student_id']
+      });
+      const absentStudents = absentRecordsForGrade.length;
+      const attendanceRateForGrade = presentStudents + absentStudents > 0 ? parseFloat(((presentStudents / (presentStudents + absentStudents)) * 100).toFixed(1)) : 0;
       gradeStatsFormatted.push({
         grade,
         data: [{
           date: endDate,
           totalStudents: totalStudentsForGrade,
           presentStudents,
+          absentStudents,
           attendanceRate: attendanceRateForGrade
         }]
       });
@@ -412,7 +421,8 @@ export const getDashboardStats = async (staff_id: string) => {
     return {
       totalStudents,
       presentToday,
-      attendanceRate: parseFloat(attendanceRate),
+      absentToday,
+      attendanceRate,
       gradeStats: gradeStatsFormatted
     };
   } catch (err) {

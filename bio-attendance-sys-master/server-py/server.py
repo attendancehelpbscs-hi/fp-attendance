@@ -21,22 +21,36 @@ UPLOAD_FOLDER = 'fingerprints'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'BMP', 'bmp'}
 
 def clean_base64(base64_string):
-    """Clean and fix base64 string for proper decoding"""
+    """Clean and fix base64 string for proper decoding - consistent with client-side cleaning"""
     if not base64_string:
         return base64_string
-    
+
     # Remove data URL prefix if present
     if ',' in base64_string:
         base64_string = base64_string.split(',')[1]
-    
+
     # Remove whitespace, newlines, and other non-base64 characters
     base64_string = re.sub(r'[^A-Za-z0-9+/=]', '', base64_string)
-    
+
     # Fix padding - base64 strings must be divisible by 4
     missing_padding = len(base64_string) % 4
     if missing_padding:
         base64_string += '=' * (4 - missing_padding)
-    
+
+    # Validate base64 string
+    try:
+        base64.b64decode(base64_string)
+        logging.debug("Base64 string is valid after cleaning")
+    except Exception as e:
+        logging.warning(f"Base64 string is invalid after cleaning: {str(e)}")
+        # Try to fix common issues
+        # Remove extra padding
+        base64_string = base64_string.rstrip('=')
+        # Re-add correct padding
+        missing_padding = len(base64_string) % 4
+        if missing_padding:
+            base64_string += '=' * (4 - missing_padding)
+
     return base64_string
 
 def get_fingerprint_match_score(fingerprint1_path, fingerprint2_path):
@@ -84,6 +98,77 @@ def get_fingerprint_match_score(fingerprint1_path, fingerprint2_path):
         logging.error(f"Error in get_fingerprint_match_score: {str(e)}")
         return 0.0
 
+def validate_fingerprint_data(fingerprint_data):
+    """Validate fingerprint data and attempt repair if corrupted"""
+    try:
+        # Check if it's a valid PNG by examining the header
+        if len(fingerprint_data) < 8 or fingerprint_data[:8] != b'\x89PNG\r\n\x1a\n':
+            logging.warning("Invalid PNG header, attempting repair")
+            return None
+
+        # Try to use PIL/Pillow for PNG repair if available
+        try:
+            from PIL import Image
+            import io
+
+            # Try to open with PIL which is more forgiving
+            img_buffer = io.BytesIO(fingerprint_data)
+            img = Image.open(img_buffer)
+
+            # Convert to RGB if necessary
+            if img.mode != 'RGB':
+                img = img.convert('RGB')
+
+            # Save back to bytes
+            output_buffer = io.BytesIO()
+            img.save(output_buffer, format='PNG')
+            repaired_data = output_buffer.getvalue()
+            logging.info("Successfully repaired PNG using PIL")
+            return repaired_data
+
+        except ImportError:
+            logging.warning("PIL not available for PNG repair")
+        except Exception as pil_error:
+            logging.warning(f"PIL repair failed: {str(pil_error)}")
+
+        # If PIL fails, try OpenCV repair
+        try:
+            nparr = np.frombuffer(fingerprint_data, np.uint8)
+
+            # Try different decoding options
+            img = None
+            for flag in [cv2.IMREAD_UNCHANGED, cv2.IMREAD_ANYDEPTH | cv2.IMREAD_ANYCOLOR, cv2.IMREAD_GRAYSCALE, cv2.IMREAD_COLOR]:
+                img = cv2.imdecode(nparr, flag)
+                if img is not None:
+                    logging.info(f"Successfully decoded with OpenCV flag: {flag}")
+                    break
+
+            if img is not None:
+                # Ensure image has proper dimensions and channels
+                if len(img.shape) == 2:
+                    img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+                elif img.shape[2] == 4:
+                    img = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
+
+                # Convert to JPEG first then back to PNG
+                success, jpeg_data = cv2.imencode('.jpg', img)
+                if success:
+                    img_jpeg = cv2.imdecode(jpeg_data, cv2.IMREAD_COLOR)
+                    success_png, png_data = cv2.imencode('.png', img_jpeg)
+                    if success_png:
+                        logging.info("Successfully repaired PNG by converting through JPEG")
+                        return png_data.tobytes()
+
+        except Exception as cv_error:
+            logging.warning(f"OpenCV repair failed: {str(cv_error)}")
+
+        # Return original data if repair failed
+        return fingerprint_data
+
+    except Exception as e:
+        logging.error(f"PNG validation/repair failed: {str(e)}")
+        return None
+
 def identify_fingerprint(scanned_fingerprint_path, students_fingerprints):
     """
     Identify fingerprint by comparing against all students' fingerprints
@@ -101,7 +186,14 @@ def identify_fingerprint(scanned_fingerprint_path, students_fingerprints):
             # Clean and decode base64 fingerprint to image
             fingerprint_str = clean_base64(student['fingerprint'])
             fingerprint_data = base64.b64decode(fingerprint_str)
-            nparr = np.frombuffer(fingerprint_data, np.uint8)
+
+            # Validate and repair fingerprint data if corrupted
+            validated_data = validate_fingerprint_data(fingerprint_data)
+            if validated_data is None:
+                logging.warning(f"Failed to validate/repair fingerprint for student {student['id']}")
+                continue
+
+            nparr = np.frombuffer(validated_data, np.uint8)
             stored_fingerprint = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
             if stored_fingerprint is None:
@@ -128,13 +220,13 @@ def identify_fingerprint(scanned_fingerprint_path, students_fingerprints):
                 logging.info(f"New best match: student {student['id']} with score {match_score:.2f}%")
 
         except Exception as e:
-            logging.error(f"Error processing student {student['id']}: {e}")
+            logging.error(f"Error processing student {student['id']}: {str(e)}")
             continue
 
     logging.info(f"Identification complete. Best match: {best_match}")
 
-    # Only return a match if confidence is above 1%
-    if best_match['confidence'] < 1:
+    # Only return a match if confidence is above 5% (aligned with client threshold)
+    if best_match['confidence'] < 5:
         logging.info("Confidence too low, returning no match")
         return {
             'student_id': None,
@@ -363,8 +455,8 @@ def identify_staff_fingerprint(scanned_fingerprint_path, staff_fingerprints):
 
     logging.info(f"Staff identification complete. Best match: {best_match}")
 
-    # Only return a match if confidence is above 10%
-    if best_match['confidence'] < 10:
+    # Only return a match if confidence is above 5% (aligned with client threshold)
+    if best_match['confidence'] < 5:
         logging.info("Confidence too low, returning no match")
         return {
             'staff_id': None,

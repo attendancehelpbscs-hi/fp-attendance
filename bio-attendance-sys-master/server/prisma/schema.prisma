@@ -62,6 +62,7 @@ model Course {
   course_name  String
   course_code  String
   grade        String
+  matric_no    String?
   created_at   DateTime
   students      StudentCourse[]
   staff        Staff           @relation(fields: [staff_id], references: [id])

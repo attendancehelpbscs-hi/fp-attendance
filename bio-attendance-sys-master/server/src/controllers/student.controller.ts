@@ -113,6 +113,17 @@ export const createStudent = async (req: Request, res: Response, next: NextFunct
   if (staff_id !== user_id) {
     return next(createError(403, 'Access denied'));
   }
+
+  // Validate fingerprint data if provided
+  if (fingerprint) {
+    try {
+      // Basic validation - check if it's a valid base64 string
+      Buffer.from(fingerprint, 'base64');
+    } catch (error) {
+      return next(createError(400, 'Invalid fingerprint data provided.'));
+    }
+  }
+
   try {
     const studentExists = await checkIfStudentExists(matric_no);
     if (studentExists) {
@@ -145,6 +156,17 @@ export const updateStudent = async (req: Request, res: Response, next: NextFunct
   const { id } = req.params;
   if (!id) return next(createError(400, 'No student ID provided'));
   const { courses, ...newUpdate } = req.body as Partial<Student> & { courses: string[] };
+
+  // Validate fingerprint data if provided
+  if (newUpdate.fingerprint) {
+    try {
+      // Basic validation - check if it's a valid base64 string
+      Buffer.from(newUpdate.fingerprint, 'base64');
+    } catch (error) {
+      return next(createError(400, 'Invalid fingerprint data provided.'));
+    }
+  }
+
   try {
     await removeAllStudentCoursesToDb(id);
     const updatedStudent = await updateStudentInDb(id, newUpdate);

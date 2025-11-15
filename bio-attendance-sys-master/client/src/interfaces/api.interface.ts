@@ -36,6 +36,7 @@ export interface Course {
   course_code: string;
   grade: string;
   staff_id: string;
+  matric_no?: string;
   created_at: string;
 }
 
@@ -213,6 +214,7 @@ export interface GetDashboardStatsResult {
   data: {
     totalStudents: number;
     presentToday: number;
+    absentToday: number;
     attendanceRate: number;
     gradeStats: {
       grade: string;
@@ -220,6 +222,7 @@ export interface GetDashboardStatsResult {
         date: string;
         totalStudents: number;
         presentStudents: number;
+        absentStudents: number;
         attendanceRate: number;
       }[];
     }[];
@@ -309,6 +312,7 @@ export interface AddCourseInput {
   course_code: string;
   grade: string;
   staff_id: string;
+  matric_no?: string;
 }
 
 export interface AddCourseResult {
@@ -332,6 +336,7 @@ export interface UpdateCourseInput {
   course_name?: string;
   course_code?: string;
   grade?: string;
+  matric_no?: string;
   url: string;
 }
 

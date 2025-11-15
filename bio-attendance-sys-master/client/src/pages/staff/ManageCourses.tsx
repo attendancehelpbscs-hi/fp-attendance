@@ -113,7 +113,8 @@ const ManageCourses: FC = () => {
   // Filter courses based on search term
   const filteredCourses = data?.data?.courses?.filter((course: Course) =>
     course.course_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    course.course_code.toLowerCase().includes(searchTerm.toLowerCase())
+    course.course_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (course.matric_no && course.matric_no.toLowerCase().includes(searchTerm.toLowerCase()))
   ) || [];
 
   return (
@@ -152,7 +153,7 @@ const ManageCourses: FC = () => {
             <SearchIcon color="gray.300" />
           </InputLeftElement>
           <Input
-            placeholder="Search by teacher name or section"
+            placeholder="Search by teacher name, section, or ID"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -180,8 +181,8 @@ const ManageCourses: FC = () => {
                     onChange={(e) => handleSelectAll(e.target.checked)}
                   />
                 </Th>
-                <Th>S/N</Th>
                 <Th>Teacher Name</Th>
+                <Th>Teacher ID</Th>
                 <Th>Section</Th>
                 <Th>Action</Th>
               </Tr>
@@ -195,8 +196,8 @@ const ManageCourses: FC = () => {
                       onChange={(e) => handleSelectCourse(course.id, e.target.checked)}
                     />
                   </Td>
-                  <Td>{(page - 1) * per_page + (idx + 1)}</Td>
                   <Td>{course.course_name}</Td>
+                  <Td>{course.matric_no || 'N/A'}</Td>
                   <Td>{course.course_code}</Td>
                   <Td>
                     <Flex justifyContent="flex-start" gap={4} alignItems="center">

@@ -439,10 +439,18 @@ const Reports: FC = () => {
       return acc;
     }, {} as Record<string, any>);
 
-    return Object.values(groups).map((item: any) => ({
-      ...item,
-      color: gradeColors[item.grade] || '#38B2AC', // Default to teal if grade not found
-    })).sort((a: any, b: any) => a.name.localeCompare(b.name)); // Sort alphabetically
+    return Object.values(groups).map((item: any) => {
+      const total = item.present + item.absent;
+      const presentPercentage = total > 0 ? (item.present / total) * 100 : 0;
+      const absentPercentage = total > 0 ? (item.absent / total) * 100 : 0;
+      return {
+        ...item,
+        presentPercentage: Math.round(presentPercentage * 10) / 10, // Round to 1 decimal
+        absentPercentage: Math.round(absentPercentage * 10) / 10,
+        total: total,
+        color: gradeColors[item.grade] || '#38B2AC', // Default to teal if grade not found
+      };
+    }).sort((a: any, b: any) => a.name.localeCompare(b.name)); // Sort alphabetically
   }, [filteredAttendanceData]);
 
   // Paginated grade-section data
@@ -860,8 +868,19 @@ const Reports: FC = () => {
                       <BarChart data={gradeSectionData}>
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="name" />
-                        <YAxis domain={[0, 'dataMax']} tickCount={5} tickFormatter={(value) => Math.round(value).toString()} />
-                        <Tooltip formatter={(value: any, name: string) => [`${Math.round(value)}`, name]} />
+                        <YAxis domain={[0, 800]} ticks={[0, 50, 100, 200, 300, 400, 500, 600, 700, 800]} tickFormatter={(value) => Math.round(value).toString()} />
+                        <Tooltip
+                          formatter={(value: any, name: string) => {
+                            if (name === 'Present') {
+                              const entry = gradeSectionData.find((d: any) => d.present === value);
+                              return [`${Math.round(value)} (${entry?.presentPercentage || 0}%)`, name];
+                            } else if (name === 'Absent') {
+                              const entry = gradeSectionData.find((d: any) => d.absent === value);
+                              return [`${Math.round(value)} (${entry?.absentPercentage || 0}%)`, name];
+                            }
+                            return [`${Math.round(value)}`, name];
+                          }}
+                        />
                         <Legend />
                         <Bar dataKey="present" name="Present" fill="#38B2AC">
                           {gradeSectionData.map((entry, index) => (
@@ -876,7 +895,7 @@ const Reports: FC = () => {
                       </BarChart>
                     </ResponsiveContainer>
                     <Text fontSize="sm" color="gray.600" marginTop="0.5rem">
-                      This chart shows the comparison of present and absent students for each grade and section combination. Green bars represent present students, red bars represent absent students. This provides a clear visual comparison of attendance patterns across different classes.
+                      This chart shows the comparison of present and absent students for each grade and section combination. Green bars represent present students, red bars represent absent students. Hover over bars to see percentages. This provides a clear visual comparison of attendance patterns across different classes.
                     </Text>
                   </Box>
                 </Card>
@@ -1096,7 +1115,7 @@ const Reports: FC = () => {
                     <LineChart data={attendanceTrendData}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="date" tickFormatter={(value) => new Date(value).toLocaleDateString()} />
-                      <YAxis tickFormatter={(value) => Math.round(value).toString()} />
+                      <YAxis domain={[0, 800]} ticks={[0, 50, 100, 200, 300, 400, 500, 600, 700, 800]} tickFormatter={(value) => Math.round(value).toString()} />
                       <Tooltip
                         labelFormatter={(value) => `Date: ${new Date(value).toLocaleDateString()}`}
                         formatter={(value: any) => [`${Math.round(value)}`, 'Present']}
@@ -1119,7 +1138,7 @@ const Reports: FC = () => {
                     <BarChart data={weeklyAttendanceData}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="day" />
-                      <YAxis tickFormatter={(value) => Math.round(value).toString()} />
+                      <YAxis domain={[0, 800]} ticks={[0, 50, 100, 200, 300, 400, 500, 600, 700, 800]} tickFormatter={(value) => Math.round(value).toString()} />
                       <Tooltip
                         formatter={(value: any, name: string) => [
                           name === 'averagePresent' ? `${Math.round(value)} students` : Math.round(value),
@@ -1200,7 +1219,7 @@ const Reports: FC = () => {
                     <BarChart data={paginatedGradeSectionData}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="name" />
-                      <YAxis tickFormatter={(value) => Math.round(value).toString()} />
+                      <YAxis domain={[0, 800]} ticks={[0, 50, 100, 200, 300, 400, 500, 600, 700, 800]} tickFormatter={(value) => Math.round(value).toString()} />
                       <Tooltip formatter={(value: any) => [`${Math.round(value)}`, 'Present']} />
                       <Legend />
                       <Bar dataKey="present" name="Present">
@@ -1224,7 +1243,7 @@ const Reports: FC = () => {
                     <BarChart data={gradeSectionData}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="name" />
-                      <YAxis tickFormatter={(value) => Math.round(value).toString()} />
+                      <YAxis domain={[0, 800]} ticks={[0, 50, 100, 200, 300, 400, 500, 600, 700, 800]} tickFormatter={(value) => Math.round(value).toString()} />
                       <Tooltip formatter={(value: any) => [`${Math.round(value)}`, 'Present']} />
                       <Legend />
                       <Bar dataKey="present" name="Present">
@@ -1271,7 +1290,7 @@ const Reports: FC = () => {
                           height={80}
                           interval={0}
                         />
-                        <YAxis tickFormatter={(value) => Math.round(value).toString()} />
+                        <YAxis domain={[0, 800]} ticks={[0, 50, 100, 200, 300, 400, 500, 600, 700, 800]} tickFormatter={(value) => Math.round(value).toString()} />
                         <Tooltip
                           formatter={(value: any) => [`${Math.round(value)} check-ins`, 'Count']}
                           labelFormatter={(label) => `Time: ${label}`}

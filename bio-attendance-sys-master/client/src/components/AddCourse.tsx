@@ -41,6 +41,7 @@ const AddCourse: FC<{
     course_name: '',
     course_code: '',
     grade: '',
+    matric_no: '',
   } as AddCourseInput);
   const [, forceUpdate] = useState<boolean>(false);
   const { isOpen: isConfirmOpen, onOpen: onConfirmOpen, onClose: onConfirmClose } = useDisclosure();
@@ -50,7 +51,7 @@ const AddCourse: FC<{
       queryClient.invalidateQueries({ queryKey: ['courses'] });
       closeDrawer();
       toast.success('Course added successfully');
-      setCourseInput((prev: AddCourseInput) => ({ ...prev, course_name: '', course_code: '', grade: '' }));
+      setCourseInput((prev: AddCourseInput) => ({ ...prev, course_name: '', course_code: '', grade: '', matric_no: '' }));
     },
     onError: (err) => {
       toast.error((err.response?.data?.message as string) ?? 'An error occured');
@@ -62,7 +63,7 @@ const AddCourse: FC<{
       setActiveCourse(null);
       closeDrawer();
       toast.success('Course updated successfully');
-      setCourseInput((prev: AddCourseInput) => ({ ...prev, course_name: '', course_code: '', grade: '' }));
+      setCourseInput((prev: AddCourseInput) => ({ ...prev, course_name: '', course_code: '', grade: '', matric_no: '' }));
     },
     onError: (err) => {
       toast.error((err.response?.data?.message as string) ?? 'An error occured');
@@ -75,6 +76,7 @@ const AddCourse: FC<{
         course_name: activeCourse.course_name,
         course_code: activeCourse.course_code,
         grade: activeCourse.grade,
+        matric_no: activeCourse.matric_no || '',
       }));
     }
   }, [isOpen, activeCourse]);
@@ -90,6 +92,11 @@ const AddCourse: FC<{
 
     // Auto-capitalize the course_name and course_code fields (ALL CAPS)
     if (name === 'course_name' || name === 'course_code') {
+      processedValue = value.toUpperCase();
+    }
+
+    // Auto-capitalize matric_no field (ALL CAPS)
+    if (name === 'matric_no') {
       processedValue = value.toUpperCase();
     }
 
@@ -123,6 +130,7 @@ const AddCourse: FC<{
         course_name: courseInput.course_name,
         course_code: courseInput.course_code,
         grade: courseInput.grade,
+        matric_no: courseInput.matric_no,
       });
       onConfirmClose();
     }
@@ -131,7 +139,7 @@ const AddCourse: FC<{
   return (
     <Drawer
       onClose={() => {
-        setCourseInput((prev: AddCourseInput) => ({ ...prev, course_name: '', course_code: '', grade: '' }));
+        setCourseInput((prev: AddCourseInput) => ({ ...prev, course_name: '', course_code: '', grade: '', matric_no: '' }));
         onClose();
       }}
       isOpen={isOpen}
@@ -174,6 +182,21 @@ const AddCourse: FC<{
               )}
             </FormControl>
             <FormControl marginTop="1rem">
+              <FormLabel>Teacher ID Number</FormLabel>
+              <Input
+                type="text"
+                name="matric_no"
+                required
+                value={courseInput.matric_no}
+                onChange={handleInputChange}
+              />
+              {simpleValidator.current.message(
+                'teacher id number',
+                courseInput.matric_no,
+                'required|string|between:2,128',
+              )}
+            </FormControl>
+            <FormControl marginTop="1rem">
               <FormLabel>Grade</FormLabel>
               <Select
                 name="grade"
@@ -210,7 +233,7 @@ const AddCourse: FC<{
                 ? 'Adding course...'
                 : activeCourse
                 ? 'Update'
-                : 'Add course'}
+                : 'Add section'}
             </Button>
           </form>
         </DrawerBody>

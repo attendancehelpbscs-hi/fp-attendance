@@ -35,6 +35,7 @@ import { Base64 } from '@digitalpersona/core';
 import { getFingerprintImgString } from './AddStudent';
 import axios from 'axios';
 import constants from '../config/constants.config';
+import { useQueryClient } from '@tanstack/react-query';
 
 const MarkAttendance: FC<{
   isOpen: boolean;
@@ -44,6 +45,7 @@ const MarkAttendance: FC<{
   activeAttendance: Attendance | null;
 }> = ({ isOpen, onClose, size, closeDrawer, activeAttendance }) => {
   const staffInfo = useStore.use.staffInfo();
+  const queryClient = useQueryClient();
   const [markInput, setMarkInput] = useState<MarkAttendanceInput>({
     student_id: '',
     attendance_id: '',
@@ -73,6 +75,10 @@ const MarkAttendance: FC<{
 
   const { isLoading, mutate: markAttendance } = useMarkAttendance({
     onSuccess: () => {
+      // Invalidate dashboard and reports queries to refresh the stats
+      queryClient.invalidateQueries({ queryKey: [`/api/reports/${staffInfo?.id}/dashboard`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/reports/${staffInfo?.id}`] });
+
       if (continuousMode) {
         toast.success('Student marked successfully - Ready for next scan');
         defaultMarkInput();
