@@ -4,6 +4,8 @@ import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import WithMainLayout from './layouts/WithMainLayout';
 import Home from './pages/Home';
 import NotFound from './pages/NotFound';
+import PrivacyPolicy from './pages/PrivacyPolicy';
+import About from './pages/About';
 import Login from './pages/staff/Login';
 import ForgotPassword from './pages/staff/ForgotPassword';
 import ResetPassword from './pages/staff/ResetPassword';
@@ -157,6 +159,14 @@ function App() {
           </AuthLayout>
         </WithMainLayout>
       ),
+    },
+    {
+      path: '/privacy-policy',
+      element: <WithMainLayout><PrivacyPolicy /></WithMainLayout>,
+    },
+    {
+      path: '/about',
+      element: <WithMainLayout><About /></WithMainLayout>,
     },
   ]);
 

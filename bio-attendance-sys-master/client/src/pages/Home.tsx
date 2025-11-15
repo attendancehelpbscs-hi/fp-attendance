@@ -8,6 +8,7 @@ import { FaUsers, FaCheck } from 'react-icons/fa6';
 import { MdCancel } from 'react-icons/md';
 
 import { useGetDashboardStats, useGetReports } from '../api/atttendance.api';
+import { useGetAuditLogs } from '../api/audit.api';
 import useStore from '../store/store';
 
 const Home: FC = () => {
@@ -33,6 +34,11 @@ const Home: FC = () => {
       dateRange: '7days',
     }
   );
+
+  // Fetch recent audit logs
+  const { data: auditData } = useGetAuditLogs(1, 3, {
+    enabled: isAuthenticated && !!staffInfo?.id,
+  });
 
   // Use real data if available, otherwise fallback to mock data
   const stats = dashboardData?.data || {
@@ -150,7 +156,7 @@ const Home: FC = () => {
         position="fixed"
         bottom="20px"
         right="20px"
-        maxW="350px"
+        maxW="250px"
         zIndex="10"
         boxShadow="lg"
         borderRadius="md"
@@ -163,6 +169,49 @@ const Home: FC = () => {
           {scannerConnected ? " - Ready for attendance marking." : " - Connect scanner for full functionality."}
         </AlertDescription>
       </Alert>
+
+      {/* Recent Activity & Audit Logs Floating Widget */}
+      {isAuthenticated && auditData?.data?.logs && (
+        <Box
+          position="fixed"
+          bottom="20px"
+          left="20px"
+          maxW="280px"
+          zIndex="10"
+          boxShadow="lg"
+          borderRadius="md"
+          bg="white"
+          p={3}
+          border="1px solid"
+          borderColor="gray.200"
+        >
+          <Text fontSize="sm" fontWeight="bold" mb={2}>
+            Recent Activity
+          </Text>
+          <List spacing={1}>
+            {auditData.data.logs.slice(0, 2).map((log: any, index: number) => (
+              <ListItem key={index} fontSize="xs">
+                <ListIcon as={FaCheck} color="green.500" />
+                <Text as="span" fontWeight="medium">
+                  {log.staff?.name || 'Unknown'}:
+                </Text>{' '}
+                {log.action}
+                {log.details && (
+                  <Text as="span" color="gray.600" ml={1}>
+                    ({log.details})
+                  </Text>
+                )}
+                <Text as="span" color="gray.500" ml={1}>
+                  {new Date(log.created_at).toLocaleString()}
+                </Text>
+              </ListItem>
+            ))}
+          </List>
+          <Text fontSize="xs" color="gray.600" mt={2}>
+            For full audit logs or to download, go to Settings → Audit Logs.
+          </Text>
+        </Box>
+      )}
 
       {/* Dashboard Stats - Only show if authenticated */}
       {isAuthenticated && staffInfo && (

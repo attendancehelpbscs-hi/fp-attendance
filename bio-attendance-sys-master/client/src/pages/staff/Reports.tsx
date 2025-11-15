@@ -408,10 +408,20 @@ const Reports: FC = () => {
   // Weekly attendance pattern data
   const weeklyAttendanceData = useMemo(() => {
     const data = filteredAttendanceData;
-    const dayGroups = data.reduce((acc: Record<string, any>, item: any) => {
-      const dayOfWeek = new Date(item.date).toLocaleDateString('en-US', { weekday: 'long' });
-      if (!acc[dayOfWeek]) acc[dayOfWeek] = { day: dayOfWeek, present: 0, count: 0 };
-      acc[dayOfWeek].present += item.present;
+
+    // First, aggregate by date to get total present per day
+    const dailyTotals = data.reduce((acc: Record<string, number>, item: any) => {
+      const date = item.date;
+      if (!acc[date]) acc[date] = 0;
+      acc[date] += item.present;
+      return acc;
+    }, {} as Record<string, number>);
+
+    // Then, group by day of week and calculate averages
+    const dayGroups = Object.entries(dailyTotals).reduce((acc: Record<string, any>, [date, totalPresent]) => {
+      const dayOfWeek = new Date(date).toLocaleDateString('en-US', { weekday: 'long' });
+      if (!acc[dayOfWeek]) acc[dayOfWeek] = { total: 0, count: 0 };
+      acc[dayOfWeek].total += totalPresent;
       acc[dayOfWeek].count += 1;
       return acc;
     }, {} as Record<string, any>);
@@ -422,8 +432,8 @@ const Reports: FC = () => {
       const dayData = dayGroups[day];
       return {
         day,
-        averagePresent: dayData ? Math.round(dayData.present / dayData.count) : 0,
-        totalPresent: dayData ? dayData.present : 0,
+        averagePresent: dayData ? Math.round(dayData.total / dayData.count) : 0,
+        totalPresent: dayData ? dayData.total : 0,
         occurrences: dayData ? dayData.count : 0
       };
     });
@@ -864,38 +874,42 @@ const Reports: FC = () => {
                 <Card>
                   <Box padding="1rem">
                     <Heading size="md" marginBottom="1rem">Attendance Percentage by Grade</Heading>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <BarChart data={gradeSectionData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" />
-                        <YAxis domain={[0, 800]} ticks={[0, 50, 100, 200, 300, 400, 500, 600, 700, 800]} tickFormatter={(value) => Math.round(value).toString()} />
-                        <Tooltip
-                          formatter={(value: any, name: string) => {
-                            if (name === 'Present') {
-                              const entry = gradeSectionData.find((d: any) => d.present === value);
-                              return [`${Math.round(value)} (${entry?.presentPercentage || 0}%)`, name];
-                            } else if (name === 'Absent') {
-                              const entry = gradeSectionData.find((d: any) => d.absent === value);
-                              return [`${Math.round(value)} (${entry?.absentPercentage || 0}%)`, name];
-                            }
-                            return [`${Math.round(value)}`, name];
-                          }}
-                        />
-                        <Legend />
-                        <Bar dataKey="present" name="Present" fill="#38B2AC">
-                          {gradeSectionData.map((entry, index) => (
-                            <Cell key={`cell-present-${index}`} fill="#38B2AC" />
-                          ))}
-                        </Bar>
-                        <Bar dataKey="absent" name="Absent" fill="#E53E3E">
-                          {gradeSectionData.map((entry, index) => (
-                            <Cell key={`cell-absent-${index}`} fill="#E53E3E" />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
+                    <Box overflowX="auto" width="100%" maxWidth="100%" sx={{ '&::-webkit-scrollbar': { height: '8px' }, '&::-webkit-scrollbar-track': { background: '#f1f1f1' }, '&::-webkit-scrollbar-thumb': { background: '#888', borderRadius: '4px' }, '&::-webkit-scrollbar-thumb:hover': { background: '#555' } }}>
+                      <Box minWidth={Math.max(600, gradeSectionData.length * 80)} width="100%">
+                        <ResponsiveContainer width={Math.max(600, gradeSectionData.length * 80)} height={300}>
+                          <BarChart data={gradeSectionData}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="name" />
+                            <YAxis domain={[0, 800]} ticks={[0, 50, 100, 200, 300, 400, 500, 600, 700, 800]} tickFormatter={(value) => Math.round(value).toString()} />
+                            <Tooltip
+                              formatter={(value: any, name: string) => {
+                                if (name === 'Present') {
+                                  const entry = gradeSectionData.find((d: any) => d.present === value);
+                                  return [`${Math.round(value)} (${entry?.presentPercentage || 0}%)`, name];
+                                } else if (name === 'Absent') {
+                                  const entry = gradeSectionData.find((d: any) => d.absent === value);
+                                  return [`${Math.round(value)} (${entry?.absentPercentage || 0}%)`, name];
+                                }
+                                return [`${Math.round(value)}`, name];
+                              }}
+                            />
+                            <Legend />
+                            <Bar dataKey="present" name="Present" fill="#38B2AC">
+                              {gradeSectionData.map((entry, index) => (
+                                <Cell key={`cell-present-${index}`} fill="#38B2AC" />
+                              ))}
+                            </Bar>
+                            <Bar dataKey="absent" name="Absent" fill="#E53E3E">
+                              {gradeSectionData.map((entry, index) => (
+                                <Cell key={`cell-absent-${index}`} fill="#E53E3E" />
+                              ))}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </Box>
+                    </Box>
                     <Text fontSize="sm" color="gray.600" marginTop="0.5rem">
-                      This chart shows the comparison of present and absent students for each grade and section combination. Green bars represent present students, red bars represent absent students. Hover over bars to see percentages. This provides a clear visual comparison of attendance patterns across different classes.
+                      This chart shows the comparison of present and absent students for each grade and section combination. Green bars represent present students, red bars represent absent students. Hover over bars to see percentages. This provides a clear visual comparison of attendance patterns across different classes. Scroll horizontally if there are many sections to view all data.
                     </Text>
                   </Box>
                 </Card>
@@ -1111,21 +1125,25 @@ const Reports: FC = () => {
               <Card>
                 <Box padding="1rem">
                   <Heading size="md" marginBottom="1rem">Attendance Trend Over Time</Heading>
-                  <ResponsiveContainer width="100%" height={400}>
-                    <LineChart data={attendanceTrendData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="date" tickFormatter={(value) => new Date(value).toLocaleDateString()} />
-                      <YAxis domain={[0, 800]} ticks={[0, 50, 100, 200, 300, 400, 500, 600, 700, 800]} tickFormatter={(value) => Math.round(value).toString()} />
-                      <Tooltip
-                        labelFormatter={(value) => `Date: ${new Date(value).toLocaleDateString()}`}
-                        formatter={(value: any) => [`${Math.round(value)}`, 'Present']}
-                      />
-                      <Legend />
-                      <Line type="monotone" dataKey="present" stroke="#38B2AC" name="Present" />
-                    </LineChart>
-                  </ResponsiveContainer>
+                  <Box overflowX="auto" width="100%" maxWidth="100%" sx={{ '&::-webkit-scrollbar': { height: '8px' }, '&::-webkit-scrollbar-track': { background: '#f1f1f1' }, '&::-webkit-scrollbar-thumb': { background: '#888', borderRadius: '4px' }, '&::-webkit-scrollbar-thumb:hover': { background: '#555' } }}>
+                    <Box minWidth={Math.max(600, attendanceTrendData.length * 60)} width="100%">
+                        <ResponsiveContainer width={Math.max(600, attendanceTrendData.length * 60)} height={400}>
+                        <LineChart data={attendanceTrendData}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="date" tickFormatter={(value) => new Date(value).toLocaleDateString()} />
+                          <YAxis domain={[0, 800]} ticks={[0, 50, 100, 200, 300, 400, 500, 600, 700, 800]} tickFormatter={(value) => Math.round(value).toString()} />
+                          <Tooltip
+                            labelFormatter={(value) => `Date: ${new Date(value).toLocaleDateString()}`}
+                            formatter={(value: any) => [`${Math.round(value)}`, 'Present']}
+                          />
+                          <Legend />
+                          <Line type="monotone" dataKey="present" stroke="#38B2AC" name="Present" />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </Box>
+                  </Box>
                   <Text fontSize="sm" color="gray.600" marginTop="0.5rem">
-                    This line chart shows the total number of students who checked in as present each day. Since the system only tracks successful biometric check-ins, higher points indicate more students attended that day. Use this to spot attendance patterns, busy days, or unusual drops in participation.
+                    This line chart shows the total number of students who checked in as present each day. Since the system only tracks successful biometric check-ins, higher points indicate more students attended that day. Use this to spot attendance patterns, busy days, or unusual drops in participation. Scroll horizontally if there are many data points to view all trends.
                   </Text>
                 </Box>
               </Card>
@@ -1215,20 +1233,24 @@ const Reports: FC = () => {
                     )}
                   </Flex>
 
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={paginatedGradeSectionData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" />
-                      <YAxis domain={[0, 800]} ticks={[0, 50, 100, 200, 300, 400, 500, 600, 700, 800]} tickFormatter={(value) => Math.round(value).toString()} />
-                      <Tooltip formatter={(value: any) => [`${Math.round(value)}`, 'Present']} />
-                      <Legend />
-                      <Bar dataKey="present" name="Present">
-                        {paginatedGradeSectionData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
+                  <Box overflowX="auto" width="100%" maxWidth="100%" sx={{ '&::-webkit-scrollbar': { height: '8px' }, '&::-webkit-scrollbar-track': { background: '#f1f1f1' }, '&::-webkit-scrollbar-thumb': { background: '#888', borderRadius: '4px' }, '&::-webkit-scrollbar-thumb:hover': { background: '#555' } }}>
+                    <Box minWidth={Math.max(600, paginatedGradeSectionData.length * 80)} width="100%">
+                        <ResponsiveContainer width={Math.max(600, paginatedGradeSectionData.length * 80)} height={300}>
+                        <BarChart data={paginatedGradeSectionData}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="name" />
+                          <YAxis domain={[0, 800]} ticks={[0, 50, 100, 200, 300, 400, 500, 600, 700, 800]} tickFormatter={(value) => Math.round(value).toString()} />
+                          <Tooltip formatter={(value: any) => [`${Math.round(value)}`, 'Present']} />
+                          <Legend />
+                          <Bar dataKey="present" name="Present">
+                            {paginatedGradeSectionData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.color} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </Box>
+                  </Box>
                   <Text fontSize="sm" color="gray.600" marginTop="0.5rem">
                     This bar chart compares attendance across different grade and section combinations. Each bar represents a specific class group, with colors indicating different grades. Use pagination controls to view all sections.
                   </Text>
@@ -1239,22 +1261,26 @@ const Reports: FC = () => {
               <Card>
                 <Box padding="1rem">
                   <Heading size="md" marginBottom="1rem">Grade Performance Comparison</Heading>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={gradeSectionData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" />
-                      <YAxis domain={[0, 800]} ticks={[0, 50, 100, 200, 300, 400, 500, 600, 700, 800]} tickFormatter={(value) => Math.round(value).toString()} />
-                      <Tooltip formatter={(value: any) => [`${Math.round(value)}`, 'Present']} />
-                      <Legend />
-                      <Bar dataKey="present" name="Present">
-                        {gradeSectionData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
+                  <Box overflowX="auto" width="100%" maxWidth="100%" sx={{ '&::-webkit-scrollbar': { height: '8px' }, '&::-webkit-scrollbar-track': { background: '#f1f1f1' }, '&::-webkit-scrollbar-thumb': { background: '#888', borderRadius: '4px' }, '&::-webkit-scrollbar-thumb:hover': { background: '#555' } }}>
+                    <Box minWidth={Math.max(600, gradeSectionData.length * 80)} width="100%">
+                      <ResponsiveContainer width={Math.max(600, gradeSectionData.length * 80)} height={300}>
+                        <BarChart data={gradeSectionData}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="name" />
+                          <YAxis domain={[0, 800]} ticks={[0, 50, 100, 200, 300, 400, 500, 600, 700, 800]} tickFormatter={(value) => Math.round(value).toString()} />
+                          <Tooltip formatter={(value: any) => [`${Math.round(value)}`, 'Present']} />
+                          <Legend />
+                          <Bar dataKey="present" name="Present">
+                            {gradeSectionData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.color} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </Box>
+                  </Box>
                   <Text fontSize="sm" color="gray.600" marginTop="0.5rem">
-                    This bar chart shows the number of present students for each grade-section combination. Higher bars indicate more students attended in that specific group.
+                    This bar chart shows the number of present students for each grade-section combination. Higher bars indicate more students attended in that specific group. Scroll horizontally if there are many sections to view all data.
                   </Text>
                 </Box>
               </Card>
