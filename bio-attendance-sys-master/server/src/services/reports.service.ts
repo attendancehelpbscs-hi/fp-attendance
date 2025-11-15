@@ -378,7 +378,7 @@ export const getDashboardStats = async (staff_id: string) => {
       select: { grade: true },
       distinct: ['grade']
     });
-    const grades = gradeRows.map(g => g.grade);
+    const grades = gradeRows.map(g => g.grade).sort((a, b) => parseInt(a) - parseInt(b));
 
     // Build grade stats for today
     const gradeStatsFormatted = [];

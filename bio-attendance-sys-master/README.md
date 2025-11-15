@@ -1,6 +1,6 @@
-# FP Attendance System
+# The Trackers Attendance System
 
-The FP Attendance System is a comprehensive solution designed to streamline time and attendance tracking in educational institutions. It empowers staff and teachers to efficiently organize sections, manage student profiles, and record attendance with unparalleled accuracy using biometric fingerprint technology. Leveraging advanced computer vision techniques powered by Python and OpenCV, along with a robust Flask-based matching server and a full MERN stack architecture, this system ensures secure, reliable, and user-friendly operations. Inspired by Gideon Idoko's original repository, it provides a modern approach to attendance management, reducing manual errors and enhancing productivity in academic environments.
+The Trackers Attendance System is a comprehensive biometric attendance management solution designed for educational institutions. It empowers staff and teachers to efficiently manage student profiles, courses, and attendance records with high accuracy using advanced fingerprint technology. Built with modern web technologies and powered by computer vision techniques, this system provides secure, reliable, and user-friendly operations for streamlined attendance tracking.
 
 **NB**: This system has been built and tested with The DigitalPersona U.are.U 4500 scanner only. It only supports Windows OS for now.
 
@@ -8,91 +8,284 @@ Download and install the client for windows here: [HID DigitalPersona Client](ht
 
 ## Features
 
-- **Student Management**: Add, edit, and manage student profiles with biometric data.
-- **Section Management**: Organize and assign sections to students.
-- **Biometric Attendance Marking**: Use fingerprint scanning for secure and accurate attendance tracking.
-- **Manual Attendance Marking**: Option to mark attendance manually if needed.
-- **Reports and Analytics**: Generate detailed reports on attendance, student performance, and audit logs.
-- **User Authentication**: Secure login for staff and administrators.
-- **Audit Logging**: Track all system activities for compliance and security.
+### Core Features
+- **Student Management**: Comprehensive student profile management with biometric enrollment, grades, and course assignments
+- **Course Management**: Create and manage courses with matric numbers and grade classifications
+- **Biometric Attendance Marking**: Secure fingerprint-based attendance tracking with high accuracy
+- **Manual Attendance Marking**: Alternative manual attendance marking when biometric scanning is unavailable
+- **Time Tracking**: IN/OUT time recording with configurable grace periods and late thresholds
+- **Attendance Kiosk**: Dedicated kiosk mode for streamlined attendance marking
+
+### Staff Management
+- **Staff Profiles**: Complete staff profile management with profile pictures and biometric login
+- **Authentication**: Secure login with password and optional biometric authentication
+- **Password Recovery**: Forgot password and reset password functionality
+- **Role-based Access**: Staff-specific access controls and permissions
+
+### Analytics & Reporting
+- **Real-time Dashboard**: Live attendance statistics, charts, and system status monitoring
+- **Comprehensive Reports**: Detailed attendance reports, trends, and analytics by date ranges
+- **Grade-wise Analytics**: Performance tracking by student grades and courses
+- **Monthly Breakdowns**: Historical attendance data with monthly absence analysis
+
+### Security & Compliance
+- **Audit Logging**: Complete audit trail of all system activities for compliance
+- **Data Privacy**: GDPR and PDPA compliant with encrypted biometric data storage
+- **Secure Authentication**: JWT-based authentication with secure token management
+- **Access Controls**: Granular permissions and activity monitoring
+
+### Additional Features
+- **Real-time Notifications**: Live system status and scanner connectivity monitoring
+- **Responsive Design**: Mobile-friendly interface for cross-device accessibility
+- **Data Export**: Export capabilities for reports and attendance data
+- **System Health Monitoring**: Real-time scanner status and system diagnostics
 
 ## Technologies Used
 
-- **Frontend**: React, TypeScript, Vite, SCSS
-- **Backend**: Node.js, Express.js, TypeScript
+- **Frontend**: React, TypeScript, Vite, SCSS, Chakra UI
+- **Backend**: Node.js, Express.js, TypeScript, Prisma ORM
 - **Database**: MySQL with Prisma ORM
-- **Biometric Matching**: Python, OpenCV, Flask
-- **Fingerprint Scanner**: DigitalPersona U.are.U 4500
-- **Other**: JWT for authentication, Joi for validation
+- **Biometric Engine**: Python, OpenCV, DigitalPersona SDK
+- **Authentication**: JWT, bcrypt for password hashing
+- **Validation**: Joi for input validation
+- **Email**: Nodemailer for notifications and password recovery
+- **Charts**: Recharts for data visualization
 
 ## Prerequisites
 
-- Windows OS
-- Node.js (v14 or higher)
-- Python (v3.8 or higher)
-- MySQL Database
-- DigitalPersona U.are.U 4500 Scanner and Client Software
+- **Operating System**: Windows OS (required for DigitalPersona scanner compatibility)
+- **Node.js**: v14 or higher
+- **Python**: v3.8 or higher
+- **Database**: MySQL Server
+- **Hardware**: DigitalPersona U.are.U 4500 Fingerprint Scanner
+- **Software**: DigitalPersona Client Software (download link above)
 
-## Database Setup
+## Installation & Setup
 
-1. Create a MySQL database named `bioattendancesysdb`.
-2. Set up environment variables in `server/.env` with your database credentials (e.g., DB_HOST, DB_USER, DB_PASS, DB_NAME).
-3. Run database migrations using Prisma: `npx prisma migrate dev`.
+### 1. Clone and Install Dependencies
 
-## Usage
+```bash
+# Install Node.js dependencies for client and server
+npm install
 
-- Access the React frontend at `http://localhost:3000` after starting all servers.
-- Login as a staff member to manage students, sections, and attendance records.
-- Use the DigitalPersona scanner for biometric attendance marking or opt for manual marking.
-- Generate reports from the Reports section for attendance analytics.
-
-## API Endpoints
-
-The backend provides RESTful APIs for various operations. Key endpoints include:
-
-- `POST /api/auth/login` - Staff login
-- `GET /api/students` - Retrieve students
-- `POST /api/students` - Add a new student
-- `POST /api/attendance/mark` - Mark attendance
-- `GET /api/reports/attendance` - Get attendance reports
-
-For full API documentation, refer to the server routes and controllers.
-
-## Project Structure
-
-The project is divided into three sections:
-
-1. `client` (frontend)
-2. `server` (core backend)
-3. `server-py` (matching backend)
-
-## Getting Started
-
-To start the system on Windows, open 3 terminals:
-
-Terminal 1 - Python server:
+# Install Python dependencies
+cd server-py
+pip install -r requirements.txt
+cd ..
 ```
-cd bio-attendance-sys-master/server-py
-python -m venv venv  <<< for first time use only
-venv\Scripts\activate
+
+### 2. Database Setup
+
+1. Install and start MySQL Server
+2. Create a database named `bioattendancesysdb`
+3. Copy `server/.env.example` to `server/.env` and configure your database credentials:
+   ```env
+   DB_HOST=localhost
+   DB_USER=your_username
+   DB_PASS=your_password
+   DB_NAME=bioattendancesysdb
+   JWT_SECRET=your_jwt_secret
+   EMAIL_USER=your_email@gmail.com
+   EMAIL_PASS=your_email_password
+   ```
+4. Run database migrations:
+   ```bash
+   cd server
+   npx prisma generate
+   npx prisma db push
+   ```
+
+### 3. Create Admin User
+
+```bash
+cd server
+node create_admin.js
+```
+
+### 4. Start the System
+
+Open three terminals and run:
+
+**Terminal 1 - Python Biometric Server:**
+```bash
+cd server-py
 python server.py
 ```
 
-Terminal 2 - Node backend:
-```
-cd bio-attendance-sys-master/server
-npm install <<< for first time use only
-npm run generate:dev <<< for first time use only
-npm run server:dev
-```
-
-Terminal 3 - React frontend:
-```
-cd bio-attendance-sys-master/client
-npm install <<< for first time use only
+**Terminal 2 - Node.js Backend:**
+```bash
+cd server
 npm run dev
 ```
+
+**Terminal 3 - React Frontend:**
+```bash
+cd client
+npm run dev
+```
+
+Access the application at `http://localhost:5173`
+
+## Usage Guide
+
+### For Staff Members
+
+1. **Login**: Use your staff credentials to log in
+2. **Dashboard**: View real-time attendance statistics and system status
+3. **Student Management**: Add/edit students with biometric enrollment
+4. **Course Management**: Create courses and assign students
+5. **Attendance Marking**:
+   - Use biometric scanner for automatic marking
+   - Manual marking as alternative
+   - Kiosk mode for streamlined operations
+6. **Reports**: Generate detailed attendance reports and analytics
+
+### System Features
+
+- **Real-time Monitoring**: Live scanner status and attendance tracking
+- **Audit Trail**: Complete logging of all system activities
+- **Responsive Design**: Works on desktop and mobile devices
+- **Data Export**: Export reports and attendance data
+- **Security**: Encrypted biometric data and secure authentication
+
+## API Documentation
+
+The system provides comprehensive REST APIs. Key endpoints include:
+
+### Authentication
+- `POST /api/auth/login` - Staff login
+- `POST /api/auth/forgot-password` - Password recovery
+- `POST /api/auth/reset-password` - Password reset
+
+### Student Management
+- `GET /api/students` - Retrieve students
+- `POST /api/students` - Add new student
+- `PUT /api/students/:id` - Update student
+- `DELETE /api/students/:id` - Delete student
+
+### Course Management
+- `GET /api/courses` - Retrieve courses
+- `POST /api/courses` - Create course
+- `PUT /api/courses/:id` - Update course
+- `DELETE /api/courses/:id` - Delete course
+
+### Attendance
+- `POST /api/attendance/mark` - Mark attendance (biometric/manual)
+- `GET /api/attendance` - Get attendance records
+- `POST /api/attendance/manual` - Manual attendance entry
+
+### Reports & Analytics
+- `GET /api/reports/dashboard` - Dashboard statistics
+- `GET /api/reports/attendance` - Attendance reports
+- `GET /api/audit` - Audit logs
+
+For complete API documentation, see the server route files and controllers.
+
+## Project Structure
+
+```
+bio-attendance-sys-master/
+├── client/                 # React TypeScript Frontend
+│   ├── src/
+│   │   ├── components/     # Reusable UI components
+│   │   ├── pages/          # Page components (Home, Staff pages)
+│   │   ├── api/            # API service functions
+│   │   ├── lib/            # Fingerprint library integration
+│   │   ├── store/          # Zustand state management
+│   │   └── interfaces/     # TypeScript interfaces
+│   ├── public/             # Static assets
+│   └── package.json
+├── server/                 # Node.js Express Backend
+│   ├── src/
+│   │   ├── controllers/    # Route controllers
+│   │   ├── services/       # Business logic services
+│   │   ├── routes/         # API route definitions
+│   │   ├── middlewares/    # Express middlewares
+│   │   ├── helpers/        # Utility functions
+│   │   ├── joi/            # Input validation schemas
+│   │   └── interfaces/     # TypeScript interfaces
+│   ├── prisma/             # Database schema and migrations
+│   └── package.json
+├── server-py/              # Python Biometric Matching Server
+│   ├── fingerprints/       # Stored fingerprint data
+│   ├── server.py           # Flask biometric server
+│   └── requirements.txt
+└── README.md
+```
+
+## Development
+
+### Available Scripts
+
+**Client (React):**
+```bash
+cd client
+npm run dev          # Start development server
+npm run build        # Build for production
+npm run preview      # Preview production build
+npm run lint         # Run ESLint
+```
+
+**Server (Node.js):**
+```bash
+cd server
+npm run dev          # Start development server with nodemon
+npm run build        # Build TypeScript
+npm run start        # Start production server
+npm run generate:dev # Generate Prisma client
+```
+
+**Python Server:**
+```bash
+cd server-py
+python server.py     # Start Flask biometric server
+```
+
+### Environment Variables
+
+Create `.env` files in the respective directories:
+
+**server/.env:**
+```env
+DB_HOST=localhost
+DB_USER=root
+DB_PASS=password
+DB_NAME=bioattendancesysdb
+JWT_SECRET=your_jwt_secret_here
+EMAIL_USER=your_email@gmail.com
+EMAIL_PASS=your_app_password
+```
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Scanner not detected**: Ensure DigitalPersona client is installed and scanner is connected
+2. **Database connection failed**: Check MySQL server is running and credentials are correct
+3. **Python server errors**: Install required Python packages and ensure OpenCV is properly configured
+4. **Build errors**: Run `npm install` in all directories and ensure Node.js version is >= 14
+
+### Support
+
+For support and questions:
+- Check the existing issues on GitHub
+- Review the API documentation in server routes
+- Ensure all prerequisites are properly installed
 
 ## License
 
 Distributed under the MIT License. See `LICENSE` for more information.
+
+## Acknowledgments
+
+- Inspired by Gideon Idoko's original FP Attendance System
+- Built with modern web technologies for enhanced performance and security
+- Special thanks to the DigitalPersona team for fingerprint scanner SDK

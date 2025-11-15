@@ -1,6 +1,7 @@
 import type { FC } from 'react';
-import { Box, Heading, Text, VStack, Divider, List, ListItem, ListIcon, Grid, GridItem, Card, CardBody, Icon } from '@chakra-ui/react';
+import { Box, Heading, Text, VStack, Divider, List, ListItem, ListIcon, Grid, GridItem, Card, CardBody, Icon, Button } from '@chakra-ui/react';
 import { FaFingerprint, FaUsers, FaChartBar, FaShieldAlt, FaCode, FaDatabase, FaReact, FaNodeJs, FaPython } from 'react-icons/fa';
+import { Link } from 'react-router-dom';
 
 const About: FC = () => {
   return (
@@ -168,6 +169,12 @@ const About: FC = () => {
           <Text fontSize="sm" color="gray.500" mt={2}>
             © {new Date().getFullYear()} The Trackers. All rights reserved.
           </Text>
+        </Box>
+
+        <Box textAlign="center" mt={6}>
+          <Button as={Link} to="/" colorScheme="blue" size="lg">
+            Back to Home
+          </Button>
         </Box>
       </VStack>
     </Box>

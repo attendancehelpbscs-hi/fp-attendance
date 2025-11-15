@@ -248,8 +248,90 @@ const Home: FC = () => {
               </Card>
             </Grid>
 
+            {/* Today's Attendance by Grade */}
+            {stats.gradeStats && stats.gradeStats.length > 0 && (
+              <Box marginBottom="2rem">
+                <Text fontSize="xl" fontWeight="bold" textAlign="center" marginBottom="1rem">
+                  Today's Attendance by Grade
+                </Text>
+                <Grid templateColumns="repeat(6, 1fr)" gap={4}>
+                  {stats.gradeStats
+                    .sort((a: any, b: any) => parseInt(a.grade) - parseInt(b.grade))
+                    .map((gradeStat: any, index: number) => {
+                    const gradeColors: Record<string, string> = {
+                      '1': '#E57373', // Bright Red
+                      '2': '#FFB74D', // Vivid Orange
+                      '3': '#FFD54F', // Neon Yellow
+                      '4': '#81C784', // Lime Green
+                      '5': '#64B5F6', // Pure Blue
+                      '6': '#9575CD', // Strong Blue Violet
+                    };
+
+                    const createGradient = (baseColor: string) => {
+                      // Create a gradient by lightening and darkening the base color
+                      const lightenColor = (color: string, percent: number) => {
+                        const num = parseInt(color.replace("#", ""), 16);
+                        const amt = Math.round(2.55 * percent);
+                        const R = (num >> 16) + amt;
+                        const G = (num >> 8 & 0x00FF) + amt;
+                        const B = (num & 0x0000FF) + amt;
+                        return "#" + (0x1000000 + (R < 255 ? R < 1 ? 0 : R : 255) * 0x10000 +
+                          (G < 255 ? G < 1 ? 0 : G : 255) * 0x100 +
+                          (B < 255 ? B < 1 ? 0 : B : 255)).toString(16).slice(1);
+                      };
+                      const darkerColor = lightenColor(baseColor, -20);
+                      const lighterColor = lightenColor(baseColor, 20);
+                      return `linear(to-br, ${lighterColor}, ${darkerColor})`;
+                    };
+
+                    const gradients = Object.values(gradeColors).map(color => createGradient(color));
+                    const present = gradeStat.data[0]?.presentStudents || 0;
+                    const absent = gradeStat.data[0]?.absentStudents || 0;
+                    const total = gradeStat.data[0]?.totalStudents || 0;
+                    return (
+                      <Card
+                        key={gradeStat.grade}
+                        bgGradient={gradients[index % gradients.length]}
+                        borderRadius="xl"
+                        boxShadow="lg"
+                        p={4}
+                        minH="160px"
+                        position="relative"
+                        overflow="hidden"
+                        _hover={{ transform: 'translateY(-1px)', transition: 'all 0.2s' }}
+                      >
+                        <Box
+                          position="absolute"
+                          top="20px"
+                          left="50%"
+                          transform="translateX(-50%)"
+                          bg="whiteAlpha.200"
+                          borderRadius="xl"
+                          p={3}
+                          backdropFilter="blur(10px)"
+                        >
+                          <Icon as={FaUsers} color="white" boxSize={6} />
+                        </Box>
+                        <Box textAlign="center" mt="60px">
+                          <Text fontSize="lg" fontWeight="bold" color="white" mb={1}>
+                            Grade {gradeStat.grade}
+                          </Text>
+                          <Text fontSize="sm" color="whiteAlpha.800" mb={2}>
+                            Present: {present} / Absent: {absent}
+                          </Text>
+                          <Text fontSize="sm" color="whiteAlpha.900" position="absolute" bottom="5px" right="10px">
+                            Total: {total}
+                          </Text>
+                        </Box>
+                      </Card>
+                    );
+                  })}
+                </Grid>
+              </Box>
+            )}
+
             {/* Key Visualizations */}
-            <Grid templateColumns={{ base: '1fr', md: '1fr 1fr' }} gap={6} marginTop="2rem">
+            <Grid templateColumns={{ base: '1fr', md: '2fr 1fr 1fr' }} gap={6} marginTop="2rem">
               {/* Daily Present vs. Absent Trend */}
               <Box>
                 <Text fontWeight="bold" marginBottom="1rem" textAlign="center">Daily Present vs. Absent Trend (Last 7 Days)</Text>
@@ -272,31 +354,31 @@ const Home: FC = () => {
                   <CircularProgressLabel fontSize="2xl" fontWeight="bold">{stats.attendanceRate}%</CircularProgressLabel>
                 </CircularProgress>
               </Box>
-            </Grid>
 
-            {/* Monthly Absence Breakdown */}
-            <Box marginTop="2rem">
-              <Text fontWeight="bold" marginBottom="1rem" textAlign="center">Monthly Absence Breakdown</Text>
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={monthlyAbsenceData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {monthlyAbsenceData.map((entry: any, index: number) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </Box>
+              {/* Monthly Absence Breakdown */}
+              <Box display="flex" flexDirection="column" alignItems="center">
+                <Text fontWeight="bold" marginBottom="1rem" textAlign="center">Monthly Absence Breakdown</Text>
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={monthlyAbsenceData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                    label={({ name, value }) => `${name}: ${value}`}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {monthlyAbsenceData.map((entry: any, index: number) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </Box>
+            </Grid>
 
           </Box>
         </Card>

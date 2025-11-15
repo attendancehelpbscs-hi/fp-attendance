@@ -1,6 +1,7 @@
 import type { FC } from 'react';
-import { Box, Heading, Text, VStack, Divider, List, ListItem, ListIcon } from '@chakra-ui/react';
+import { Box, Heading, Text, VStack, Divider, List, ListItem, ListIcon, Button } from '@chakra-ui/react';
 import { FaShieldAlt, FaUserLock, FaDatabase, FaCookieBite, FaGavel } from 'react-icons/fa';
+import { Link } from 'react-router-dom';
 
 const PrivacyPolicy: FC = () => {
   return (
@@ -177,6 +178,12 @@ const PrivacyPolicy: FC = () => {
         <Text fontSize="sm" color="gray.500" textAlign="center" mt={6}>
           This privacy policy is designed to comply with relevant data protection regulations including GDPR, PDPA, and other applicable privacy laws.
         </Text>
+
+        <Box textAlign="center" mt={6}>
+          <Button as={Link} to="/" colorScheme="blue" size="lg">
+            Back to Home
+          </Button>
+        </Box>
       </VStack>
     </Box>
   );
