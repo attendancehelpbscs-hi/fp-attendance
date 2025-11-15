@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import type { FC, ChangeEventHandler, FormEventHandler } from 'react';
-import { Card, CardHeader, Heading, FormControl, FormLabel, Input, Button, Text, Alert, AlertIcon } from '@chakra-ui/react';
+import { Card, CardHeader, Heading, FormControl, FormLabel, Input, Button, Text, Alert, AlertIcon, Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalCloseButton, useDisclosure } from '@chakra-ui/react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import SimpleReactValidator from 'simple-react-validator';
@@ -10,11 +10,11 @@ const ForgotPassword: FC = () => {
   const [email, setEmail] = useState('');
   const [, forceUpdate] = useState<boolean>(false);
   const navigate = useNavigate();
+  const { isOpen, onOpen, onClose } = useDisclosure();
 
   const { isLoading, mutate: forgotPassword } = useForgotPassword({
     onSuccess: () => {
-      toast.success('If an account with this email exists, a password reset link has been sent.');
-      navigate('/staff/login');
+      onOpen(); // Open the modal instead of showing toast and navigating immediately
     },
     onError: (error: any) => {
       toast.error(error?.response?.data?.message || 'Failed to send reset email');
@@ -35,6 +35,11 @@ const ForgotPassword: FC = () => {
       simpleValidator.current.showMessages();
       forceUpdate((prev) => !prev);
     }
+  };
+
+  const handleModalClose = () => {
+    onClose();
+    navigate('/staff/login');
   };
 
   return (
@@ -76,6 +81,23 @@ const ForgotPassword: FC = () => {
           </a>
         </Text>
       </Card>
+
+      {/* Success Modal */}
+      <Modal isOpen={isOpen} onClose={handleModalClose} isCentered>
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader textAlign="center">Password Reset Email Sent</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody pb={6}>
+            <Text textAlign="center" mb={4}>
+              If an account with this email exists, a password reset link has been sent. Please check your email! 
+            </Text>
+            <Button colorScheme="blue" onClick={handleModalClose} w="100%">
+              OK
+            </Button>
+          </ModalBody>
+        </ModalContent>
+      </Modal>
     </div>
   );
 };
