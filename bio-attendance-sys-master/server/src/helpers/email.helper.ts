@@ -58,15 +58,15 @@ export const sendPasswordChangeNotification = async (email: string, name: string
   const mailOptions = {
     from: envConfig.EMAIL_USER,
     to: email,
-    subject: 'Password Changed - Bio Attendance System',
+    subject: 'Password Changed - Fingerprint-Based Attendance Monitoring System',
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #333;">Password Changed Successfully</h2>
         <p>Dear ${name},</p>
-        <p>Your password for the Bio Attendance System has been successfully changed.</p>
+        <p>Your password for the Fingerprint Attendance System has been successfully changed.</p>
         <p>If you did not make this change, please contact support immediately.</p>
         <hr>
-        <p style="color: #666; font-size: 12px;">Bio Attendance System - Security Notification</p>
+        <p style="color: #666; font-size: 12px;">Fingerprint Attendance System - Security Notification</p>
       </div>
     `,
   };

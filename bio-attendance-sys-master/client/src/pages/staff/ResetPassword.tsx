@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
 import type { FC, ChangeEventHandler, FormEventHandler } from 'react';
-import { Card, CardHeader, Heading, FormControl, FormLabel, Input, Button, Text, InputGroup, InputRightElement, IconButton, Alert, AlertIcon } from '@chakra-ui/react';
+import { Card, CardHeader, Heading, FormControl, FormLabel, Input, Button, Text, InputGroup, InputRightElement, IconButton, Alert, AlertIcon, Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalCloseButton } from '@chakra-ui/react';
 import { ViewIcon, ViewOffIcon } from '@chakra-ui/icons';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import SimpleReactValidator from 'simple-react-validator';
 import { useResetPassword } from '../../api/staff.api';
+import { useDisclosure } from '@chakra-ui/react';
 
 const ResetPassword: FC = () => {
   const [searchParams] = useSearchParams();
@@ -20,10 +21,11 @@ const ResetPassword: FC = () => {
   const [, forceUpdate] = useState<boolean>(false);
   const navigate = useNavigate();
 
+  const { isOpen, onOpen, onClose } = useDisclosure();
+
   const { isLoading, mutate: resetPassword } = useResetPassword({
     onSuccess: () => {
-      toast.success('Password reset successfully! Please login with your new password.');
-      navigate('/staff/login');
+      onOpen();
     },
     onError: (error: any) => {
       toast.error(error?.response?.data?.message || 'Failed to reset password');
@@ -78,6 +80,11 @@ const ResetPassword: FC = () => {
       </div>
     );
   }
+
+  const handleModalClose = () => {
+    onClose();
+    navigate('/staff/login');
+  };
 
   return (
     <div>
@@ -145,6 +152,23 @@ const ResetPassword: FC = () => {
           </Button>
         </form>
       </Card>
+
+      {/* Success Modal */}
+      <Modal isOpen={isOpen} onClose={handleModalClose} isCentered>
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader textAlign="center">Password Reset Successful</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody pb={6}>
+            <Text textAlign="center" mb={4}>
+              Your password has been successfully reset! You can now log in with your new password.
+            </Text>
+            <Button colorScheme="blue" onClick={handleModalClose} w="100%">
+              Go to Login
+            </Button>
+          </ModalBody>
+        </ModalContent>
+      </Modal>
     </div>
   );
 };

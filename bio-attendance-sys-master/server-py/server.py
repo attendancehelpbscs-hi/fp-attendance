@@ -78,12 +78,12 @@ def get_fingerprint_match_score(fingerprint1_path, fingerprint2_path):
 
         matches = flann.knnMatch(des1, des2, k=2)
 
-        # Apply ratio test (Lowe's ratio test) - balanced threshold for accurate matching
+        # Apply ratio test (Lowe's ratio test) - adjusted threshold for better sensitivity
         match_points = []
         for match in matches:
             if len(match) == 2:
                 p, q = match
-                if p.distance < 0.8 * q.distance:  # Balanced ratio for accuracy
+                if p.distance < 0.7 * q.distance:  # Lower ratio for better sensitivity
                     match_points.append(p)
 
         # Use average keypoints for more stable scoring
@@ -360,8 +360,14 @@ def identify_staff_fingerprint(scanned_fingerprint_path, staff_fingerprints):
                 logging.error(f"Failed to decode base64 for staff {staff['id']}: {str(decode_error)}")
                 continue
 
-            nparr = np.frombuffer(fingerprint_data, np.uint8)
-            
+            # Validate and repair fingerprint data if corrupted
+            validated_data = validate_fingerprint_data(fingerprint_data)
+            if validated_data is None:
+                logging.warning(f"Failed to validate/repair fingerprint for staff {staff['id']}")
+                continue
+
+            nparr = np.frombuffer(validated_data, np.uint8)
+
             # Try different color modes for better compatibility
             stored_fingerprint = cv2.imdecode(nparr, cv2.IMREAD_UNCHANGED)
 
@@ -372,7 +378,7 @@ def identify_staff_fingerprint(scanned_fingerprint_path, staff_fingerprints):
             if stored_fingerprint is None:
                 logging.warning(f"Failed to decode fingerprint image for staff {staff['id']}, trying fallback methods")
                 # Try to repair PNG data using the repair function
-                repaired_data = repair_png_data(fingerprint_data)
+                repaired_data = repair_png_data(validated_data)
                 if repaired_data:
                     logging.info(f"Successfully repaired PNG data for staff {staff['id']}")
                     nparr_repaired = np.frombuffer(repaired_data, np.uint8)
@@ -382,14 +388,14 @@ def identify_staff_fingerprint(scanned_fingerprint_path, staff_fingerprints):
                 if stored_fingerprint is None:
                     try:
                         # Attempt to fix PNG header if corrupted
-                        if len(fingerprint_data) > 8:
+                        if len(validated_data) > 8:
                             # Check if PNG header is corrupted
                             expected_png_header = b'\x89PNG\r\n\x1a\n'
-                            actual_header = fingerprint_data[:8]
+                            actual_header = validated_data[:8]
                             if actual_header != expected_png_header:
                                 logging.warning(f"PNG header corrupted for staff {staff['id']}, attempting to fix")
                                 # Replace corrupted header with correct one
-                                fixed_data = expected_png_header + fingerprint_data[8:]
+                                fixed_data = expected_png_header + validated_data[8:]
                                 nparr_fixed = np.frombuffer(fixed_data, np.uint8)
                                 stored_fingerprint = cv2.imdecode(nparr_fixed, cv2.IMREAD_UNCHANGED)
                                 if stored_fingerprint is not None:
@@ -407,7 +413,7 @@ def identify_staff_fingerprint(scanned_fingerprint_path, staff_fingerprints):
             if stored_fingerprint is None:
                 logging.warning(f"Failed to decode fingerprint image for staff {staff['id']} after all attempts")
                 # Check if this is a known CRC error case
-                if len(fingerprint_data) > 8 and fingerprint_data[:8] == b'\x89PNG\r\n\x1a\n':
+                if len(validated_data) > 8 and validated_data[:8] == b'\x89PNG\r\n\x1a\n':
                     logging.warning(f"Staff {staff['id']} has corrupted PNG fingerprint data (CRC error in PLTE chunk)")
                     logging.info(f"Staff {staff['id']} should re-enroll their fingerprint")
                 else:
@@ -416,10 +422,10 @@ def identify_staff_fingerprint(scanned_fingerprint_path, staff_fingerprints):
                 debug_path = os.path.join('fingerprints', f"corrupted_{staff['id']}.bin")
                 if not os.path.exists(debug_path):
                     with open(debug_path, 'wb') as f:
-                        f.write(fingerprint_data)
+                        f.write(validated_data)
                     logging.error(f"Saved corrupted data to {debug_path} for inspection")
                 continue
-            
+
             # Convert to color if needed
             if len(stored_fingerprint.shape) == 2:
                 stored_fingerprint = cv2.cvtColor(stored_fingerprint, cv2.COLOR_GRAY2BGR)

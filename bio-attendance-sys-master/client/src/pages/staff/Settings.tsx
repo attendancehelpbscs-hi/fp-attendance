@@ -72,6 +72,7 @@ const Settings: FC = () => {
   const { isOpen: isClearLogsOpen, onOpen: onClearLogsOpen, onClose: onClearLogsClose } = useDisclosure();
   const { isOpen: isViewLogsOpen, onOpen: onViewLogsOpen, onClose: onViewLogsClose } = useDisclosure();
   const { isOpen: isProfileUpdateOpen, onOpen: onProfileUpdateOpen, onClose: onProfileUpdateClose } = useDisclosure();
+  const { isOpen: isProfileUpdateSuccessOpen, onOpen: onProfileUpdateSuccessOpen, onClose: onProfileUpdateSuccessClose } = useDisclosure();
 
   const backupMutation = useBackupData();
   const clearLogsMutation = useClearAuditLogs();
@@ -297,7 +298,7 @@ const Settings: FC = () => {
       }
 
       onProfileUpdateClose();
-      toast.success('Profile updated successfully');
+      onProfileUpdateSuccessOpen();
     } catch (error: any) {
       // Revert the optimistic update on error
       useStore.getState().updateStaffProfile(staffInfo || {});
@@ -716,6 +717,23 @@ const Settings: FC = () => {
               Cancel
             </Button>
           </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Profile Update Success Modal */}
+      <Modal isOpen={isProfileUpdateSuccessOpen} onClose={onProfileUpdateSuccessClose} isCentered>
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader textAlign="center">Profile Updated Successfully</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody pb={6}>
+            <Text textAlign="center" mb={4}>
+              Your profile has been updated successfully! {newPassword && 'Please log in again with your new password.'}
+            </Text>
+            <Button colorScheme="blue" onClick={onProfileUpdateSuccessClose} w="100%">
+              OK
+            </Button>
+          </ModalBody>
         </ModalContent>
       </Modal>
     </WithStaffLayout>
