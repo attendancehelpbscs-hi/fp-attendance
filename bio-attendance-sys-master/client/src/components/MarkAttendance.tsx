@@ -199,9 +199,9 @@ const MarkAttendance: FC<{
   };
 
   useEffect(() => {
-    fingerprintControl.onDeviceConnected = handleDeviceConnected;
-    fingerprintControl.onDeviceDisconnected = handleDeviceDisconnected;
-    fingerprintControl.onSamplesAcquired = handleSampleAcquired;
+    fingerprintControl.onDeviceConnectedCallback = handleDeviceConnected;
+    fingerprintControl.onDeviceDisconnectedCallback = handleDeviceDisconnected;
+    fingerprintControl.onSamplesAcquiredCallback = handleSampleAcquired;
     fingerprintControl.init();
   }, []);
 

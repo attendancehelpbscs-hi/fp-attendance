@@ -214,8 +214,8 @@ const AttendanceKiosk: FC = () => {
       setScannerStatus('Disconnected');
     };
 
-    fingerprintControl.onDeviceConnected = handleDeviceConnected;
-    fingerprintControl.onDeviceDisconnected = handleDeviceDisconnected;
+    fingerprintControl.onDeviceConnectedCallback = handleDeviceConnected;
+    fingerprintControl.onDeviceDisconnectedCallback = handleDeviceDisconnected;
     fingerprintControl.init();
 
     setTimeout(() => {
@@ -223,7 +223,12 @@ const AttendanceKiosk: FC = () => {
         setScannerStatus('Not Detected');
       }
     }, 2000);
-  }, [scannerConnected]);
+
+    // Cleanup on unmount
+    return () => {
+      fingerprintControl.destroy();
+    };
+  }, []);
 
   const handleSampleAcquired = (event: any) => {
     const rawImages = event?.samples.map((sample: string) => Base64.fromBase64Url(sample));
@@ -315,7 +320,7 @@ const AttendanceKiosk: FC = () => {
   }, [fingerprints.newFingerprint, identificationStatus]);
 
   useEffect(() => {
-    fingerprintControl.onSamplesAcquired = handleSampleAcquired;
+    fingerprintControl.onSampleAcquiredCallback = handleSampleAcquired;
   }, [attendanceId, continuousMode]);
 
   const dataURLtoFile = (dataurl: string, filename: string) => {

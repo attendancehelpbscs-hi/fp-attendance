@@ -184,9 +184,9 @@ const Login: FC = () => {
 
   // Initialize fingerprint control on component mount
   useEffect(() => {
-    fingerprintControl.onDeviceConnected = handleDeviceConnected;
-    fingerprintControl.onDeviceDisconnected = handleDeviceDisconnected;
-    fingerprintControl.onSamplesAcquired = handleSampleAcquired;
+    fingerprintControl.onDeviceConnectedCallback = handleDeviceConnected;
+    fingerprintControl.onDeviceDisconnectedCallback = handleDeviceDisconnected;
+    fingerprintControl.onSamplesAcquiredCallback = handleSampleAcquired;
     fingerprintControl.init();
 
     // Cleanup on unmount
