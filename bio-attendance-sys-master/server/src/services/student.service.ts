@@ -2,13 +2,46 @@ import createError from 'http-errors';
 import { prisma } from '../db/prisma-client';
 import type { Student, StudentCourse, Course } from '@prisma/client';
 import { PrismaBatchPayload } from '../interfaces/helper.interface';
+import { encryptFingerprint, generateFingerprintHash, handleFingerprintData } from '../helpers/fingerprint-security.helper';
+import { createAuditLog } from './audit.service';
 
 export const saveStudentToDb = (student: Omit<Student, 'id'>): Promise<Student> => {
   return new Promise<Student>(async (resolve, reject) => {
     try {
+      let fingerprintData = student.fingerprint;
+      let fingerprintHash: string | undefined;
+      let encryptedFingerprint: string | undefined;
+
+      // Encrypt fingerprint if provided
+      if (fingerprintData) {
+        try {
+          const encrypted = encryptFingerprint(fingerprintData);
+          fingerprintHash = encrypted.hash;
+          encryptedFingerprint = JSON.stringify({
+            encryptedData: encrypted.encryptedData,
+            iv: encrypted.iv,
+            tag: encrypted.tag
+          });
+          // Keep legacy field for backward compatibility during migration
+        } catch (encryptionError) {
+          console.error('Fingerprint encryption failed:', encryptionError);
+          // Continue without encryption for now, but log the error
+        }
+      }
+
       const savedStudent = await prisma.student.create({
-        data: student,
+        data: {
+          ...student,
+          fingerprint_hash: fingerprintHash,
+          encrypted_fingerprint: encryptedFingerprint,
+        },
       });
+
+      // Audit log for fingerprint encryption
+      if (fingerprintData && encryptedFingerprint) {
+        await createAuditLog('system', 'FINGERPRINT_ENCRYPTED', `Student ${savedStudent.matric_no} fingerprint encrypted`);
+      }
+
       resolve(savedStudent);
     } catch (err) {
       reject(err);
@@ -143,12 +176,40 @@ export const removeStudentFromDb = (studentId: string): Promise<boolean> => {
 export const updateStudentInDb = (id: string, newUpdate: Partial<Student>): Promise<Student> => {
   return new Promise<Student>(async (resolve, reject) => {
     try {
+      let updateData = { ...newUpdate };
+      let fingerprintHash: string | undefined;
+      let encryptedFingerprint: string | undefined;
+
+      // Encrypt fingerprint if being updated
+      if (newUpdate.fingerprint) {
+        try {
+          const encrypted = encryptFingerprint(newUpdate.fingerprint);
+          fingerprintHash = encrypted.hash;
+          encryptedFingerprint = JSON.stringify({
+            encryptedData: encrypted.encryptedData,
+            iv: encrypted.iv,
+            tag: encrypted.tag
+          });
+          updateData.fingerprint_hash = fingerprintHash;
+          updateData.encrypted_fingerprint = encryptedFingerprint;
+        } catch (encryptionError) {
+          console.error('Fingerprint encryption failed during update:', encryptionError);
+          // Continue without encryption for now, but log the error
+        }
+      }
+
       const student = await prisma.student.update({
         where: {
           id,
         },
-        data: newUpdate,
+        data: updateData,
       });
+
+      // Audit log for fingerprint encryption update
+      if (newUpdate.fingerprint && encryptedFingerprint) {
+        await createAuditLog('system', 'FINGERPRINT_ENCRYPTED', `Student ${student.matric_no} fingerprint updated and encrypted`);
+      }
+
       resolve(student);
     } catch (err) {
       reject(err);

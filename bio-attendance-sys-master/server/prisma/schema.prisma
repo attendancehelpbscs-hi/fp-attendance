@@ -30,7 +30,9 @@ model Staff {
   name                 String     // Keep for backward compatibility
   email                String     @unique
   password             String
-  fingerprint          String?    @db.LongText // Optional fingerprint field for biometric login
+  fingerprint          String?    @db.LongText // Optional fingerprint field for biometric login (legacy - unencrypted)
+  fingerprint_hash     String?    @db.VarChar(64) // SHA-256 hash for integrity verification
+  encrypted_fingerprint String?   @db.LongText // AES-256 encrypted fingerprint data
   profilePicture       String?    @db.LongText // Optional profile picture as base64
   grace_period_minutes Int        @default(15)
   school_start_time    String     @default("08:00")
@@ -49,7 +51,9 @@ model Student {
   name        String
   matric_no   String              @unique
   grade       String
-  fingerprint String              @db.LongText
+  fingerprint String              @db.LongText // Legacy unencrypted fingerprint data
+  fingerprint_hash     String?    @db.VarChar(64) // SHA-256 hash for integrity verification
+  encrypted_fingerprint String?   @db.LongText // AES-256 encrypted fingerprint data
   created_at  DateTime
   courses      StudentCourse[]
   attendances  StudentAttendance[]

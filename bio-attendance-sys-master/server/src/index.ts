@@ -23,6 +23,7 @@ import studentRoute from './routes/student.route';
 import attendanceRoute from './routes/attendance.route';
 import auditRoute from './routes/audit.route';
 import reportsRoute from './routes/reports.route';
+import healthRoute from './routes/health.route';
 import cron from 'node-cron';
 
 config();
@@ -99,6 +100,7 @@ config();
   app.use(constants.apiBase, attendanceRoute);
   app.use(constants.apiBase, auditRoute);
   app.use(`${constants.apiBase}/reports`, reportsRoute);
+  app.use(`${constants.apiBase}/health`, healthRoute);
 
   const httpServer = createServer(app);
 

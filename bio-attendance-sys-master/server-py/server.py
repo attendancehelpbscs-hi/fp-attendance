@@ -173,6 +173,7 @@ def identify_fingerprint(scanned_fingerprint_path, students_fingerprints):
     """
     Identify fingerprint by comparing against all students' fingerprints
     Returns the best matching student ID and confidence score
+    Enhanced with corruption detection and integrity checks
     """
     best_match = {
         'student_id': None,
@@ -181,8 +182,24 @@ def identify_fingerprint(scanned_fingerprint_path, students_fingerprints):
 
     logging.info(f"Starting identification for {len(students_fingerprints)} students")
 
+    corrupted_count = 0
+    processed_count = 0
+
     for student in students_fingerprints:
         try:
+            processed_count += 1
+
+            # Check if fingerprint data is available
+            if not student.get('fingerprint'):
+                logging.warning(f"Student {student['id']} has no fingerprint enrolled")
+                continue
+
+            # Check for corruption flags from Node.js server
+            if student.get('isCorrupted'):
+                logging.warning(f"Student {student['id']} has corrupted fingerprint data (detected by Node.js)")
+                corrupted_count += 1
+                continue
+
             # Clean and decode base64 fingerprint to image
             fingerprint_str = clean_base64(student['fingerprint'])
             fingerprint_data = base64.b64decode(fingerprint_str)
@@ -191,6 +208,7 @@ def identify_fingerprint(scanned_fingerprint_path, students_fingerprints):
             validated_data = validate_fingerprint_data(fingerprint_data)
             if validated_data is None:
                 logging.warning(f"Failed to validate/repair fingerprint for student {student['id']}")
+                corrupted_count += 1
                 continue
 
             nparr = np.frombuffer(validated_data, np.uint8)
@@ -198,6 +216,7 @@ def identify_fingerprint(scanned_fingerprint_path, students_fingerprints):
 
             if stored_fingerprint is None:
                 logging.warning(f"Failed to decode fingerprint for student {student['id']}")
+                corrupted_count += 1
                 continue
 
             # Save temporary file for comparison
@@ -221,9 +240,17 @@ def identify_fingerprint(scanned_fingerprint_path, students_fingerprints):
 
         except Exception as e:
             logging.error(f"Error processing student {student['id']}: {str(e)}")
+            corrupted_count += 1
             continue
 
     logging.info(f"Identification complete. Best match: {best_match}")
+    logging.info(f"Processed {processed_count} students, detected {corrupted_count} corrupted fingerprints")
+
+    # Alert if high corruption rate detected
+    corruption_rate = (corrupted_count / processed_count) * 100 if processed_count > 0 else 0
+    if corruption_rate > 20:  # Alert if more than 20% corrupted
+        logging.error(f"High fingerprint corruption rate detected: {corruption_rate:.1f}% ({corrupted_count}/{processed_count})")
+        # Could add alerting mechanism here (email, webhook, etc.)
 
     # Only return a match if confidence is above 5% (aligned with client threshold)
     if best_match['confidence'] < 5:
@@ -327,8 +354,9 @@ def repair_png_data(fingerprint_data):
 
 def identify_staff_fingerprint(scanned_fingerprint_path, staff_fingerprints):
     """
-    Identify fingerprint by comparing against all staff fingerprints
+    Identify staff fingerprint by comparing against all staff fingerprints
     Returns the best matching staff ID and confidence score
+    Enhanced with corruption detection and integrity checks
     """
     best_match = {
         'staff_id': None,
@@ -337,102 +365,42 @@ def identify_staff_fingerprint(scanned_fingerprint_path, staff_fingerprints):
 
     logging.info(f"Starting staff identification for {len(staff_fingerprints)} staff members")
 
+    corrupted_count = 0
+    processed_count = 0
+
     for staff in staff_fingerprints:
         try:
-            # Check if staff has fingerprint
+            processed_count += 1
+
+            # Check if fingerprint data is available
             if not staff.get('fingerprint'):
-                logging.info(f"Staff {staff['id']} has no fingerprint enrolled")
+                logging.warning(f"Staff {staff['id']} has no fingerprint enrolled")
                 continue
 
-            # Get fingerprint string
-            fingerprint_str = staff['fingerprint']
-            logging.info(f"Processing fingerprint for staff {staff['id']}, original length: {len(fingerprint_str)}")
-
-            # Clean the base64 string
-            fingerprint_str = clean_base64(fingerprint_str)
-            logging.info(f"Cleaned fingerprint for staff {staff['id']}, new length: {len(fingerprint_str)}")
-
-            # Decode base64 fingerprint to image
-            try:
-                fingerprint_data = base64.b64decode(fingerprint_str)
-                logging.info(f"Successfully decoded base64 for staff {staff['id']}, data length: {len(fingerprint_data)}")
-            except Exception as decode_error:
-                logging.error(f"Failed to decode base64 for staff {staff['id']}: {str(decode_error)}")
+            # Check for corruption flags from Node.js server
+            if staff.get('isCorrupted'):
+                logging.warning(f"Staff {staff['id']} has corrupted fingerprint data (detected by Node.js)")
+                corrupted_count += 1
                 continue
+
+            # Clean and decode base64 fingerprint to image
+            fingerprint_str = clean_base64(staff['fingerprint'])
+            fingerprint_data = base64.b64decode(fingerprint_str)
 
             # Validate and repair fingerprint data if corrupted
             validated_data = validate_fingerprint_data(fingerprint_data)
             if validated_data is None:
                 logging.warning(f"Failed to validate/repair fingerprint for staff {staff['id']}")
+                corrupted_count += 1
                 continue
 
             nparr = np.frombuffer(validated_data, np.uint8)
-
-            # Try different color modes for better compatibility
-            stored_fingerprint = cv2.imdecode(nparr, cv2.IMREAD_UNCHANGED)
+            stored_fingerprint = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
             if stored_fingerprint is None:
-                logging.warning(f"Failed to decode with IMREAD_UNCHANGED, trying IMREAD_ANYDEPTH | IMREAD_ANYCOLOR")
-                stored_fingerprint = cv2.imdecode(nparr, cv2.IMREAD_ANYDEPTH | cv2.IMREAD_ANYCOLOR)
-
-            if stored_fingerprint is None:
-                logging.warning(f"Failed to decode fingerprint image for staff {staff['id']}, trying fallback methods")
-                # Try to repair PNG data using the repair function
-                repaired_data = repair_png_data(validated_data)
-                if repaired_data:
-                    logging.info(f"Successfully repaired PNG data for staff {staff['id']}")
-                    nparr_repaired = np.frombuffer(repaired_data, np.uint8)
-                    stored_fingerprint = cv2.imdecode(nparr_repaired, cv2.IMREAD_UNCHANGED)
-
-                # If repair didn't work, try the original fallback methods
-                if stored_fingerprint is None:
-                    try:
-                        # Attempt to fix PNG header if corrupted
-                        if len(validated_data) > 8:
-                            # Check if PNG header is corrupted
-                            expected_png_header = b'\x89PNG\r\n\x1a\n'
-                            actual_header = validated_data[:8]
-                            if actual_header != expected_png_header:
-                                logging.warning(f"PNG header corrupted for staff {staff['id']}, attempting to fix")
-                                # Replace corrupted header with correct one
-                                fixed_data = expected_png_header + validated_data[8:]
-                                nparr_fixed = np.frombuffer(fixed_data, np.uint8)
-                                stored_fingerprint = cv2.imdecode(nparr_fixed, cv2.IMREAD_UNCHANGED)
-                                if stored_fingerprint is not None:
-                                    logging.info(f"Successfully fixed PNG header for staff {staff['id']}")
-                            else:
-                                # Header looks correct, try different decoding options
-                                logging.warning(f"PNG header looks correct for staff {staff['id']}, trying alternative decoding")
-                                # Try with different flags
-                                stored_fingerprint = cv2.imdecode(nparr, cv2.IMREAD_GRAYSCALE)
-                                if stored_fingerprint is None:
-                                    stored_fingerprint = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-                    except Exception as fix_error:
-                        logging.error(f"Failed to fix PNG header for staff {staff['id']}: {str(fix_error)}")
-
-            if stored_fingerprint is None:
-                logging.warning(f"Failed to decode fingerprint image for staff {staff['id']} after all attempts")
-                # Check if this is a known CRC error case
-                if len(validated_data) > 8 and validated_data[:8] == b'\x89PNG\r\n\x1a\n':
-                    logging.warning(f"Staff {staff['id']} has corrupted PNG fingerprint data (CRC error in PLTE chunk)")
-                    logging.info(f"Staff {staff['id']} should re-enroll their fingerprint")
-                else:
-                    logging.warning(f"Staff {staff['id']} has invalid fingerprint data format")
-                # Save corrupted data for debugging (only if not already saved)
-                debug_path = os.path.join('fingerprints', f"corrupted_{staff['id']}.bin")
-                if not os.path.exists(debug_path):
-                    with open(debug_path, 'wb') as f:
-                        f.write(validated_data)
-                    logging.error(f"Saved corrupted data to {debug_path} for inspection")
+                logging.warning(f"Failed to decode fingerprint for staff {staff['id']}")
+                corrupted_count += 1
                 continue
-
-            # Convert to color if needed
-            if len(stored_fingerprint.shape) == 2:
-                stored_fingerprint = cv2.cvtColor(stored_fingerprint, cv2.COLOR_GRAY2BGR)
-            elif stored_fingerprint.shape[2] == 4:
-                stored_fingerprint = cv2.cvtColor(stored_fingerprint, cv2.COLOR_BGRA2BGR)
-
-            logging.info(f"Successfully decoded image for staff {staff['id']}, shape: {stored_fingerprint.shape}")
 
             # Save temporary file for comparison
             temp_path = os.path.join('fingerprints', f"temp_staff_{staff['id']}.png")
@@ -455,11 +423,17 @@ def identify_staff_fingerprint(scanned_fingerprint_path, staff_fingerprints):
 
         except Exception as e:
             logging.error(f"Error processing staff {staff['id']}: {str(e)}")
-            import traceback
-            logging.error(traceback.format_exc())
+            corrupted_count += 1
             continue
 
     logging.info(f"Staff identification complete. Best match: {best_match}")
+    logging.info(f"Processed {processed_count} staff members, detected {corrupted_count} corrupted fingerprints")
+
+    # Alert if high corruption rate detected
+    corruption_rate = (corrupted_count / processed_count) * 100 if processed_count > 0 else 0
+    if corruption_rate > 20:  # Alert if more than 20% corrupted
+        logging.error(f"High staff fingerprint corruption rate detected: {corruption_rate:.1f}% ({corrupted_count}/{processed_count})")
+        # Could add alerting mechanism here (email, webhook, etc.)
 
     # Only return a match if confidence is above 5% (aligned with client threshold)
     if best_match['confidence'] < 5:
@@ -469,7 +443,7 @@ def identify_staff_fingerprint(scanned_fingerprint_path, staff_fingerprints):
             'confidence': 0.0
         }
 
-    logging.info(f"Returning best match with confidence: {best_match['confidence']:.2f}%")
+    logging.info(f"Returning best staff match with confidence: {best_match['confidence']:.2f}%")
     return best_match
 
 def allowed_file(filename):

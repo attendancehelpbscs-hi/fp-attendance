@@ -91,3 +91,90 @@ export const sendPasswordChangeNotification = async (email: string, name: string
     console.log('📧 Gmail credentials not configured - notification details logged to console only');
   }
 };
+
+/**
+ * Send corruption alert email for fingerprint data integrity issues
+ */
+export const sendFingerprintCorruptionAlert = async (
+  recipientEmail: string,
+  corruptionDetails: {
+    type: 'student' | 'staff';
+    identifier: string;
+    corruptionCount: number;
+    totalCount: number;
+    riskLevel: 'low' | 'medium' | 'high' | 'critical';
+  }
+) => {
+  const { type, identifier, corruptionCount, totalCount, riskLevel } = corruptionDetails;
+
+  const riskColors = {
+    low: '#28a745',
+    medium: '#ffc107',
+    high: '#fd7e14',
+    critical: '#dc3545'
+  };
+
+  const riskColor = riskColors[riskLevel];
+
+  const mailOptions = {
+    from: envConfig.EMAIL_USER,
+    to: recipientEmail,
+    subject: `🚨 ${riskLevel.toUpperCase()} - Fingerprint Data Corruption Alert`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background-color: ${riskColor}; color: white; padding: 20px; border-radius: 5px 5px 0 0;">
+          <h2 style="margin: 0;">🔒 Fingerprint Data Corruption Alert</h2>
+          <p style="margin: 5px 0 0 0; font-size: 14px;">Risk Level: ${riskLevel.toUpperCase()}</p>
+        </div>
+        <div style="border: 1px solid #dee2e6; border-top: none; padding: 20px; border-radius: 0 0 5px 5px;">
+          <p><strong>Alert Details:</strong></p>
+          <ul>
+            <li><strong>Type:</strong> ${type.charAt(0).toUpperCase() + type.slice(1)} Records</li>
+            <li><strong>Identifier:</strong> ${identifier}</li>
+            <li><strong>Corrupted Records:</strong> ${corruptionCount}</li>
+            <li><strong>Total Records:</strong> ${totalCount}</li>
+            <li><strong>Corruption Rate:</strong> ${((corruptionCount / totalCount) * 100).toFixed(2)}%</li>
+          </ul>
+
+          <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0;">
+            <p style="margin: 0; color: #495057;"><strong>Recommended Actions:</strong></p>
+            <ul style="margin: 10px 0 0 0; color: #495057;">
+              <li>Check system logs for detailed error information</li>
+              <li>Run data integrity verification</li>
+              <li>Consider re-enrolling affected ${type}s</li>
+              <li>Contact system administrator if corruption persists</li>
+            </ul>
+          </div>
+
+          <p style="color: #6c757d; font-size: 12px;">
+            This alert was generated automatically by the Fingerprint Attendance System monitoring service.
+          </p>
+        </div>
+      </div>
+    `,
+  };
+
+  // Always log the alert details to console for debugging/fallback
+  console.log('=== FINGERPRINT CORRUPTION ALERT ===');
+  console.log('To:', recipientEmail);
+  console.log('Subject:', mailOptions.subject);
+  console.log('Type:', type);
+  console.log('Identifier:', identifier);
+  console.log('Corrupted:', corruptionCount);
+  console.log('Total:', totalCount);
+  console.log('Risk Level:', riskLevel);
+  console.log('=====================================');
+
+  // Attempt to send email if Gmail credentials are configured
+  if (envConfig.EMAIL_USER && envConfig.EMAIL_PASS) {
+    try {
+      await transporter.sendMail(mailOptions);
+      console.log('✅ Fingerprint corruption alert sent successfully via Gmail');
+    } catch (error) {
+      console.error('❌ Failed to send fingerprint corruption alert via Gmail:', error instanceof Error ? error.message : String(error));
+      console.log('📝 Alert details logged to console as fallback');
+    }
+  } else {
+    console.log('📧 Gmail credentials not configured - alert details logged to console only');
+  }
+};

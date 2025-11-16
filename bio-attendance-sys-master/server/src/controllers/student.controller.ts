@@ -14,6 +14,7 @@ import { prisma } from '../db/prisma-client';
 import type { Student } from '@prisma/client';
 import type { PaginationMeta } from '../interfaces/helper.interface';
 import { getStudentCourses } from '../services/student.service';
+import { handleFingerprintData } from '../helpers/fingerprint-security.helper';
 
 export const getStudents = async (req: Request, res: Response, next: NextFunction) => {
   // get students that belongs to single staff
@@ -139,7 +140,7 @@ export const createStudent = async (req: Request, res: Response, next: NextFunct
         ),
       );
     }
-    const newStudent = { staff_id, name, matric_no, grade, fingerprint, created_at: new Date() };
+    const newStudent = { staff_id, name, matric_no, grade, fingerprint, fingerprint_hash: null, encrypted_fingerprint: null, created_at: new Date() };
     const savedStudent = await saveStudentToDb(newStudent);
     await saveStudentCoursesToDb(courses.map((course_id) => ({ course_id, student_id: savedStudent.id })));
     const studentCourses = await getStudentCourses(savedStudent.id);
@@ -208,6 +209,8 @@ export const getStudentsFingerprints = async (req: Request, res: Response, next:
         matric_no: true,
         grade: true,
         fingerprint: true,
+        encrypted_fingerprint: true,
+        fingerprint_hash: true,
         courses: {
           select: {
             course: {
@@ -220,10 +223,26 @@ export const getStudentsFingerprints = async (req: Request, res: Response, next:
         },
       },
     });
-    const studentsWithCourses = students.map(student => ({
-      ...student,
-      courses: student.courses.map(sc => sc.course),
-    }));
+
+    const studentsWithCourses = students.map(student => {
+      // Handle fingerprint data (decrypt if encrypted, detect corruption)
+      const fingerprintResult = handleFingerprintData(student.fingerprint || undefined, student.encrypted_fingerprint || undefined, student.fingerprint_hash || undefined);
+
+      // Log corruption detection
+      if (fingerprintResult.isCorrupted) {
+        console.error(`Corrupted fingerprint detected for student ${student.id}`);
+        // Could add alerting mechanism here
+      }
+
+      return {
+        ...student,
+        fingerprint: fingerprintResult.data, // Always return decrypted data for Python server
+        isCorrupted: fingerprintResult.isCorrupted,
+        needsMigration: fingerprintResult.needsMigration,
+        courses: student.courses.map(sc => sc.course),
+      };
+    });
+
     return createSuccess(res, 200, 'Students fingerprints fetched successfully', { students: studentsWithCourses });
   } catch (err) {
     return next(err);

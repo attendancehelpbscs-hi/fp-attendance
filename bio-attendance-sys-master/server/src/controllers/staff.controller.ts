@@ -6,6 +6,7 @@ import { createSuccess } from '../helpers/http.helper';
 import type { JwtPayload } from 'jsonwebtoken';
 import * as path from 'path';
 import { prisma } from '../db/prisma-client';
+import { handleFingerprintData } from '../helpers/fingerprint-security.helper';
 
 // Helper function to clean and validate base64 fingerprint data
 function cleanAndValidateFingerprint(fingerprint: string): string | null {
@@ -191,10 +192,32 @@ export const getStaffFingerprints = async (req: Request, res: Response, next: Ne
         name: true,
         email: true,
         fingerprint: true,
+        encrypted_fingerprint: true,
+        fingerprint_hash: true,
       },
     });
 
-    return createSuccess(res, 200, 'Staff fingerprints retrieved successfully', { staff });
+    const processedStaff = staff.map(staffMember => {
+      // Handle fingerprint data (decrypt if encrypted, detect corruption)
+      const fingerprintResult = handleFingerprintData(staffMember.fingerprint || undefined, staffMember.encrypted_fingerprint || undefined, staffMember.fingerprint_hash || undefined);
+
+      // Log corruption detection
+      if (fingerprintResult.isCorrupted) {
+        console.error(`Corrupted fingerprint detected for staff ${staffMember.id}`);
+        // Could add alerting mechanism here
+      }
+
+      return {
+        id: staffMember.id,
+        name: staffMember.name,
+        email: staffMember.email,
+        fingerprint: fingerprintResult.data, // Always return decrypted data for Python server
+        isCorrupted: fingerprintResult.isCorrupted,
+        needsMigration: fingerprintResult.needsMigration,
+      };
+    });
+
+    return createSuccess(res, 200, 'Staff fingerprints retrieved successfully', { staff: processedStaff });
   } catch (err) {
     return next(err);
   }

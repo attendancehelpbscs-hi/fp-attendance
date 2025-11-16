@@ -6,6 +6,8 @@ import { prisma } from '../db/prisma-client';
 import type { Staff } from '@prisma/client';
 import * as fs from 'fs';
 import * as path from 'path';
+import { encryptFingerprint, generateFingerprintHash, handleFingerprintData } from '../helpers/fingerprint-security.helper';
+import { createAuditLog } from './audit.service';
 
 export const addStaffToDb = async (newStaff: NewStaff): Promise<RegisterReturn | void> => {
   const { firstName, lastName, name, email, password } = newStaff;
@@ -105,7 +107,25 @@ export const updateStaffProfile = (staffId: string, profileData: { firstName?: s
       if (profileData.lastName) updateData.lastName = profileData.lastName;
       if (profileData.name) updateData.name = profileData.name;
       if (profileData.password) updateData.password = await hashPassword(profileData.password);
-      if (profileData.fingerprint) updateData.fingerprint = profileData.fingerprint;
+
+      // Handle fingerprint encryption
+      if (profileData.fingerprint) {
+        try {
+          const encrypted = encryptFingerprint(profileData.fingerprint);
+          updateData.fingerprint_hash = encrypted.hash;
+          updateData.encrypted_fingerprint = JSON.stringify({
+            encryptedData: encrypted.encryptedData,
+            iv: encrypted.iv,
+            tag: encrypted.tag
+          });
+          // Keep legacy field for backward compatibility during migration
+          updateData.fingerprint = profileData.fingerprint;
+        } catch (encryptionError) {
+          console.error('Fingerprint encryption failed during staff profile update:', encryptionError);
+          // Continue without encryption for now, but log the error
+        }
+      }
+
       if (profileData.profilePicture) updateData.profilePicture = profileData.profilePicture;
 
       // If updating password, verify current password
@@ -150,6 +170,12 @@ export const updateStaffProfile = (staffId: string, profileData: { firstName?: s
           profilePicture: true,
         },
       });
+
+      // Audit log for fingerprint encryption
+      if (profileData.fingerprint && updateData.encrypted_fingerprint) {
+        await createAuditLog(staffId, 'FINGERPRINT_ENCRYPTED', `Staff ${updatedStaff.email} fingerprint updated and encrypted`);
+      }
+
       resolve(updatedStaff);
     } catch (err) {
       reject(err);

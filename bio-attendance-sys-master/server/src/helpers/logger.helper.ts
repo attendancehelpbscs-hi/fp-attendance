@@ -10,6 +10,9 @@ const logger: ILogger = {
   info(message: string, data?: unknown) {
     console.log('\x1b[34m%s\x1b[0m', `\n${message} ${data ?? ''}\n`);
   },
+  warn(message: string, data?: unknown) {
+    console.log('\x1b[33m%s\x1b[0m', `\n${message} ${data ?? ''}\n`);
+  },
   successBg(message: string, data?: unknown) {
     console.log('\x1b[42m%s\x1b[0m', `\n${message} ${data ?? ''}\n`);
   },
