@@ -162,6 +162,14 @@ const Reports: FC = () => {
   const [gradeSectionPage, setGradeSectionPage] = useState<number>(1);
   const [gradeSectionItemsPerPage, setGradeSectionItemsPerPage] = useState<number>(10);
 
+  // Pagination states for Attendance Percentage by Grade chart
+  const [attendancePercentagePage, setAttendancePercentagePage] = useState<number>(1);
+  const [attendancePercentageItemsPerPage, setAttendancePercentageItemsPerPage] = useState<number>(10);
+
+  // Pagination states for Grade Performance Comparison chart
+  const [gradePerformancePage, setGradePerformancePage] = useState<number>(1);
+  const [gradePerformanceItemsPerPage, setGradePerformanceItemsPerPage] = useState<number>(10);
+
   const toast = useToast();
 
   // Reset to first page when filters change
@@ -193,6 +201,8 @@ const Reports: FC = () => {
     setMarkAttendanceDates([]);
     setMarkAttendanceSection('');
     setGradeSectionPage(1);
+    setAttendancePercentagePage(1);
+    setGradePerformancePage(1);
   }, [selectedReportType]);
 
   const { data: reportsData, isLoading, error } = useGetReports(staffInfo?.id || '', {
@@ -203,6 +213,17 @@ const Reports: FC = () => {
     endDate: selectedReportType === 'student-summary' ? (endDate ? endDate.toISOString().split('T')[0] : undefined) : undefined,
     page: currentPage,
     per_page: itemsPerPage,
+  });
+
+  // Separate API call for chart data to get all records (not paginated)
+  const { data: chartData } = useGetReports(staffInfo?.id || '', {
+    grade: selectedGrade || undefined,
+    section: selectedSection || undefined,
+    dateRange: selectedDateRange,
+    startDate: selectedReportType === 'student-summary' ? (startDate ? startDate.toISOString().split('T')[0] : undefined) : undefined,
+    endDate: selectedReportType === 'student-summary' ? (endDate ? endDate.toISOString().split('T')[0] : undefined) : undefined,
+    page: 1,
+    per_page: 100, // Server max is 100
   });
 
   const { data: filtersData } = useGetGradesAndSections(staffInfo?.id || '', {
@@ -277,6 +298,10 @@ const Reports: FC = () => {
     setStudentCurrentPage(1);
     setGradeSectionPage(1);
     setGradeSectionItemsPerPage(10);
+    setAttendancePercentagePage(1);
+    setAttendancePercentageItemsPerPage(10);
+    setGradePerformancePage(1);
+    setGradePerformanceItemsPerPage(10);
     setSortConfig(null);
     setStudentSortConfig(null);
   };
@@ -286,6 +311,7 @@ const Reports: FC = () => {
 
   // Use real data from API - ensure we have data
   const attendanceData = reportsData?.data?.reports || [];
+  const chartAttendanceData = chartData?.data?.reports || []; // Use chartData for charts
   const studentAttendanceData = studentReportsData?.data?.reports || [];
   const reportsMeta = reportsData?.data?.meta;
   const studentReportsMeta = studentReportsData?.data?.meta;
@@ -311,6 +337,17 @@ const Reports: FC = () => {
 
     return data;
   }, [attendanceData, selectedGrade, selectedSection, searchTerm]);
+
+  // Filtered data for charts (using chartAttendanceData)
+  const filteredChartData = useMemo(() => {
+    let data = chartAttendanceData.filter((item: any) => {
+      const gradeMatch = !selectedGrade || item.grade === selectedGrade;
+      const sectionMatch = !selectedSection || item.section === selectedSection;
+      return gradeMatch && sectionMatch;
+    });
+
+    return data;
+  }, [chartAttendanceData, selectedGrade, selectedSection]);
 
   const filteredStudentData = useMemo(() => {
     let data = studentAttendanceData.filter((item: any) => {
@@ -392,7 +429,7 @@ const Reports: FC = () => {
 
   // Chart data preparation - always use daily records data for trends and patterns
   const attendanceTrendData = useMemo(() => {
-    const data = filteredAttendanceData; // Use daily records data for trends
+    const data = filteredChartData; // Use chart data for trends
     const dateGroups = data.reduce((acc: Record<string, any>, item: any) => {
       // Group by date only (YYYY-MM-DD) to prevent overcrowding
       const dateKey = new Date(item.date).toISOString().split('T')[0];
@@ -403,11 +440,11 @@ const Reports: FC = () => {
     }, {} as Record<string, any>);
 
     return Object.values(dateGroups).sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  }, [filteredAttendanceData]);
+  }, [filteredChartData]);
 
   // Weekly attendance pattern data
   const weeklyAttendanceData = useMemo(() => {
-    const data = filteredAttendanceData;
+    const data = filteredChartData;
 
     // First, aggregate by date to get total present per day
     const dailyTotals = data.reduce((acc: Record<string, number>, item: any) => {
@@ -437,17 +474,28 @@ const Reports: FC = () => {
         occurrences: dayData ? dayData.count : 0
       };
     });
-  }, [filteredAttendanceData]);
+  }, [filteredChartData]);
 
   const gradeSectionData = useMemo(() => {
-    const data = filteredAttendanceData; // Use daily records data for patterns
+    const data = filteredChartData; // Use chart data for patterns
     const groups = data.reduce((acc: Record<string, any>, item: any) => {
       const key = `${item.grade} - ${item.section}`;
-      if (!acc[key]) acc[key] = { name: key, present: 0, absent: 0, grade: item.grade };
+      if (!acc[key]) acc[key] = { name: key, present: 0, absent: 0, grade: item.grade, section: item.section };
       acc[key].present += item.present;
       acc[key].absent += item.absent;
       return acc;
     }, {} as Record<string, any>);
+
+    // Ensure all grade-section combinations are represented, even if they have no data
+    const availableSections = [...new Set(filtersData?.data?.sections || [])].sort();
+    availableGrades.forEach(grade => {
+      availableSections.forEach(section => {
+        const key = `${grade} - ${section}`;
+        if (!groups[key]) {
+          groups[key] = { name: key, present: 0, absent: 0, grade, section };
+        }
+      });
+    });
 
     return Object.values(groups).map((item: any) => {
       const total = item.present + item.absent;
@@ -461,7 +509,7 @@ const Reports: FC = () => {
         color: gradeColors[item.grade] || '#38B2AC', // Default to teal if grade not found
       };
     }).sort((a: any, b: any) => a.name.localeCompare(b.name)); // Sort alphabetically
-  }, [filteredAttendanceData]);
+  }, [filteredChartData, availableGrades, filtersData]);
 
   // Paginated grade-section data
   const paginatedGradeSectionData = useMemo(() => {
@@ -473,6 +521,28 @@ const Reports: FC = () => {
 
   // Pagination info for grade-section chart
   const gradeSectionTotalPages = gradeSectionItemsPerPage === 0 ? 1 : Math.ceil(gradeSectionData.length / gradeSectionItemsPerPage);
+
+  // Paginated attendance percentage data
+  const paginatedAttendancePercentageData = useMemo(() => {
+    if (attendancePercentageItemsPerPage === 0) return gradeSectionData; // Show all
+    const startIndex = (attendancePercentagePage - 1) * attendancePercentageItemsPerPage;
+    const endIndex = startIndex + attendancePercentageItemsPerPage;
+    return gradeSectionData.slice(startIndex, endIndex);
+  }, [gradeSectionData, attendancePercentagePage, attendancePercentageItemsPerPage]);
+
+  // Pagination info for attendance percentage chart
+  const attendancePercentageTotalPages = attendancePercentageItemsPerPage === 0 ? 1 : Math.ceil(gradeSectionData.length / attendancePercentageItemsPerPage);
+
+  // Paginated grade performance data
+  const paginatedGradePerformanceData = useMemo(() => {
+    if (gradePerformanceItemsPerPage === 0) return gradeSectionData; // Show all
+    const startIndex = (gradePerformancePage - 1) * gradePerformanceItemsPerPage;
+    const endIndex = startIndex + gradePerformanceItemsPerPage;
+    return gradeSectionData.slice(startIndex, endIndex);
+  }, [gradeSectionData, gradePerformancePage, gradePerformanceItemsPerPage]);
+
+  // Pagination info for grade performance chart
+  const gradePerformanceTotalPages = gradePerformanceItemsPerPage === 0 ? 1 : Math.ceil(gradeSectionData.length / gradePerformanceItemsPerPage);
 
   const attendanceRateData = useMemo(() => {
     return [
@@ -868,26 +938,72 @@ const Reports: FC = () => {
 
 
 
-              {/* Attendance Percentage by Grade Chart */}
+            {/* Attendance Percentage by Grade Chart */}
             <Grid templateColumns={{ base: '1fr' }} gap={6} marginBottom="2rem">
               <GridItem>
                 <Card>
                   <Box padding="1rem">
                     <Heading size="md" marginBottom="1rem">Attendance Percentage by Grade</Heading>
+
+                    {/* Pagination Controls */}
+                    <Flex justifyContent="space-between" alignItems="center" marginBottom="1rem">
+                      <HStack spacing={4}>
+                        <Text fontSize="sm" color="gray.600">
+                          Showing {attendancePercentageItemsPerPage === 0 ? gradeSectionData.length : paginatedAttendancePercentageData.length} of {gradeSectionData.length} sections
+                        </Text>
+                        <Select
+                          size="sm"
+                          value={attendancePercentageItemsPerPage}
+                          onChange={(e) => {
+                            setAttendancePercentageItemsPerPage(parseInt(e.target.value));
+                            setAttendancePercentagePage(1); // Reset to first page
+                          }}
+                          width="120px"
+                        >
+                          <option value={10}>10 per page</option>
+                          <option value={15}>15 per page</option>
+                          <option value={20}>20 per page</option>
+                          <option value={0}>Show All</option>
+                        </Select>
+                      </HStack>
+
+                      {attendancePercentageItemsPerPage > 0 && (
+                        <HStack spacing={2}>
+                          <Button
+                            size="sm"
+                            onClick={() => setAttendancePercentagePage(prev => Math.max(prev - 1, 1))}
+                            isDisabled={attendancePercentagePage === 1}
+                          >
+                            Previous
+                          </Button>
+                          <Text fontSize="sm" color="gray.600">
+                            Page {attendancePercentagePage} of {attendancePercentageTotalPages}
+                          </Text>
+                          <Button
+                            size="sm"
+                            onClick={() => setAttendancePercentagePage(prev => Math.min(prev + 1, attendancePercentageTotalPages))}
+                            isDisabled={attendancePercentagePage === attendancePercentageTotalPages}
+                          >
+                            Next
+                          </Button>
+                        </HStack>
+                      )}
+                    </Flex>
+
                     <Box overflowX="auto" width="100%" maxWidth="100%" sx={{ '&::-webkit-scrollbar': { height: '8px' }, '&::-webkit-scrollbar-track': { background: '#f1f1f1' }, '&::-webkit-scrollbar-thumb': { background: '#888', borderRadius: '4px' }, '&::-webkit-scrollbar-thumb:hover': { background: '#555' } }}>
-                      <Box minWidth={Math.max(600, gradeSectionData.length * 80)} width="100%">
-                        <ResponsiveContainer width={Math.max(600, gradeSectionData.length * 80)} height={300}>
-                          <BarChart data={gradeSectionData}>
+                      <Box minWidth={Math.max(600, paginatedAttendancePercentageData.length * 80)} width="100%">
+                        <ResponsiveContainer width={Math.max(600, paginatedAttendancePercentageData.length * 80)} height={300}>
+                          <BarChart data={paginatedAttendancePercentageData}>
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis dataKey="name" />
                             <YAxis domain={[0, 800]} ticks={[0, 50, 100, 200, 300, 400, 500, 600, 700, 800]} tickFormatter={(value) => Math.round(value).toString()} />
                             <Tooltip
                               formatter={(value: any, name: string) => {
                                 if (name === 'Present') {
-                                  const entry = gradeSectionData.find((d: any) => d.present === value);
+                                  const entry = paginatedAttendancePercentageData.find((d: any) => d.present === value);
                                   return [`${Math.round(value)} (${entry?.presentPercentage || 0}%)`, name];
                                 } else if (name === 'Absent') {
-                                  const entry = gradeSectionData.find((d: any) => d.absent === value);
+                                  const entry = paginatedAttendancePercentageData.find((d: any) => d.absent === value);
                                   return [`${Math.round(value)} (${entry?.absentPercentage || 0}%)`, name];
                                 }
                                 return [`${Math.round(value)}`, name];
@@ -895,12 +1011,12 @@ const Reports: FC = () => {
                             />
                             <Legend />
                             <Bar dataKey="present" name="Present" fill="#38B2AC">
-                              {gradeSectionData.map((entry, index) => (
+                              {paginatedAttendancePercentageData.map((entry, index) => (
                                 <Cell key={`cell-present-${index}`} fill="#38B2AC" />
                               ))}
                             </Bar>
                             <Bar dataKey="absent" name="Absent" fill="#E53E3E">
-                              {gradeSectionData.map((entry, index) => (
+                              {paginatedAttendancePercentageData.map((entry, index) => (
                                 <Cell key={`cell-absent-${index}`} fill="#E53E3E" />
                               ))}
                             </Bar>
@@ -1261,17 +1377,63 @@ const Reports: FC = () => {
               <Card>
                 <Box padding="1rem">
                   <Heading size="md" marginBottom="1rem">Grade Performance Comparison</Heading>
+
+                  {/* Pagination Controls */}
+                  <Flex justifyContent="space-between" alignItems="center" marginBottom="1rem">
+                    <HStack spacing={4}>
+                      <Text fontSize="sm" color="gray.600">
+                        Showing {gradePerformanceItemsPerPage === 0 ? gradeSectionData.length : paginatedGradePerformanceData.length} of {gradeSectionData.length} sections
+                      </Text>
+                      <Select
+                        size="sm"
+                        value={gradePerformanceItemsPerPage}
+                        onChange={(e) => {
+                          setGradePerformanceItemsPerPage(parseInt(e.target.value));
+                          setGradePerformancePage(1); // Reset to first page
+                        }}
+                        width="120px"
+                      >
+                        <option value={10}>10 per page</option>
+                        <option value={15}>15 per page</option>
+                        <option value={20}>20 per page</option>
+                        <option value={0}>Show All</option>
+                      </Select>
+                    </HStack>
+
+                    {gradePerformanceItemsPerPage > 0 && (
+                      <HStack spacing={2}>
+                        <Button
+                          size="sm"
+                          onClick={() => setGradePerformancePage(prev => Math.max(prev - 1, 1))}
+                          isDisabled={gradePerformancePage === 1}
+                        >
+                          Previous
+                        </Button>
+                        <Text fontSize="sm" color="gray.600">
+                          Page {gradePerformancePage} of {gradePerformanceTotalPages}
+                        </Text>
+                        <Button
+                          size="sm"
+                          onClick={() => setGradePerformancePage(prev => Math.min(prev + 1, gradePerformanceTotalPages))}
+                          isDisabled={gradePerformancePage === gradePerformanceTotalPages}
+                        >
+                          Next
+                        </Button>
+                      </HStack>
+                    )}
+                  </Flex>
+
                   <Box overflowX="auto" width="100%" maxWidth="100%" sx={{ '&::-webkit-scrollbar': { height: '8px' }, '&::-webkit-scrollbar-track': { background: '#f1f1f1' }, '&::-webkit-scrollbar-thumb': { background: '#888', borderRadius: '4px' }, '&::-webkit-scrollbar-thumb:hover': { background: '#555' } }}>
-                    <Box minWidth={Math.max(600, gradeSectionData.length * 80)} width="100%">
-                      <ResponsiveContainer width={Math.max(600, gradeSectionData.length * 80)} height={300}>
-                        <BarChart data={gradeSectionData}>
+                    <Box minWidth={Math.max(600, paginatedGradePerformanceData.length * 80)} width="100%">
+                      <ResponsiveContainer width={Math.max(600, paginatedGradePerformanceData.length * 80)} height={300}>
+                        <BarChart data={paginatedGradePerformanceData}>
                           <CartesianGrid strokeDasharray="3 3" />
                           <XAxis dataKey="name" />
                           <YAxis domain={[0, 800]} ticks={[0, 50, 100, 200, 300, 400, 500, 600, 700, 800]} tickFormatter={(value) => Math.round(value).toString()} />
                           <Tooltip formatter={(value: any) => [`${Math.round(value)}`, 'Present']} />
                           <Legend />
                           <Bar dataKey="present" name="Present">
-                            {gradeSectionData.map((entry, index) => (
+                            {paginatedGradePerformanceData.map((entry, index) => (
                               <Cell key={`cell-${index}`} fill={entry.color} />
                             ))}
                           </Bar>

@@ -54,25 +54,35 @@ const Home: FC = () => {
   const dailyTrendData = useMemo(() => {
     if (reportsData?.data?.reports) {
       const reports = reportsData.data.reports;
-      // Group by date and calculate present/absent
+      // Group by date and sum present/absent across all grades
       const dateGroups: Record<string, { present: number; absent: number }> = {};
       reports.forEach((report: any) => {
-        const date = new Date(report.date);
-        const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
-        if (!dateGroups[dayName]) {
-          dateGroups[dayName] = { present: 0, absent: 0 };
+        const dateKey = new Date(report.date).toISOString().split('T')[0];
+        if (!dateGroups[dateKey]) {
+          dateGroups[dateKey] = { present: 0, absent: 0 };
         }
-        dateGroups[dayName].present += report.present;
-        dateGroups[dayName].absent += report.absent;
+        dateGroups[dateKey].present += report.present;
+        dateGroups[dateKey].absent += report.absent;
       });
 
-      // Convert to array and sort by day of week
-      const dayOrder = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-      return dayOrder.map(day => ({
-        day,
-        Present: dateGroups[day]?.present || 0,
-        Absent: dateGroups[day]?.absent || 0,
-      }));
+      // Get last 7 days
+      const last7Days = [];
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        const dateKey = date.toISOString().split('T')[0];
+        const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
+        const group = dateGroups[dateKey];
+        const present = group ? group.present : 0;
+        const absent = group ? group.absent : 0;
+        last7Days.push({
+          day: dayName,
+          Present: present,
+          Absent: absent,
+        });
+      }
+
+      return last7Days;
     }
 
     // Fallback to mock data
@@ -117,7 +127,20 @@ const Home: FC = () => {
     ];
   }, [reportsData]);
 
-  const COLORS = ['#3182CE', '#E53E3E', '#38A169', '#D69E2E', '#805AD5', '#DD6B20'];
+  const monthColorMap: Record<string, string> = {
+    'Jan': '#4DB6AC',
+    'Feb': '#F06292',
+    'Mar': '#BA68C8',
+    'Apr': '#A1887F',
+    'May': '#7986CB',
+    'Jun': '#DCE775',
+    'Jul': '#4DD0E1',
+    'Aug': '#AED581',
+    'Sep': '#BCAAA4',
+    'Oct': '#FF8A65',
+    'Nov': '#757575',
+    'Dec': '#FFCA28',
+  };
 
   useEffect(() => {
     const handleDeviceConnected = () => {
@@ -176,7 +199,7 @@ const Home: FC = () => {
           position="fixed"
           bottom="20px"
           left="20px"
-          maxW="280px"
+          maxW="240px"
           zIndex="10"
           boxShadow="lg"
           borderRadius="md"
@@ -365,13 +388,13 @@ const Home: FC = () => {
                       cx="50%"
                       cy="50%"
                       labelLine={false}
-                    label={({ name, value }) => `${name}: ${value}`}
+                    label={({ name }) => `${name}`}
                       outerRadius={80}
                       fill="#8884d8"
                       dataKey="value"
                     >
                       {monthlyAbsenceData.map((entry: any, index: number) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        <Cell key={`cell-${index}`} fill={monthColorMap[entry.name] || '#8884d8'} />
                       ))}
                     </Pie>
                     <Tooltip />

@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import { createSuccess } from '../helpers/http.helper';
 import createError from 'http-errors';
-import { getAttendanceReports, getAttendanceSummary, getUniqueGradesAndSections, getPreviousPeriodReports, getStudentAttendanceReports, getStudentAttendanceSummary, getSectionsForGrade, getStudentsForGradeAndSection, getStudentDetailedReport, getDashboardStats, getCheckInTimeAnalysis, getStudentsByStatus, markStudentAttendance } from '../services/reports.service';
+import { getAttendanceReports, getAttendanceSummary, getUniqueGradesAndSections, getGradeSectionCombinations, getPreviousPeriodReports, getStudentAttendanceReports, getStudentAttendanceSummary, getSectionsForGrade, getStudentsForGradeAndSection, getStudentDetailedReport, getDashboardStats, getCheckInTimeAnalysis, getStudentsByStatus, markStudentAttendance } from '../services/reports.service';
 
 export const getReports = async (req: Request, res: Response, next: NextFunction) => {
   const { staff_id } = req.params;
@@ -41,7 +41,7 @@ export const getGradesAndSections = async (req: Request, res: Response, next: Ne
   if (!staff_id) return next(new createError.BadRequest('Staff ID is required'));
 
   try {
-    const data = await getUniqueGradesAndSections(staff_id);
+    const data = await getGradeSectionCombinations(staff_id);
 
     return createSuccess(res, 200, 'Grades and sections fetched successfully', data);
   } catch (err) {

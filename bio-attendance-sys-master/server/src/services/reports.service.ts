@@ -153,6 +153,44 @@ export const getUniqueGradesAndSections = async (staff_id: string) => {
   }
 };
 
+export const getGradeSectionCombinations = async (staff_id: string) => {
+  try {
+    // Get all unique grade-section combinations that actually exist in attendance records
+    const gradeSectionCombinations = await prisma.studentAttendance.findMany({
+      where: { student: { staff_id } },
+      select: {
+        student: { select: { grade: true } },
+        section: true
+      },
+      distinct: ['student_id', 'section'] // Ensure unique combinations per student-section
+    });
+
+    // Group by grade and collect unique sections
+    const gradeSections: Record<string, Set<string>> = {};
+    gradeSectionCombinations.forEach(item => {
+      const grade = item.student.grade;
+      const section = item.section;
+      if (!gradeSections[grade]) {
+        gradeSections[grade] = new Set();
+      }
+      gradeSections[grade].add(section);
+    });
+
+    // Convert to the format expected by frontend
+    const result: Array<{ grade: string; sections: string[] }> = [];
+    Object.keys(gradeSections).sort().forEach(grade => {
+      result.push({
+        grade,
+        sections: Array.from(gradeSections[grade]).sort()
+      });
+    });
+
+    return result;
+  } catch (err) {
+    throw err;
+  }
+};
+
 export const getPreviousPeriodReports = async (staff_id: string, filters: Filters) => {
   try {
     const now = new Date();
