@@ -514,9 +514,9 @@ def create_app(test_config=None):
                     return jsonify({"status": "error", "message": "Staff ID is required"}), 400
 
                 try:
-                    backend_url = "http://localhost:5005"
+                    BACKEND_URL = "http://192.168.1.10:5005"
                     logging.info(f"Fetching fingerprints for staff_id: {staff_id}")
-                    response = requests.get(f"{backend_url}/api/students/fingerprints/{staff_id}")
+                    response = requests.get(f"{BACKEND_URL}/api/students/fingerprints/{staff_id}")
                     if response.status_code != 200:
                         logging.error(f"Failed to fetch students' fingerprints: {response.status_code}")
                         return jsonify({"status": "error", "message": "Failed to fetch students' fingerprints"}), 500
@@ -524,7 +524,7 @@ def create_app(test_config=None):
                     students_fingerprints = response.json().get('data', {}).get('students', [])
                     if not students_fingerprints:
                         logging.warning(f"No students found for staff_id: {staff_id}")
-                        return jsonify({"status": "error", "message": "No students found for this staff"}), 404
+                        return jsonify({"status": "error", "message": "No students found for this staff"}), 200
 
                     logging.info(f"Fetched {len(students_fingerprints)} student fingerprints")
 

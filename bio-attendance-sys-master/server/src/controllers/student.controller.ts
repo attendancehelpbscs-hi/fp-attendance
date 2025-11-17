@@ -225,26 +225,71 @@ export const getStudentsFingerprints = async (req: Request, res: Response, next:
     });
 
     const studentsWithCourses = students.map(student => {
-      // Handle fingerprint data (decrypt if encrypted, detect corruption)
-      const fingerprintResult = handleFingerprintData(student.fingerprint || undefined, student.encrypted_fingerprint || undefined, student.fingerprint_hash || undefined);
+      let fingerprintData = null;
+      let isCorrupted = false;
+      let needsMigration = false;
+
+      // Try to handle fingerprint data, but don't filter out students if it fails
+      try {
+        const fingerprintResult = handleFingerprintData(
+          student.fingerprint || undefined, 
+          student.encrypted_fingerprint || undefined, 
+          student.fingerprint_hash || undefined
+        );
+
+        fingerprintData = fingerprintResult.data;
+        isCorrupted = fingerprintResult.isCorrupted;
+        needsMigration = fingerprintResult.needsMigration;
+
+        // If decryption failed but we have legacy fingerprint, use it directly
+        if (!fingerprintData && student.fingerprint) {
+          console.warn(`Using legacy fingerprint for student ${student.id} due to decryption failure`);
+          fingerprintData = student.fingerprint;
+          isCorrupted = false; // Mark as not corrupted since we can use legacy data
+        }
+
+      } catch (error) {
+        console.error(`Error handling fingerprint data for student ${student.id}:`, error);
+        
+        // Fallback to legacy fingerprint if decryption fails
+        if (student.fingerprint) {
+          console.warn(`Falling back to legacy fingerprint for student ${student.id}`);
+          fingerprintData = student.fingerprint;
+          isCorrupted = false;
+        }
+      }
 
       // Log corruption detection
-      if (fingerprintResult.isCorrupted) {
+      if (isCorrupted) {
         console.error(`Corrupted fingerprint detected for student ${student.id}`);
-        // Could add alerting mechanism here
       }
 
       return {
-        ...student,
-        fingerprint: fingerprintResult.data, // Always return decrypted data for Python server
-        isCorrupted: fingerprintResult.isCorrupted,
-        needsMigration: fingerprintResult.needsMigration,
+        id: student.id,
+        name: student.name,
+        matric_no: student.matric_no,
+        grade: student.grade,
+        fingerprint: fingerprintData,
+        isCorrupted: isCorrupted,
+        needsMigration: needsMigration,
         courses: student.courses.map(sc => sc.course),
       };
-    }).filter(student => student.fingerprint !== null); // Filter out students without fingerprints
+    }).filter(student => {
+      // Only filter out students who have NO fingerprint data at all
+      const hasFingerprint = student.fingerprint !== null && student.fingerprint !== undefined;
+      
+      if (!hasFingerprint) {
+        console.warn(`Filtering out student ${student.id} - no fingerprint data available`);
+      }
+      
+      return hasFingerprint;
+    });
+
+    console.log(`Returning ${studentsWithCourses.length} students with fingerprints out of ${students.length} total students`);
 
     return createSuccess(res, 200, 'Students fingerprints fetched successfully', { students: studentsWithCourses });
   } catch (err) {
+    console.error('Error in getStudentsFingerprints:', err);
     return next(err);
   }
 };

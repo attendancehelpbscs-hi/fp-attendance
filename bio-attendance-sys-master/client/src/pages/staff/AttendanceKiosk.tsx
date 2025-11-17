@@ -299,7 +299,12 @@ const AttendanceKiosk: FC = () => {
           time: dayjs().format('hh:mm:ss A'),
           status: 'error'
         }, ...prev]);
-        toast.error('Fingerprint not recognized. Please try again.');
+        // Check if the error is due to no students found
+        if (res.data.message && res.data.message.includes('No students found')) {
+          toast.error('No students enrolled with fingerprints for this staff member.');
+        } else {
+          toast.error('Fingerprint not recognized. Please try again.');
+        }
       }
     } catch (err) {
       setIdentificationStatus('error');
