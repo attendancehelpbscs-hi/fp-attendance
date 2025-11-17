@@ -46,7 +46,7 @@ const PrivacyPolicy: FC = () => {
               <ListIcon as={FaUserLock} color="blue.500" mt={1} />
               <Box>
                 <Text fontWeight="bold">Personal Information:</Text>
-                <Text>Student names, IDs, matriculation numbers, contact details, and academic information.</Text>
+                <Text>Student names, IDs, matriculation/ID numbers, contact details, and academic information.</Text>
               </Box>
             </ListItem>
             <ListItem display="flex" alignItems="flex-start">

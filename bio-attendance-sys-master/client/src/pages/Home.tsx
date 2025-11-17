@@ -97,50 +97,7 @@ const Home: FC = () => {
     ];
   }, [reportsData]);
 
-  // Use real data for monthly absence breakdown
-  const monthlyAbsenceData = useMemo(() => {
-    if (reportsData?.data?.reports) {
-      const reports = reportsData.data.reports;
-      // Group by month and sum absences
-      const monthGroups: Record<string, number> = {};
-      reports.forEach((report: any) => {
-        const date = new Date(report.date);
-        const monthName = date.toLocaleDateString('en-US', { month: 'short' });
-        if (!monthGroups[monthName]) {
-          monthGroups[monthName] = 0;
-        }
-        monthGroups[monthName] += report.absent;
-      });
 
-      // Convert to array
-      return Object.entries(monthGroups).map(([name, value]) => ({ name, value }));
-    }
-
-    // Fallback to mock data
-    return [
-      { name: 'Jan', value: 15 },
-      { name: 'Feb', value: 20 },
-      { name: 'Mar', value: 18 },
-      { name: 'Apr', value: 12 },
-      { name: 'May', value: 10 },
-      { name: 'Jun', value: 25 },
-    ];
-  }, [reportsData]);
-
-  const monthColorMap: Record<string, string> = {
-    'Jan': '#4DB6AC',
-    'Feb': '#F06292',
-    'Mar': '#BA68C8',
-    'Apr': '#A1887F',
-    'May': '#7986CB',
-    'Jun': '#DCE775',
-    'Jul': '#4DD0E1',
-    'Aug': '#AED581',
-    'Sep': '#BCAAA4',
-    'Oct': '#FF8A65',
-    'Nov': '#757575',
-    'Dec': '#FFCA28',
-  };
 
   useEffect(() => {
     const handleDeviceConnected = () => {
@@ -354,7 +311,7 @@ const Home: FC = () => {
             )}
 
             {/* Key Visualizations */}
-            <Grid templateColumns={{ base: '1fr', md: '2fr 1fr 1fr' }} gap={6} marginTop="2rem">
+            <Grid templateColumns={{ base: '1fr', md: '2fr 1fr' }} gap={6} marginTop="2rem">
               {/* Daily Present vs. Absent Trend */}
               <Box>
                 <Text fontWeight="bold" marginBottom="1rem" textAlign="center">Daily Present vs. Absent Trend (Last 7 Days)</Text>
@@ -376,30 +333,6 @@ const Home: FC = () => {
                 <CircularProgress value={stats.attendanceRate} size="200px" thickness="12px" color={stats.attendanceRate >= 80 ? "green.400" : stats.attendanceRate >= 60 ? "yellow.400" : "red.400"}>
                   <CircularProgressLabel fontSize="2xl" fontWeight="bold">{stats.attendanceRate}%</CircularProgressLabel>
                 </CircularProgress>
-              </Box>
-
-              {/* Monthly Absence Breakdown */}
-              <Box display="flex" flexDirection="column" alignItems="center">
-                <Text fontWeight="bold" marginBottom="1rem" textAlign="center">Monthly Absence Breakdown</Text>
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={monthlyAbsenceData}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                    label={({ name }) => `${name}`}
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="value"
-                    >
-                      {monthlyAbsenceData.map((entry: any, index: number) => (
-                        <Cell key={`cell-${index}`} fill={monthColorMap[entry.name] || '#8884d8'} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
               </Box>
             </Grid>
 

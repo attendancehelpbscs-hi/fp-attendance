@@ -42,19 +42,23 @@ const Help: FC = () => {
             <List spacing={3}>
               <ListItem>
                 <ListIcon as={CheckCircleIcon} color="green.500" />
-                Log in using your staff credentials provided by the administrator
+                Access the system at the main URL and log in using your staff credentials (username/email and password or fingerprint)
               </ListItem>
               <ListItem>
                 <ListIcon as={CheckCircleIcon} color="green.500" />
-                Navigate through the menu to access different modules like Dashboard, Manage Students, Mark Attendance, Reports, and Settings
+                After login, you'll see the dashboard with key attendance statistics, daily trends, and system status
               </ListItem>
               <ListItem>
                 <ListIcon as={CheckCircleIcon} color="green.500" />
-                Ensure the fingerprint scanner is properly connected and recognized by the system before starting attendance sessions
+                Use the navigation menu to access: Dashboard (home), Manage Students, Manage Courses, Mark Attendance, Reports, Profile, and Help
               </ListItem>
               <ListItem>
                 <ListIcon as={CheckCircleIcon} color="green.500" />
-                Familiarize yourself with the dashboard overview showing key statistics and recent activities
+                Ensure your fingerprint scanner is connected and the system status shows "Online" for full functionality
+              </ListItem>
+              <ListItem>
+                <ListIcon as={CheckCircleIcon} color="green.500" />
+                Check the floating system status widget for scanner connectivity and recent activities
               </ListItem>
             </List>
           </AccordionPanel>
@@ -72,23 +76,27 @@ const Help: FC = () => {
             <List spacing={3}>
               <ListItem>
                 <ListIcon as={CheckCircleIcon} color="green.500" />
-                Add new students by clicking the "+" button, entering their details including name, matriculation number or ID number, grade, and enrolled sections
+                Go to "Manage Students" from the menu to view the student list with search, filter, and pagination controls
               </ListItem>
               <ListItem>
                 <ListIcon as={CheckCircleIcon} color="green.500" />
-                Enroll student fingerprints during the add/edit process for secure attendance tracking
+                Add new students using the "+" button - enter name, matriculation/ID number, grade, and assign courses/sections
               </ListItem>
               <ListItem>
                 <ListIcon as={CheckCircleIcon} color="green.500" />
-                Use the search bar to find students by name, ID, or grade; filter by grade; and sort by various criteria (name, ID, grade, section)
+                Edit student details by clicking the edit icon, including updating enrolled courses and personal information
               </ListItem>
               <ListItem>
                 <ListIcon as={CheckCircleIcon} color="green.500" />
-                View individual student attendance history by clicking the eye icon, edit student details with the pencil icon, or delete students with the trash icon
+                View detailed attendance history for individual students using the view icon
               </ListItem>
               <ListItem>
                 <ListIcon as={CheckCircleIcon} color="green.500" />
-                Navigate through paginated results to manage large student databases efficiently
+                Use search and filter options to find students by name, matric/ID number, grade, or course
+              </ListItem>
+              <ListItem>
+                <ListIcon as={CheckCircleIcon} color="green.500" />
+                Delete students if needed, but note that this will remove all associated attendance records
               </ListItem>
             </List>
           </AccordionPanel>
@@ -106,23 +114,39 @@ const Help: FC = () => {
             <List spacing={3}>
               <ListItem>
                 <ListIcon as={CheckCircleIcon} color="green.500" />
-                Navigate to the "Mark Attendance" section and select the appropriate section and date for the session
+                Navigate to "Manage Attendance" from the menu and click "Open Attendance Kiosk" to launch the full-screen attendance interface
               </ListItem>
               <ListItem>
                 <ListIcon as={CheckCircleIcon} color="green.500" />
-                Students place their finger on the scanner; the system automatically identifies and marks attendance with timestamp
+                The kiosk displays real-time clock, date, and scanner connection status at the top
               </ListItem>
               <ListItem>
                 <ListIcon as={CheckCircleIcon} color="green.500" />
-                The system supports continuous scanning for multiple students in sequence, with real-time status updates
+                Enable "Continuous Mode" for automatic marking after successful fingerprint identification
               </ListItem>
               <ListItem>
                 <ListIcon as={CheckCircleIcon} color="green.500" />
-                Use manual marking options if automatic scanning fails or for special circumstances
+                Select "Check In" or "Check Out" time type before scanning fingerprints
               </ListItem>
               <ListItem>
                 <ListIcon as={CheckCircleIcon} color="green.500" />
-                Monitor attendance progress in real-time with visual indicators for attendance status
+                Students place their finger on the scanner - the system automatically identifies them and shows their details
+              </ListItem>
+              <ListItem>
+                <ListIcon as={CheckCircleIcon} color="green.500" />
+                Click "Mark student" to record attendance, or enable continuous mode for automatic marking
+              </ListItem>
+              <ListItem>
+                <ListIcon as={CheckCircleIcon} color="green.500" />
+                Monitor the "Daily Attendance Log" table for real-time updates of check-in/out times
+              </ListItem>
+              <ListItem>
+                <ListIcon as={CheckCircleIcon} color="green.500" />
+                View "Recent Scans" for immediate feedback on successful/failed identifications
+              </ListItem>
+              <ListItem>
+                <ListIcon as={CheckCircleIcon} color="green.500" />
+                Use the "Exit Kiosk" button to return to the main attendance management page
               </ListItem>
             </List>
           </AccordionPanel>
@@ -140,23 +164,27 @@ const Help: FC = () => {
             <List spacing={3}>
               <ListItem>
                 <ListIcon as={CheckCircleIcon} color="green.500" />
-                Access the Reports section to view comprehensive attendance analytics, including attendance trends, and detailed breakdowns
+                Navigate to "Reports" from the menu to access various attendance analytics and data views
               </ListItem>
               <ListItem>
                 <ListIcon as={CheckCircleIcon} color="green.500" />
-                Use advanced filters to narrow down reports by grade, section, and custom date ranges
+                View attendance trends with charts showing daily present vs. absent counts over time periods
               </ListItem>
               <ListItem>
                 <ListIcon as={CheckCircleIcon} color="green.500" />
-                Export reports in various formats (PDF, Excel) for administrative purposes, parent communications, or further analysis
+                Filter reports by grade, section, date ranges (7 days, 14 days, 30 days, etc.), or custom start/end dates
               </ListItem>
               <ListItem>
                 <ListIcon as={CheckCircleIcon} color="green.500" />
-                View individual student report details with attendance history and timestamps
+                Access student-specific reports showing detailed attendance history with check-in/out times
               </ListItem>
               <ListItem>
                 <ListIcon as={CheckCircleIcon} color="green.500" />
-                Monitor class-wise and grade-wise attendance patterns to identify trends and areas needing attention
+                View grade-wise and section-wise attendance statistics and summaries
+              </ListItem>
+              <ListItem>
+                <ListIcon as={CheckCircleIcon} color="green.500" />
+                Use check-in time analysis to monitor student arrival patterns and punctuality
               </ListItem>
             </List>
           </AccordionPanel>
@@ -174,23 +202,27 @@ const Help: FC = () => {
             <List spacing={3}>
               <ListItem>
                 <ListIcon as={CheckCircleIcon} color="green.500" />
-                Ensure the fingerprint scanner is properly connected via USB and recognized by the system; check device manager for driver issues
+                Check the system status widget - ensure scanner shows "Online" and Python server is running
               </ListItem>
               <ListItem>
                 <ListIcon as={CheckCircleIcon} color="green.500" />
-                Verify student fingerprint enrollment is complete and accurate; re-enroll if identification consistently fails
+                If scanner is not detected, restart the Python server and refresh the browser page
               </ListItem>
               <ListItem>
                 <ListIcon as={CheckCircleIcon} color="green.500" />
-                Clear browser cache and cookies, or try using an incognito/private browsing window if experiencing loading or display issues
+                For fingerprint recognition issues, ensure student fingerprints are properly enrolled and try re-enrollment
               </ListItem>
               <ListItem>
                 <ListIcon as={CheckCircleIcon} color="green.500" />
-                Check network connectivity for real-time features; ensure stable internet connection for optimal performance
+                Clear browser cache and cookies if experiencing loading or display problems
               </ListItem>
               <ListItem>
                 <ListIcon as={CheckCircleIcon} color="green.500" />
-                Restart the application or refresh the page if encountering unexpected errors; contact support if issues persist
+                Verify network connectivity for real-time features and ensure stable internet connection
+              </ListItem>
+              <ListItem>
+                <ListIcon as={CheckCircleIcon} color="green.500" />
+                If issues persist, check server logs and contact support with error details
               </ListItem>
             </List>
           </AccordionPanel>
