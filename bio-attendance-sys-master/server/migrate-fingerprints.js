@@ -4,7 +4,7 @@
  */
 
 const { PrismaClient } = require('@prisma/client');
-const { encryptFingerprint, generateFingerprintHash } = require('./src/helpers/fingerprint-security.helper');
+const { encryptFingerprint, generateFingerprintHash } = require('./build/helpers/fingerprint-security.helper');
 
 const prisma = new PrismaClient();
 

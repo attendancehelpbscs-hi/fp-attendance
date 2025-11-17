@@ -241,7 +241,7 @@ export const getStudentsFingerprints = async (req: Request, res: Response, next:
         needsMigration: fingerprintResult.needsMigration,
         courses: student.courses.map(sc => sc.course),
       };
-    });
+    }).filter(student => student.fingerprint !== null); // Filter out students without fingerprints
 
     return createSuccess(res, 200, 'Students fingerprints fetched successfully', { students: studentsWithCourses });
   } catch (err) {

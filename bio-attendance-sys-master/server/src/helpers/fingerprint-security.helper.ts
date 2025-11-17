@@ -25,8 +25,8 @@ export const encryptFingerprint = (fingerprintData: string): EncryptedFingerprin
     const iv = crypto.randomBytes(16);
 
     // Create cipher using modern API
-    const cipher = crypto.createCipheriv(ALGORITHM, ENCRYPTION_KEY, iv);
-    cipher.setAAD(Buffer.from('fingerprint')); // Additional authenticated data
+    const cipher = crypto.createCipheriv(ALGORITHM, ENCRYPTION_KEY as crypto.CipherKey, iv as crypto.BinaryLike);
+    cipher.setAAD(new Uint8Array(Buffer.from('fingerprint'))); // Additional authenticated data
 
     // Encrypt the data
     let encrypted = cipher.update(fingerprintData, 'utf8', 'base64');
@@ -60,8 +60,8 @@ export const decryptFingerprint = (encryptedFingerprint: EncryptedFingerprint): 
 
     // Create decipher using modern API
     const decipher = crypto.createDecipheriv(ALGORITHM, ENCRYPTION_KEY as crypto.CipherKey, Buffer.from(iv, 'base64') as crypto.BinaryLike);
-    decipher.setAAD(Buffer.from('fingerprint'));
-    decipher.setAuthTag(Buffer.from(tag, 'base64'));
+    decipher.setAAD(new Uint8Array(Buffer.from('fingerprint')));
+    decipher.setAuthTag(new Uint8Array(Buffer.from(tag, 'base64')));
 
     // Decrypt the data
     let decrypted = decipher.update(encryptedData, 'base64', 'utf8');
@@ -115,7 +115,7 @@ export const detectFingerprintCorruption = (fingerprintData: string): boolean =>
 
     // PNG header check
     const pngHeader = Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
-    if (decoded.subarray(0, 8).equals(pngHeader)) {
+    if (new Uint8Array(decoded.subarray(0, 8)).every((val, idx) => val === pngHeader[idx])) {
       return false; // Looks like valid PNG
     }
 

@@ -39,7 +39,7 @@ export const saveStudentToDb = (student: Omit<Student, 'id'>): Promise<Student> 
 
       // Audit log for fingerprint encryption
       if (fingerprintData && encryptedFingerprint) {
-        await createAuditLog('system', 'FINGERPRINT_ENCRYPTED', `Student ${savedStudent.matric_no} fingerprint encrypted`);
+        await createAuditLog(student.staff_id, 'FINGERPRINT_ENCRYPTED', `Student ${savedStudent.matric_no} fingerprint encrypted`);
       }
 
       resolve(savedStudent);
@@ -207,7 +207,7 @@ export const updateStudentInDb = (id: string, newUpdate: Partial<Student>): Prom
 
       // Audit log for fingerprint encryption update
       if (newUpdate.fingerprint && encryptedFingerprint) {
-        await createAuditLog('system', 'FINGERPRINT_ENCRYPTED', `Student ${student.matric_no} fingerprint updated and encrypted`);
+        await createAuditLog(student.staff_id, 'FINGERPRINT_ENCRYPTED', `Student ${student.matric_no} fingerprint updated and encrypted`);
       }
 
       resolve(student);

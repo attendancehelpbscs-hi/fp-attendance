@@ -71,7 +71,7 @@ export class FingerprintMigrationService {
             encrypted_fingerprint: { equals: null },
             ...(lastId ? { id: { gt: lastId } } : {})
           },
-          select: { id: true, fingerprint: true },
+          select: { id: true, fingerprint: true, staff_id: true },
           orderBy: { id: 'asc' },
           take: this.BATCH_SIZE
         });
@@ -96,7 +96,7 @@ export class FingerprintMigrationService {
               });
 
               // Audit log for migration
-              await createAuditLog('system', 'FINGERPRINT_MIGRATED', `Student ${student.id} fingerprint migrated to encrypted storage`);
+              await createAuditLog(student.staff_id, 'FINGERPRINT_MIGRATED', `Student ${student.id} fingerprint migrated to encrypted storage`);
             }
           } catch (error) {
             logger.error(`Error migrating student ${student.id}:`, error as Error);
@@ -186,7 +186,7 @@ export class FingerprintMigrationService {
               });
 
               // Audit log for migration
-              await createAuditLog('system', 'FINGERPRINT_MIGRATED', `Staff ${member.id} fingerprint migrated to encrypted storage`);
+              await createAuditLog(member.id, 'FINGERPRINT_MIGRATED', `Staff ${member.id} fingerprint migrated to encrypted storage`);
             }
           } catch (error) {
             logger.error(`Error migrating staff ${member.id}:`, error as Error);
