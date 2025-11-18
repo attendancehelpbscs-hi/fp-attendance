@@ -254,7 +254,7 @@ const AttendanceKiosk: FC = () => {
       const { student_id, confidence } = res.data;
       setConfidence(confidence);
 
-      if (student_id && confidence > 5) {
+      if (student_id && confidence > 0.5) {
         const student = studentFingerprintsData.data?.data?.students?.find((s: StudentFingerprint) => s.id === student_id);
         if (student) {
           setIdentifiedStudent(student);

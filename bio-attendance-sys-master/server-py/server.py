@@ -226,9 +226,10 @@ def identify_fingerprint(scanned_fingerprint_path, students_fingerprints):
             # Compare fingerprints
             match_score = get_fingerprint_match_score(scanned_fingerprint_path, temp_path)
 
-            # Clean up temp file
-            if os.path.exists(temp_path):
-                os.remove(temp_path)
+            # Keep temp file for diagnostics
+            # if os.path.exists(temp_path):
+            #     os.remove(temp_path)
+            logging.info(f"Kept temp fingerprint: {temp_path}")
 
             # Update best match if this score is higher
             if match_score > best_match['confidence']:
@@ -253,7 +254,7 @@ def identify_fingerprint(scanned_fingerprint_path, students_fingerprints):
         # Could add alerting mechanism here (email, webhook, etc.)
 
     # Only return a match if confidence is above 5% (aligned with client threshold)
-    if best_match['confidence'] < 5:
+    if best_match['confidence'] < 0.5:
         logging.info("Confidence too low, returning no match")
         return {
             'student_id': None,
@@ -409,9 +410,10 @@ def identify_staff_fingerprint(scanned_fingerprint_path, staff_fingerprints):
             # Compare fingerprints
             match_score = get_fingerprint_match_score(scanned_fingerprint_path, temp_path)
 
-            # Clean up temp file
-            if os.path.exists(temp_path):
-                os.remove(temp_path)
+            # Keep temp file for diagnostics
+            # if os.path.exists(temp_path):
+            #     os.remove(temp_path)
+            logging.info(f"Kept temp fingerprint: {temp_path}")
 
             # Update best match if this score is higher
             if match_score > best_match['confidence']:
@@ -436,7 +438,7 @@ def identify_staff_fingerprint(scanned_fingerprint_path, staff_fingerprints):
         # Could add alerting mechanism here (email, webhook, etc.)
 
     # Only return a match if confidence is above 5% (aligned with client threshold)
-    if best_match['confidence'] < 5:
+    if best_match['confidence'] < 0.5:
         logging.info("Confidence too low, returning no match")
         return {
             'staff_id': None,
@@ -514,7 +516,7 @@ def create_app(test_config=None):
                     return jsonify({"status": "error", "message": "Staff ID is required"}), 400
 
                 try:
-                    BACKEND_URL = "http://192.168.1.10:5005"
+                    BACKEND_URL = "http://localhost:5005"
                     logging.info(f"Fetching fingerprints for staff_id: {staff_id}")
                     response = requests.get(f"{BACKEND_URL}/api/students/fingerprints/{staff_id}")
                     if response.status_code != 200:
@@ -544,9 +546,10 @@ def create_app(test_config=None):
 
                     identification_result = identify_fingerprint(scanned_path, students_fingerprints)
 
-                    if os.path.exists(scanned_path):
-                        os.remove(scanned_path)
-                        logging.info("Cleaned up scanned fingerprint file")
+                    # if os.path.exists(scanned_path):
+                    #     os.remove(scanned_path)
+                    #     logging.info("Cleaned up scanned fingerprint file")
+                    logging.info("Keeping scanned fingerprint for diagnostics")
 
                     return jsonify({
                         "status": "success",
