@@ -2,7 +2,7 @@ import '../styles/Header.scss';
 import logo from '../assets/1756882646835-removebg-preview.png';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import useStore from '../store/store';
-import { LayoutDashboard, LibraryBig, Fingerprint, CalendarCheck, ChartNoAxesCombined, MessageCircleQuestion, Settings, CircleUserRound } from 'lucide-react';
+import { LayoutDashboard, Users, Fingerprint, CalendarCheck, ChartNoAxesCombined, MessageCircleQuestion, Settings, CircleUserRound, ChevronDown } from 'lucide-react';
 import { Menu, MenuButton, MenuList, MenuItem, Button, Modal, ModalOverlay, ModalContent, ModalHeader, ModalFooter, ModalBody, ModalCloseButton, useDisclosure, Alert, AlertIcon, AlertTitle, AlertDescription, Box } from '@chakra-ui/react';
 import { toast } from 'react-hot-toast';
 
@@ -84,13 +84,19 @@ const Header = () => {
               </Link>
             </li>
             <li className="nav-item">
-              <Link to="/staff/manage/courses" className={`nav-link ${location.pathname === '/staff/manage/courses' ? 'active' : ''}`}>
-                <LibraryBig className="nav-icon" /> Section
-              </Link>
+              <Menu>
+                <MenuButton as={Button} bg="transparent" color="gray.400" _hover={{ background: 'rgba(255, 255, 255, 0.1)' }} p={2} rightIcon={<ChevronDown />} className={`nav-link ${location.pathname.startsWith('/staff/manage/students') || location.pathname.startsWith('/staff/manage/courses') ? 'active' : ''}`}>
+                  <Users className="nav-icon" /> Management
+                </MenuButton>
+                <MenuList>
+                  <MenuItem as={Link} to="/staff/manage/courses" color="black" py={3}>Section Management</MenuItem>
+                  <MenuItem as={Link} to="/staff/manage/students" color="black" py={3}>Students List</MenuItem>
+                </MenuList>
+              </Menu>
             </li>
             <li className="nav-item">
-              <Link to="/staff/manage/students" className={`nav-link ${location.pathname === '/staff/manage/students' ? 'active' : ''}`}>
-                <Fingerprint className="nav-icon" /> Students
+              <Link to="/staff/fingerprint-enrollment" className={`nav-link ${location.pathname === '/staff/fingerprint-enrollment' ? 'active' : ''}`}>
+                <Fingerprint className="nav-icon" /> Enrollment
               </Link>
             </li>
             <li className="nav-item">

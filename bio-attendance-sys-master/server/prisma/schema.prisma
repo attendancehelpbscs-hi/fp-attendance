@@ -51,7 +51,7 @@ model Student {
   name        String
   matric_no   String              @unique
   grade       String
-  fingerprint String              @db.LongText // Legacy unencrypted fingerprint data
+  fingerprint String?             @db.LongText // Legacy unencrypted fingerprint data (optional)
   fingerprint_hash     String?    @db.VarChar(64) // SHA-256 hash for integrity verification
   encrypted_fingerprint String?   @db.LongText // AES-256 encrypted fingerprint data
   created_at  DateTime

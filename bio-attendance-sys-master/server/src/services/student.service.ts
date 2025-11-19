@@ -192,9 +192,12 @@ export const updateStudentInDb = (id: string, newUpdate: Partial<Student>): Prom
           });
           updateData.fingerprint_hash = fingerprintHash;
           updateData.encrypted_fingerprint = encryptedFingerprint;
+          // Keep the legacy fingerprint field updated for backward compatibility
+          updateData.fingerprint = newUpdate.fingerprint;
         } catch (encryptionError) {
           console.error('Fingerprint encryption failed during update:', encryptionError);
           // Continue without encryption for now, but log the error
+          updateData.fingerprint = newUpdate.fingerprint;
         }
       }
 

@@ -1,5 +1,5 @@
 import type { FC } from 'react';
-import { Box, Heading, Text, VStack, Divider, List, ListItem, ListIcon, Button } from '@chakra-ui/react';
+import { Box, Heading, Text, VStack, Divider, List, ListItem, ListIcon, Icon, Button } from '@chakra-ui/react';
 import { FaShieldAlt, FaUserLock, FaDatabase, FaCookieBite, FaGavel } from 'react-icons/fa';
 import { Link } from 'react-router-dom';
 
@@ -19,7 +19,7 @@ const PrivacyPolicy: FC = () => {
 
         <Box>
           <Heading as="h2" size="lg" mb={4} display="flex" alignItems="center">
-            <FaShieldAlt style={{ marginRight: '8px' }} />
+            <Icon as={FaShieldAlt as any} mr={2} />
             Introduction
           </Heading>
           <Text>
@@ -31,12 +31,12 @@ const PrivacyPolicy: FC = () => {
 
         <Box>
           <Heading as="h2" size="lg" mb={4} display="flex" alignItems="center">
-            <FaUserLock style={{ marginRight: '8px' }} />
+            <Icon as={FaUserLock as any} mr={2} />
             Information We Collect
           </Heading>
           <List spacing={3}>
             <ListItem display="flex" alignItems="flex-start">
-              <ListIcon as={FaDatabase} color="blue.500" mt={1} />
+              <ListIcon as={FaDatabase as any} color="blue.500" mt={1} />
               <Box>
                 <Text fontWeight="bold">Biometric Data:</Text>
                 <Text>Fingerprint scans and templates used for attendance verification.</Text>
@@ -50,14 +50,14 @@ const PrivacyPolicy: FC = () => {
               </Box>
             </ListItem>
             <ListItem display="flex" alignItems="flex-start">
-              <ListIcon as={FaDatabase} color="blue.500" mt={1} />
+              <ListIcon as={FaDatabase as any} color="blue.500" mt={1} />
               <Box>
                 <Text fontWeight="bold">Attendance Records:</Text>
                 <Text>Timestamps and attendance status for attendance tracking.</Text>
               </Box>
             </ListItem>
             <ListItem display="flex" alignItems="flex-start">
-              <ListIcon as={FaCookieBite} color="blue.500" mt={1} />
+              <ListIcon as={FaCookieBite as any} color="blue.500" mt={1} />
               <Box>
                 <Text fontWeight="bold">Technical Data:</Text>
                 <Text>IP addresses, browser information, and system logs for security and troubleshooting.</Text>
@@ -70,7 +70,7 @@ const PrivacyPolicy: FC = () => {
 
         <Box>
           <Heading as="h2" size="lg" mb={4} display="flex" alignItems="center">
-            <FaDatabase style={{ marginRight: '8px' }} />
+            <Icon as={FaDatabase as any} mr={2} />
             How We Use Your Information
           </Heading>
           <List spacing={3}>
@@ -86,7 +86,7 @@ const PrivacyPolicy: FC = () => {
 
         <Box>
           <Heading as="h2" size="lg" mb={4} display="flex" alignItems="center">
-            <FaShieldAlt style={{ marginRight: '8px' }} />
+            <Icon as={FaShieldAlt as any} mr={2} />
             Data Security Measures
           </Heading>
           <Text mb={3}>
@@ -105,7 +105,7 @@ const PrivacyPolicy: FC = () => {
 
         <Box>
           <Heading as="h2" size="lg" mb={4} display="flex" alignItems="center">
-            <FaGavel style={{ marginRight: '8px' }} />
+            <Icon as={FaGavel as any} mr={2} />
             Your Rights and Choices
           </Heading>
           <Text mb={3}>
@@ -127,7 +127,7 @@ const PrivacyPolicy: FC = () => {
             Data Retention
           </Heading>
           <Text>
-            We retain your data only as long as necessary for the purposes outlined in this policy or as required by law. Biometric data and attendance records are typically retained for the duration of your enrollment plus a reasonable period for legal and administrative purposes.
+            We retain your data only as long as necessary for the purposes outlined in this policy or as required by law. Biometric data and attendance records are typically retained for 5 years after the end of your enrollment, or as required by law, whichever is longer.
           </Text>
         </Box>
 

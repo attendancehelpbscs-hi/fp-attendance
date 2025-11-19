@@ -253,7 +253,7 @@ export interface Student {
   matric_no: string;
   grade: string;
   section: string;
-  fingerprint: string;
+  fingerprint?: string;
   courses: Course[];
 }
 
@@ -261,7 +261,7 @@ export interface AddStudentInput {
   name: string;
   matric_no: string;
   grade: string;
-  fingerprint: string;
+  fingerprint?: string;
   courses: string[];
   staff_id: string;
 }
@@ -293,7 +293,9 @@ export interface UpdateStudentInput {
 }
 
 export interface UpdateStudentResult {
-  student: Student;
+  data: {
+    student: Student;
+  };
 }
 
 export interface GetStudentsFingerprintsResult {

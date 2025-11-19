@@ -162,7 +162,7 @@ export const updateStudent = async (req: Request, res: Response, next: NextFunct
   // update student
   const { id } = req.params;
   if (!id) return next(createError(400, 'No student ID provided'));
-  const { courses, ...newUpdate } = req.body as Partial<Student> & { courses: string[] };
+  const { courses, ...newUpdate } = req.body as Partial<Student> & { courses?: string[] };
 
   // Validate fingerprint data if provided
   if (newUpdate.fingerprint) {
@@ -175,9 +175,12 @@ export const updateStudent = async (req: Request, res: Response, next: NextFunct
   }
 
   try {
-    await removeAllStudentCoursesToDb(id);
+    // Only update courses if provided
+    if (courses !== undefined) {
+      await removeAllStudentCoursesToDb(id);
+      await saveStudentCoursesToDb(courses.map((course_id) => ({ course_id, student_id: id })));
+    }
     const updatedStudent = await updateStudentInDb(id, newUpdate);
-    await saveStudentCoursesToDb(courses.map((course_id) => ({ course_id, student_id: id })));
     const studentCourses = await getStudentCourses(id);
     return createSuccess(res, 200, 'Student updated successfully', {
       student: { ...updatedStudent, courses: studentCourses.map((item) => item.course) },

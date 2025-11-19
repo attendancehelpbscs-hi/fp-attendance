@@ -386,7 +386,7 @@ const Home: FC = () => {
                   <BarChart data={dailyTrendData}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="day" />
-                      <YAxis domain={[0, 800]} ticks={[0, 50, 100, 200, 300, 400, 500, 600, 700, 800]} tickFormatter={(value) => Math.round(value).toString()} />
+                      <YAxis domain={[0, 50]} ticks={[50, 40, 30, 20, 10, 0]} tickFormatter={(value) => Math.round(value).toString()} />
                     <Tooltip />
                     <Bar dataKey="Present" fill="#3182CE" />
                     <Bar dataKey="Absent" fill="#E53E3E" />

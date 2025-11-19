@@ -12,6 +12,8 @@ import ResetPassword from './pages/staff/ResetPassword';
 import Profile from './pages/staff/Profile';
 import ManageCourses from './pages/staff/ManageCourses';
 import ManageStudents from './pages/staff/ManageStudents';
+import StudentManagement from './pages/staff/StudentManagement';
+import FingerprintEnrollment from './pages/staff/FingerprintEnrollment';
 import Settings from './pages/staff/Settings';
 import ManageAttendance from './pages/staff/ManageAttendance';
 import Reports from './pages/staff/Reports';
@@ -139,11 +141,21 @@ function App() {
     },
 
     {
-      path: '/staff/manage/courses',
+      path: '/staff/student-management',
       element: (
         <WithMainLayout>
           <AuthLayout routeType="auth">
-            <ManageCourses />
+            <StudentManagement />
+          </AuthLayout>
+        </WithMainLayout>
+      ),
+    },
+    {
+      path: '/staff/fingerprint-enrollment',
+      element: (
+        <WithMainLayout>
+          <AuthLayout routeType="auth">
+            <FingerprintEnrollment />
           </AuthLayout>
         </WithMainLayout>
       ),
@@ -164,6 +176,16 @@ function App() {
         <WithMainLayout>
           <AuthLayout routeType="auth">
             <ManageStudents />
+          </AuthLayout>
+        </WithMainLayout>
+      ),
+    },
+    {
+      path: '/staff/manage/courses',
+      element: (
+        <WithMainLayout>
+          <AuthLayout routeType="auth">
+            <ManageCourses />
           </AuthLayout>
         </WithMainLayout>
       ),

@@ -793,6 +793,7 @@ const Reports: FC = () => {
   const filteredAndSearchedStudentData = useMemo(() => {
     let data = studentAttendanceData.filter((item: any) => {
       const statusMatch = selectedStatus === 'all' || item.status === selectedStatus;
+      const sessionMatch = selectedSession === 'all' || item.session_type === selectedSession;
       const dateMatch = (() => {
         if (!startDate && !endDate) return true;
         const itemDateStr = new Date(item.date).toISOString().split('T')[0];
@@ -802,7 +803,7 @@ const Reports: FC = () => {
         if (endStr && itemDateStr > endStr) return false;
         return true;
       })();
-      return statusMatch && dateMatch;
+      return statusMatch && sessionMatch && dateMatch;
     });
 
     if (studentSearchTerm) {
@@ -1044,7 +1045,7 @@ const Reports: FC = () => {
                           <BarChart data={paginatedAttendancePercentageData}>
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis dataKey="name" />
-                            <YAxis domain={[0, 800]} ticks={[0, 50, 100, 200, 300, 400, 500, 600, 700, 800]} tickFormatter={(value) => Math.round(value).toString()} />
+                            <YAxis domain={[0, 50]} ticks={[50, 40, 30, 20, 10, 0]} tickFormatter={(value) => Math.round(value).toString()} />
                             <Tooltip
                               formatter={(value: any, name: string) => {
                                 if (name === 'Present') {
@@ -1297,7 +1298,7 @@ const Reports: FC = () => {
                         <LineChart data={attendanceTrendData}>
                           <CartesianGrid strokeDasharray="3 3" />
                           <XAxis dataKey="date" tickFormatter={(value) => new Date(value).toLocaleDateString()} />
-                          <YAxis domain={[0, 800]} ticks={[0, 50, 100, 200, 300, 400, 500, 600, 700, 800]} tickFormatter={(value) => Math.round(value).toString()} />
+                          <YAxis domain={[0, 50]} ticks={[50, 40, 30, 20, 10, 0]} tickFormatter={(value) => Math.round(value).toString()} />
                           <Tooltip
                             labelFormatter={(value) => `Date: ${new Date(value).toLocaleDateString()}`}
                             formatter={(value: any) => [`${Math.round(value)}`, 'Present']}
@@ -1322,7 +1323,7 @@ const Reports: FC = () => {
                     <BarChart data={weeklyAttendanceData}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="day" />
-                      <YAxis domain={[0, 800]} ticks={[0, 50, 100, 200, 300, 400, 500, 600, 700, 800]} tickFormatter={(value) => Math.round(value).toString()} />
+                      <YAxis domain={[0, 50]} ticks={[50, 40, 30, 20, 10, 0]} tickFormatter={(value) => Math.round(value).toString()} />
                       <Tooltip
                         formatter={(value: any, name: string) => [
                           name === 'averagePresent' ? `${Math.round(value)} students` : Math.round(value),
@@ -1405,7 +1406,7 @@ const Reports: FC = () => {
                         <BarChart data={paginatedGradeSectionData}>
                           <CartesianGrid strokeDasharray="3 3" />
                           <XAxis dataKey="name" />
-                          <YAxis domain={[0, 800]} ticks={[0, 50, 100, 200, 300, 400, 500, 600, 700, 800]} tickFormatter={(value) => Math.round(value).toString()} />
+                          <YAxis domain={[0, 50]} ticks={[50, 40, 30, 20, 10, 0]} tickFormatter={(value) => Math.round(value).toString()} />
                           <Tooltip formatter={(value: any) => [`${Math.round(value)}`, 'Present']} />
                           <Legend />
                           <Bar dataKey="present" name="Present">
@@ -1528,7 +1529,7 @@ const Reports: FC = () => {
                           height={80}
                           interval={0}
                         />
-                        <YAxis domain={[0, 800]} ticks={[0, 50, 100, 200, 300, 400, 500, 600, 700, 800]} tickFormatter={(value) => Math.round(value).toString()} />
+                        <YAxis domain={[0, 50]} ticks={[50, 40, 30, 20, 10, 0]} tickFormatter={(value) => Math.round(value).toString()} />
                         <Tooltip
                           formatter={(value: any) => [`${Math.round(value)} check-ins`, 'Count']}
                           labelFormatter={(label) => `Time: ${label}`}
