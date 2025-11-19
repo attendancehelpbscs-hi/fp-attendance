@@ -29,9 +29,15 @@ export const saveStudentToDb = (student: Omit<Student, 'id'>): Promise<Student> 
         }
       }
 
+      // Extract staff_id and create data object without it
+      const { staff_id, ...studentData } = student;
+
       const savedStudent = await prisma.student.create({
         data: {
-          ...student,
+          ...studentData,
+          staff: {
+            connect: { id: staff_id }
+          },
           fingerprint_hash: fingerprintHash,
           encrypted_fingerprint: encryptedFingerprint,
         },
@@ -39,7 +45,7 @@ export const saveStudentToDb = (student: Omit<Student, 'id'>): Promise<Student> 
 
       // Audit log for fingerprint encryption
       if (fingerprintData && encryptedFingerprint) {
-        await createAuditLog(student.staff_id, 'FINGERPRINT_ENCRYPTED', `Student ${savedStudent.matric_no} fingerprint encrypted`);
+        await createAuditLog(staff_id, 'FINGERPRINT_ENCRYPTED', `Student ${savedStudent.matric_no} fingerprint encrypted`);
       }
 
       resolve(savedStudent);

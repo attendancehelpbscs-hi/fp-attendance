@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import type { FC } from 'react';
 import WithStaffLayout from '../../layouts/WithStaffLayout';
 import {
@@ -34,7 +34,7 @@ import {
   ModalFooter,
 } from '@chakra-ui/react';
 import { SearchIcon } from '@chakra-ui/icons';
-import { Fingerprint, Camera, RefreshCw, CheckCircle, XCircle } from 'lucide-react';
+import { Fingerprint, RefreshCw, CheckCircle } from 'lucide-react';
 import { fingerprintControl } from '../../lib/fingerprint';
 import { Base64 } from '@digitalpersona/core';
 import useStore from '../../store/store';
@@ -47,7 +47,6 @@ const FingerprintEnrollment: FC = () => {
   const staffInfo = useStore.use.staffInfo();
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [fingerprintImage, setFingerprintImage] = useState<string | null>(null);
-  const [capturedFingerprintImage, setCapturedFingerprintImage] = useState<string | null>(null);
   const [liveFingerprintImage, setLiveFingerprintImage] = useState<string | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
   const [isEnrolling, setIsEnrolling] = useState(false);
@@ -55,12 +54,14 @@ const FingerprintEnrollment: FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [gradeFilter, setGradeFilter] = useState('');
   const [deviceConnected, setDeviceConnected] = useState<boolean>(false);
+  // Store the captured fingerprint separately for display
+  const [enrolledFingerprintDisplay, setEnrolledFingerprintDisplay] = useState<string | null>(null);
   const { isOpen, onOpen, onClose } = useDisclosure();
 
   const { data: studentsData, isLoading, refetch } = useGetStudents(
     staffInfo?.id as string,
     1,
-    1000, // Get all students for enrollment
+    1000,
     {
       queryKey: ['students-enrollment'],
       keepPreviousData: true,
@@ -69,7 +70,6 @@ const FingerprintEnrollment: FC = () => {
 
   const updateStudentMutation = useUpdateStudent();
 
-  // Filter students based on search and grade
   const filteredStudents = studentsData?.data?.students?.filter((student: Student) => {
     const matchesSearch = student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          student.matric_no.toLowerCase().includes(searchTerm.toLowerCase());
@@ -87,11 +87,9 @@ const FingerprintEnrollment: FC = () => {
     setDeviceConnected(false);
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleSampleAcquired = (event: any) => {
     console.log('Sample acquired => ', event?.samples);
     const rawImages = event?.samples.map((sample: string) => Base64.fromBase64Url(sample));
-
     setLiveFingerprintImage(rawImages[0]);
   };
 
@@ -106,13 +104,8 @@ const FingerprintEnrollment: FC = () => {
       toast.success('Fingerprint captured successfully');
     };
 
-    // Note: Fingerprint control is now initialized globally in App.tsx
-    // This component just sets up the callbacks for this specific use case
-
-    // Check if device is already connected (since global init might have connected it before this component mounted)
     const checkInitialConnection = () => {
       try {
-        // Use the public getter to check current connection status
         if (fingerprintControl.isDeviceConnected) {
           console.log('Device was already connected, updating UI state');
           setDeviceConnected(true);
@@ -126,7 +119,6 @@ const FingerprintEnrollment: FC = () => {
 
     checkInitialConnection();
 
-    // Cleanup callbacks on unmount (but don't destroy the global instance)
     return () => {
       fingerprintControl.onDeviceConnectedCallback = undefined;
       fingerprintControl.onDeviceDisconnectedCallback = undefined;
@@ -135,15 +127,13 @@ const FingerprintEnrollment: FC = () => {
     };
   }, []);
 
-
-
   const handleEnrollFingerprint = async () => {
     if (!selectedStudent || !fingerprintImage) {
       toast.error('Please capture a fingerprint first');
       return;
     }
 
-      setIsEnrolling(true);
+    setIsEnrolling(true);
     try {
       const result = await updateStudentMutation.mutateAsync({
         id: selectedStudent.id,
@@ -155,16 +145,17 @@ const FingerprintEnrollment: FC = () => {
       setEnrollmentStatus('success');
       toast.success(`Fingerprint enrolled successfully for ${selectedStudent.name}`);
 
-      // Update the selected student with the full updated student data
-      // Use the captured fingerprintImage for display since it contains the raw base64 data
-      setSelectedStudent({ ...result.data.student, fingerprint: fingerprintImage });
+      // Store the raw fingerprint image for display
+      setEnrolledFingerprintDisplay(fingerprintImage);
+      
+      // Update the selected student (mark as having fingerprint enrolled)
+      setSelectedStudent({ 
+        ...result.data.student, 
+        fingerprint: 'enrolled' // Just a flag to indicate it's enrolled
+      });
 
-      // Refresh the students list to show updated enrollment status
       refetch();
-
-      // Reset for next enrollment
       setFingerprintImage(null);
-      // Don't reset selectedStudent to null so user can see the updated status
     } catch (error) {
       console.error('Fingerprint enrollment error:', error);
       setEnrollmentStatus('error');
@@ -180,12 +171,10 @@ const FingerprintEnrollment: FC = () => {
       return;
     }
 
-    // Clear current state
     setFingerprintImage(null);
     setLiveFingerprintImage(null);
     setEnrollmentStatus('idle');
 
-    // Automatically start capture process
     setIsCapturing(true);
     try {
       await fingerprintControl.init();
@@ -195,6 +184,13 @@ const FingerprintEnrollment: FC = () => {
       toast.error('Failed to initialize fingerprint reader');
       setIsCapturing(false);
     }
+  };
+
+  // When selecting a student, check if they have enrolled fingerprint in current session
+  const handleSelectStudent = (student: Student) => {
+    setSelectedStudent(student);
+    // Reset the enrolled fingerprint display when switching students
+    setEnrolledFingerprintDisplay(null);
   };
 
   return (
@@ -227,7 +223,6 @@ const FingerprintEnrollment: FC = () => {
       </Box>
 
       <Flex gap={6} flexWrap="wrap">
-        {/* Student Selection Panel */}
         <Box flex="1" minW="300px">
           <Card>
             <CardHeader>
@@ -269,7 +264,7 @@ const FingerprintEnrollment: FC = () => {
                           cursor="pointer"
                           bg={selectedStudent?.id === student.id ? 'blue.50' : 'white'}
                           _hover={{ bg: 'gray.50' }}
-                          onClick={() => setSelectedStudent(student)}
+                          onClick={() => handleSelectStudent(student)}
                         >
                           <CardBody padding="1rem">
                             <VStack align="start" spacing={1}>
@@ -288,7 +283,6 @@ const FingerprintEnrollment: FC = () => {
           </Card>
         </Box>
 
-        {/* Fingerprint Enrollment Panel */}
         <Box flex="1" minW="300px">
           <Card>
             <CardHeader>
@@ -346,13 +340,11 @@ const FingerprintEnrollment: FC = () => {
                       )}
                       {!isCapturing && !liveFingerprintImage && (
                         <Text color="gray.500" fontSize="sm" textAlign="center">
-                          Click "Capture Fingerprint" to start
+                          Click "Re-enroll Fingerprint" to start
                         </Text>
                       )}
                     </Box>
                   </Box>
-
-
 
                   {enrollmentStatus === 'success' && (
                     <Alert status="success">
@@ -411,7 +403,6 @@ const FingerprintEnrollment: FC = () => {
         </Box>
       </Flex>
 
-      {/* Enrollment Status Modal */}
       <Modal isOpen={isOpen} onClose={onClose} size="lg">
         <ModalOverlay />
         <ModalContent>
@@ -435,17 +426,16 @@ const FingerprintEnrollment: FC = () => {
                     </Badge>
                     {selectedStudent.fingerprint && (
                       <Text fontSize="sm" color="gray.600">
-                        Last updated: {new Date().toLocaleDateString()}
+                        Fingerprint on file
                       </Text>
                     )}
                   </HStack>
                 </Box>
 
-                {selectedStudent.fingerprint && (
+                {enrolledFingerprintDisplay && (
                   <Box>
-                    <Text fontWeight="bold" marginBottom="1rem">Current Fingerprint:</Text>
+                    <Text fontWeight="bold" marginBottom="1rem">Recently Captured Fingerprint:</Text>
                     <Box
-                      key={selectedStudent.fingerprint}
                       width="200px"
                       height="200px"
                       border="2px solid #e2e8f0"
@@ -454,10 +444,11 @@ const FingerprintEnrollment: FC = () => {
                       alignItems="center"
                       justifyContent="center"
                       overflow="hidden"
+                      bg="gray.50"
                     >
                       <img
-                        src={getFingerprintImgString(selectedStudent.fingerprint)}
-                        alt="Current Fingerprint"
+                        src={getFingerprintImgString(enrolledFingerprintDisplay)}
+                        alt="Enrolled Fingerprint"
                         style={{
                           maxWidth: '100%',
                           maxHeight: '100%',
@@ -465,14 +456,29 @@ const FingerprintEnrollment: FC = () => {
                         }}
                       />
                     </Box>
+                    <Text fontSize="xs" color="gray.500" marginTop="0.5rem">
+                      This is the fingerprint that was just captured in this session
+                    </Text>
                   </Box>
+                )}
+
+                {selectedStudent.fingerprint && !enrolledFingerprintDisplay && (
+                  <Alert status="info">
+                    <AlertIcon />
+                    <Box>
+                      <AlertTitle>Fingerprint Enrolled</AlertTitle>
+                      <AlertDescription>
+                        This student has a fingerprint on file. The fingerprint image is encrypted for security and cannot be displayed after enrollment. To view a fingerprint preview, capture and enroll a new one.
+                      </AlertDescription>
+                    </Box>
+                  </Alert>
                 )}
 
                 {selectedStudent.fingerprint && (
                   <Alert status="success">
                     <AlertIcon />
                     <Box>
-                      <AlertTitle>Fingerprint Enrolled</AlertTitle>
+                      <AlertTitle>Ready for Attendance</AlertTitle>
                       <AlertDescription>
                         This student's fingerprint is enrolled and ready for attendance recognition.
                       </AlertDescription>
