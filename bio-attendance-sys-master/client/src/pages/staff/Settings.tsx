@@ -158,7 +158,6 @@ const Settings: FC = () => {
 
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
-  const [profileName, setProfileName] = useState(''); // Keep for backward compatibility
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
@@ -198,16 +197,46 @@ const Settings: FC = () => {
     setFingerprintData(rawImages[0]);
   };
 
-  // Initialize fingerprint control on component mount
+  // Set up fingerprint control callbacks (global init is handled in App.tsx)
   useEffect(() => {
     fingerprintControl.onDeviceConnectedCallback = handleDeviceConnected;
     fingerprintControl.onDeviceDisconnectedCallback = handleDeviceDisconnected;
     fingerprintControl.onSamplesAcquiredCallback = handleSampleAcquired;
-    fingerprintControl.init();
 
-    // Cleanup on unmount
+    // Check initial connection status (same as AttendanceKiosk)
+    const checkInitialConnection = () => {
+      try {
+        if (fingerprintControl.isDeviceConnected) {
+          console.log('Settings: Device was already connected');
+          setDeviceConnected(true);
+        } else {
+          console.log('Settings: Device not connected yet, waiting for connection event');
+          setDeviceConnected(false);
+
+          // Add a small delay to check again in case the global init is still running
+          setTimeout(() => {
+            if (fingerprintControl.isDeviceConnected) {
+              console.log('Settings: Device connected after delay');
+              setDeviceConnected(true);
+            } else {
+              console.log('Settings: Device still not connected after delay');
+              setDeviceConnected(false);
+            }
+          }, 3000); // Wait 3 seconds for global init to complete
+        }
+      } catch (error) {
+        console.warn('Settings: Error checking initial connection:', error);
+        setDeviceConnected(false);
+      }
+    };
+
+    checkInitialConnection();
+
+    // Cleanup callbacks on unmount (but don't destroy the global instance)
     return () => {
-      fingerprintControl.destroy();
+      fingerprintControl.onDeviceConnectedCallback = undefined;
+      fingerprintControl.onDeviceDisconnectedCallback = undefined;
+      fingerprintControl.onSamplesAcquiredCallback = undefined;
     };
   }, []);
 
@@ -258,7 +287,6 @@ const Settings: FC = () => {
       const updateData: any = {};
       if (firstName.trim()) updateData.firstName = firstName.trim();
       if (lastName.trim()) updateData.lastName = lastName.trim();
-      if (profileName.trim()) updateData.name = profileName.trim(); // Allow updating the legacy name if provided
       if (newPassword) {
         updateData.currentPassword = currentPassword;
         updateData.newPassword = newPassword;
@@ -273,7 +301,6 @@ const Settings: FC = () => {
       const optimisticUpdate = {
         firstName: firstName.trim() || staffInfo?.firstName || '',
         lastName: lastName.trim() || staffInfo?.lastName || '',
-        name: profileName.trim() || staffInfo?.name || '', // Update with the new legacy name if provided
         profilePicture: profilePictureBase64 || staffInfo?.profilePicture || '',
       };
       useStore.getState().updateStaffProfile(optimisticUpdate);
@@ -366,15 +393,7 @@ const Settings: FC = () => {
                       placeholder="Enter your last name"
                     />
                   </FormControl>
-                  <FormControl>
-                    <FormLabel>System Role</FormLabel>
-                    <Input
-                      type="text"
-                      value={profileName}
-                      onChange={(e) => setProfileName(e.target.value)}
-                      placeholder="Enter your Role (here)"
-                    />
-                  </FormControl>
+
                   <FormControl>
                     <FormLabel>Email address</FormLabel>
                     <Input type="email" disabled value={staffInfo?.email || ''} />

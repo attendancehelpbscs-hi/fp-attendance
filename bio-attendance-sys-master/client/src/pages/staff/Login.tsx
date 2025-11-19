@@ -166,32 +166,75 @@ const Login: FC = () => {
 
   // Handle device connection events (same as student enrollment)
   const handleDeviceConnected = () => {
-    console.log('Fingerprint device connected');
+    console.log('Login: Fingerprint device connected');
     setDeviceConnected(true);
   };
 
   const handleDeviceDisconnected = () => {
-    console.log('Fingerprint device disconnected');
+    console.log('Login: Fingerprint device disconnected');
     setDeviceConnected(false);
   };
 
   // Handle sample acquisition (same as student enrollment)
   const handleSampleAcquired = (event: any) => {
-    console.log('Fingerprint sample acquired:', event?.samples);
+    console.log('Login: Fingerprint sample acquired:', event?.samples);
     const rawImages = event?.samples.map((sample: string) => Base64.fromBase64Url(sample));
     setFingerprintData(rawImages[0]);
   };
 
-  // Initialize fingerprint control on component mount
+  // Set up fingerprint control callbacks (global init is handled in App.tsx)
   useEffect(() => {
+    // Set up callbacks for this component
     fingerprintControl.onDeviceConnectedCallback = handleDeviceConnected;
     fingerprintControl.onDeviceDisconnectedCallback = handleDeviceDisconnected;
     fingerprintControl.onSamplesAcquiredCallback = handleSampleAcquired;
-    fingerprintControl.init();
 
-    // Cleanup on unmount
+    // Check initial connection status with multiple attempts
+    const checkInitialConnection = () => {
+      try {
+        console.log('Login: Checking initial connection status...');
+        console.log('Login: isDeviceConnected:', fingerprintControl.isDeviceConnected);
+
+        if (fingerprintControl.isDeviceConnected) {
+          console.log('Login: Device was already connected');
+          setDeviceConnected(true);
+          return;
+        }
+
+        console.log('Login: Device not connected yet, waiting for connection event');
+        setDeviceConnected(false);
+
+        // Multiple delayed checks to account for async initialization
+        const checkDelays = [1000, 3000, 5000, 8000]; // Progressive delays
+
+        checkDelays.forEach((delay, index) => {
+          setTimeout(() => {
+            console.log(`Login: Re-checking connection after ${delay}ms...`);
+            console.log(`Login: isDeviceConnected after ${delay}ms:`, fingerprintControl.isDeviceConnected);
+
+            if (fingerprintControl.isDeviceConnected) {
+              console.log(`Login: Device connected after ${delay}ms delay`);
+              setDeviceConnected(true);
+            } else if (index === checkDelays.length - 1) {
+              console.log('Login: Device still not connected after all checks');
+              setDeviceConnected(false);
+            }
+          }, delay);
+        });
+
+      } catch (error) {
+        console.warn('Login: Error checking initial connection:', error);
+        setDeviceConnected(false);
+      }
+    };
+
+    checkInitialConnection();
+
+    // Cleanup callbacks on unmount (but don't destroy the global instance)
     return () => {
-      fingerprintControl.destroy();
+      fingerprintControl.onDeviceConnectedCallback = null as any;
+      fingerprintControl.onDeviceDisconnectedCallback = null as any;
+      fingerprintControl.onSamplesAcquiredCallback = null as any;
     };
   }, []);
 

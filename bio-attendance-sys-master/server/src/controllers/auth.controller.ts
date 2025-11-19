@@ -249,7 +249,7 @@ export const fingerprintLogin = async (req: Request, res: Response, next: NextFu
 
     const identificationResult = pythonResponse.data;
 
-    if (!identificationResult.staff_id || identificationResult.confidence < 5) {
+    if (!identificationResult.staff_id || identificationResult.confidence < 0.5) {
       console.log('Fingerprint not recognized or low confidence');
       throw createError(401, 'Fingerprint not recognized');
     }

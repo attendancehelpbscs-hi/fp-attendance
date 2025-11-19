@@ -24,20 +24,13 @@ import {
   HStack,
   VStack,
   Image,
-  AlertDialog,
-  AlertDialogBody,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogContent,
-  AlertDialogOverlay,
-  useDisclosure,
   Select,
   Slider,
   SliderTrack,
   SliderFilledTrack,
   SliderThumb,
 } from '@chakra-ui/react';
-import { ArrowBackIcon, ViewIcon, InfoIcon } from '@chakra-ui/icons';
+import { ViewIcon, InfoIcon } from '@chakra-ui/icons';
 import { useNavigate } from 'react-router-dom';
 import { fingerprintControl } from '../../lib/fingerprint';
 import { useMarkAttendance, useAddAttendance, useGetAttendances, useGetAttendanceList } from '../../api/atttendance.api';
@@ -77,10 +70,10 @@ const AttendanceKiosk: FC = () => {
   const [selectedSection, setSelectedSection] = useState<string>('');
   const [selectedGrade, setSelectedGrade] = useState<string>('');
   const [timeType, setTimeType] = useState<'IN' | 'OUT'>('IN');
+  const [sessionType, setSessionType] = useState<'AM' | 'PM'>('AM');
 
 
-  const { isOpen: isExitOpen, onOpen: onExitOpen, onClose: onExitClose } = useDisclosure();
-  const cancelRef = useRef<HTMLButtonElement>(null);
+
 
   const studentFingerprintsData = useGetStudentsFingerprints(staffInfo?.id as string, {
     queryKey: ['studentsfingerprints', staffInfo?.id],
@@ -123,8 +116,8 @@ const AttendanceKiosk: FC = () => {
     },
     onError: (err) => {
       const errorMessage = err.response?.data?.message as string;
-      if (errorMessage?.includes('must check in before checking out')) {
-        toast.error('Cannot check out: Student has not checked in today');
+      if (errorMessage?.includes('Student is already marked present for the day')) {
+        toast.error('Student is already marked present for the day');
       } else {
         toast.error(errorMessage ?? 'An error occurred');
       }
@@ -139,20 +132,25 @@ const AttendanceKiosk: FC = () => {
     setConfidence(0);
   };
 
-  // Transform attendance data for display - group by student and show latest times
+  // Transform attendance data for display - group by student and show latest times and status
   const attendanceData = attendanceListData.data?.data?.attendanceList?.reduce((acc: any[], record: any) => {
     const existing = acc.find(item => item.id === record.student.matric_no);
     if (existing) {
-      if (record.time_type === 'IN') {
+      if (record.time_type === 'IN' && record.status === 'present') {
         if (!existing.timeInRaw || dayjs(record.created_at).isAfter(dayjs(existing.timeInRaw))) {
           existing.timeIn = dayjs(record.created_at).format('hh:mm A');
           existing.timeInRaw = record.created_at;
         }
-      } else if (record.time_type === 'OUT') {
+      } else if (record.time_type === 'OUT' && record.status === 'present') {
         if (!existing.timeOutRaw || dayjs(record.created_at).isAfter(dayjs(existing.timeOutRaw))) {
           existing.timeOut = dayjs(record.created_at).format('hh:mm A');
           existing.timeOutRaw = record.created_at;
         }
+      }
+      // Always update status to the latest record's status
+      if (dayjs(record.created_at).isAfter(dayjs(existing.statusUpdatedAt || '1970-01-01'))) {
+        existing.status = record.status as 'present' | 'absent';
+        existing.statusUpdatedAt = record.created_at;
       }
     } else {
       acc.push({
@@ -160,11 +158,12 @@ const AttendanceKiosk: FC = () => {
         name: record.student.name,
         grade: record.student.grade,
         section: record.section,
-        timeIn: record.time_type === 'IN' ? dayjs(record.created_at).format('hh:mm A') : null,
-        timeOut: record.time_type === 'OUT' ? dayjs(record.created_at).format('hh:mm A') : null,
-        timeInRaw: record.time_type === 'IN' ? record.created_at : null,
-        timeOutRaw: record.time_type === 'OUT' ? record.created_at : null,
+        timeIn: (record.time_type === 'IN' && record.status === 'present') ? dayjs(record.created_at).format('hh:mm A') : null,
+        timeOut: (record.time_type === 'OUT' && record.status === 'present') ? dayjs(record.created_at).format('hh:mm A') : null,
+        timeInRaw: (record.time_type === 'IN' && record.status === 'present') ? record.created_at : null,
+        timeOutRaw: (record.time_type === 'OUT' && record.status === 'present') ? record.created_at : null,
         status: record.status as 'present' | 'absent',
+        statusUpdatedAt: record.created_at,
       });
     }
     return acc;
@@ -216,17 +215,46 @@ const AttendanceKiosk: FC = () => {
 
     fingerprintControl.onDeviceConnectedCallback = handleDeviceConnected;
     fingerprintControl.onDeviceDisconnectedCallback = handleDeviceDisconnected;
-    fingerprintControl.init();
 
-    setTimeout(() => {
-      if (!scannerConnected) {
-        setScannerStatus('Not Detected');
+    // Check if device is already connected (since global init might have connected it before this component mounted)
+    const checkInitialConnection = () => {
+      try {
+        // Use the public getter to check current connection status
+        if (fingerprintControl.isDeviceConnected) {
+          console.log('Device was already connected, updating kiosk UI state');
+          setScannerConnected(true);
+          setScannerStatus('Connected');
+        } else {
+          console.log('Device not connected yet, waiting for connection event');
+          setScannerStatus('Checking...');
+
+          // Add a small delay to check again in case the global init is still running
+          setTimeout(() => {
+            if (fingerprintControl.isDeviceConnected) {
+              console.log('Device connected after delay, updating kiosk UI state');
+              setScannerConnected(true);
+              setScannerStatus('Connected');
+            } else {
+              console.log('Device still not connected after delay');
+              setScannerStatus('Not Detected');
+            }
+          }, 3000); // Wait 3 seconds for global init to complete
+        }
+      } catch (error) {
+        console.warn('Error checking initial connection:', error);
+        setScannerStatus('Error');
       }
-    }, 2000);
+    };
 
-    // Cleanup on unmount
+    checkInitialConnection();
+
+    // Note: Don't call fingerprintControl.init() here since it's already initialized globally in App.tsx
+    // This component just sets up the callbacks for this specific use case
+
+    // Cleanup callbacks on unmount (but don't destroy the global instance)
     return () => {
-      fingerprintControl.destroy();
+      fingerprintControl.onDeviceConnectedCallback = undefined;
+      fingerprintControl.onDeviceDisconnectedCallback = undefined;
     };
   }, []);
 
@@ -281,6 +309,7 @@ const AttendanceKiosk: FC = () => {
               attendance_id: attendanceId,
               time_type: timeType,
               section: (student.courses.length > 0 ? student.courses[0].course_code : student.grade).slice(0, 10),
+              session_type: sessionType,
             }), 1000);
           }
         } else {
@@ -341,9 +370,7 @@ const AttendanceKiosk: FC = () => {
     return new File([u8arr], filename, { type: mime });
   };
 
-  const handleExit = () => {
-    navigate('/staff/manage/attendance');
-  };
+
 
 
 
@@ -354,7 +381,6 @@ const AttendanceKiosk: FC = () => {
         bg="var(--bg-primary)"
         color="white"
         p={6}
-        justifyContent="space-between"
         alignItems="center"
         boxShadow="lg"
       >
@@ -363,33 +389,48 @@ const AttendanceKiosk: FC = () => {
           <Text fontSize="md">{currentDate}</Text>
         </VStack>
 
-        <VStack align="center" spacing={1}>
-          <Text fontSize="5xl" fontWeight="bold" fontFamily="monospace">
-            {dayjs(currentTime).format('hh:mm:ss A')}
-          </Text>
-          <Badge
-            colorScheme={scannerConnected ? "green" : "red"}
-            fontSize="md"
-            p={2}
-          >
-            Scanner: {scannerStatus}
-          </Badge>
-        </VStack>
-
-        <Button
-          leftIcon={<ArrowBackIcon />}
-          colorScheme="whiteAlpha"
-          variant="outline"
-          onClick={onExitOpen}
-          size="lg"
-        >
-          Exit Kiosk
-        </Button>
+        <Box flex="1" display="flex" justifyContent="center">
+          <VStack align="center" spacing={1}>
+            <Text fontSize="5xl" fontWeight="bold" fontFamily="monospace">
+              {dayjs(currentTime).format('hh:mm:ss A')}
+            </Text>
+            <Badge
+              colorScheme={
+                scannerConnected
+                  ? "green"
+                  : scannerStatus === "Checking..."
+                  ? "yellow"
+                  : scannerStatus === "Disconnected" || scannerStatus === "Not Detected"
+                  ? "red"
+                  : "orange"
+              }
+              fontSize="md"
+              p={2}
+            >
+              Scanner: {scannerStatus}
+            </Badge>
+          </VStack>
+        </Box>
       </Flex>
 
-      {/* Main Content */}
-      <Box flex={1} p={4}>
-        <VStack spacing={4} h="full">
+      {/* Instructions Sidebar */}
+      <Flex>
+        {/* Sidebar with Instructions */}
+        <Box w="150px" bg="gray.100" p={2} borderRight="1px" borderColor="gray.200">
+          <VStack spacing={2} align="start">
+            <Heading size="xs">Kiosk Instructions</Heading>
+            <Text fontSize="xs" color="gray.600">
+              Scan your fingerprint to mark attendance. Select check-in or check-out, and use continuous mode for quick successive scans.
+            </Text>
+            <Text fontSize="xs" color="gray.600">
+              Monitor real-time attendance logs and scanner status below.
+            </Text>
+          </VStack>
+        </Box>
+
+        {/* Main Content */}
+        <Box flex={1} p={4}>
+          <VStack spacing={4} h="full">
           {/* Top Row - Scanner Controls */}
           <Flex gap={4} w="full">
             {/* Continuous Mode Toggle */}
@@ -417,9 +458,9 @@ const AttendanceKiosk: FC = () => {
               <Box p={3}>
                 <Text fontWeight="bold" mb={2} fontSize="sm">Mark Student</Text>
 
-                {/* Time Type Selector */}
+                {/* Time Type and Session Type Selectors */}
                 <Box mb={2}>
-                  <HStack justifyContent="space-between" alignItems="center">
+                  <HStack justifyContent="space-between" alignItems="center" mb={1}>
                     <Text fontWeight="bold" fontSize="xs">Time Type:</Text>
                     <Select
                       size="xs"
@@ -429,6 +470,18 @@ const AttendanceKiosk: FC = () => {
                     >
                       <option value="IN">Check In</option>
                       <option value="OUT">Check Out</option>
+                    </Select>
+                  </HStack>
+                  <HStack justifyContent="space-between" alignItems="center">
+                    <Text fontWeight="bold" fontSize="xs">Session:</Text>
+                    <Select
+                      size="xs"
+                      w="120px"
+                      value={sessionType}
+                      onChange={(e) => setSessionType(e.target.value as 'AM' | 'PM')}
+                    >
+                      <option value="AM">AM (Morning)</option>
+                      <option value="PM">PM (Afternoon)</option>
                     </Select>
                   </HStack>
                 </Box>
@@ -469,6 +522,7 @@ const AttendanceKiosk: FC = () => {
                         attendance_id: attendanceId,
                         time_type: timeType,
                         section: (identifiedStudent.courses.length > 0 ? identifiedStudent.courses[0].course_code : identifiedStudent.grade).slice(0, 10),
+                        session_type: sessionType,
                       });
                     }
                   }}
@@ -559,8 +613,8 @@ const AttendanceKiosk: FC = () => {
                   <Tbody>
                     {attendanceData.map((record, idx) => (
                       <Tr key={record.id} bg={idx === 0 ? "green.50" : "white"}>
-                        <Td fontWeight={idx === 0 ? "bold" : "normal"} fontSize="xs">{record.id}</Td>
-                        <Td fontWeight={idx === 0 ? "bold" : "normal"} fontSize="xs">{record.name}</Td>
+                        <Td fontSize="xs">{record.id}</Td>
+                        <Td fontSize="xs">{record.name}</Td>
                         <Td fontSize="xs">{record.grade}</Td>
                         <Td fontSize="xs">{record.section}</Td>
                         <Td fontSize="xs">{record.timeIn}</Td>
@@ -579,32 +633,9 @@ const AttendanceKiosk: FC = () => {
           </Card>
         </VStack>
       </Box>
+      </Flex>
 
-      {/* Exit Confirmation Dialog */}
-      <AlertDialog
-        isOpen={isExitOpen}
-        leastDestructiveRef={cancelRef}
-        onClose={onExitClose}
-      >
-        <AlertDialogOverlay>
-          <AlertDialogContent>
-            <AlertDialogHeader fontSize="lg" fontWeight="bold">
-              Exit Attendance Kiosk
-            </AlertDialogHeader>
-            <AlertDialogBody>
-              Are you sure you want to exit the attendance kiosk? Any unsaved changes will be lost.
-            </AlertDialogBody>
-            <AlertDialogFooter>
-              <Button ref={cancelRef} onClick={onExitClose}>
-                Cancel
-              </Button>
-              <Button colorScheme="red" onClick={handleExit} ml={3}>
-                Exit
-              </Button>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialogOverlay>
-      </AlertDialog>
+
     </Box>
   );
 };

@@ -5,7 +5,7 @@ import { getAttendanceReports, getAttendanceSummary, getUniqueGradesAndSections,
 
 export const getReports = async (req: Request, res: Response, next: NextFunction) => {
   const { staff_id } = req.params;
-  const { grade, section, dateRange, startDate, endDate, page, per_page } = req.query;
+  const { grade, section, dateRange, startDate, endDate, page, per_page, session } = req.query;
 
   if (!staff_id) return next(new createError.BadRequest('Staff ID is required'));
 
@@ -18,6 +18,7 @@ export const getReports = async (req: Request, res: Response, next: NextFunction
       endDate: endDate as string,
       page: page ? parseInt(page as string, 10) : 1,
       per_page: per_page ? parseInt(per_page as string, 10) : 10,
+      session: session as string,
     };
 
     const reportsData = await getAttendanceReports(staff_id, filters);
@@ -51,7 +52,7 @@ export const getGradesAndSections = async (req: Request, res: Response, next: Ne
 
 export const getStudentReports = async (req: Request, res: Response, next: NextFunction) => {
   const { staff_id } = req.params;
-  const { student_id, grade, section, startDate, endDate, dateRange, page, per_page } = req.query;
+  const { student_id, grade, section, startDate, endDate, dateRange, page, per_page, session } = req.query;
 
   if (!staff_id) return next(new createError.BadRequest('Staff ID is required'));
 
@@ -65,6 +66,7 @@ export const getStudentReports = async (req: Request, res: Response, next: NextF
       dateRange: dateRange as string,
       page: page ? parseInt(page as string, 10) : 1,
       per_page: per_page ? parseInt(per_page as string, 10) : 10,
+      session: session as string,
     };
 
     const reports = await getStudentAttendanceReports(staff_id, filters);
@@ -135,11 +137,12 @@ export const getStudentDetailedReportController = async (req: Request, res: Resp
 
 export const getDashboardStatsController = async (req: Request, res: Response, next: NextFunction) => {
   const { staff_id } = req.params;
+  const { session } = req.query;
 
   if (!staff_id) return next(new createError.BadRequest('Staff ID is required'));
 
   try {
-    const stats = await getDashboardStats(staff_id);
+    const stats = await getDashboardStats(staff_id, session as string);
     return createSuccess(res, 200, 'Dashboard stats fetched successfully', stats);
   } catch (err) {
     return next(err);
@@ -168,7 +171,7 @@ export const getCheckInTimeAnalysisController = async (req: Request, res: Respon
 
 export const getStudentsByStatusController = async (req: Request, res: Response, next: NextFunction) => {
   const { staff_id } = req.params;
-  const { date, grade, section, status } = req.query;
+  const { date, grade, section, status, session } = req.query;
 
   if (!staff_id) return next(new createError.BadRequest('Staff ID is required'));
   if (!date) return next(new createError.BadRequest('Date is required'));
@@ -177,7 +180,7 @@ export const getStudentsByStatusController = async (req: Request, res: Response,
   if (!status || !['present', 'absent'].includes(status as string)) return next(new createError.BadRequest('Valid status (present or absent) is required'));
 
   try {
-    const students = await getStudentsByStatus(staff_id, date as string, grade as string, section as string, status as 'present' | 'absent');
+    const students = await getStudentsByStatus(staff_id, date as string, grade as string, section as string, status as 'present' | 'absent', session as string);
     return createSuccess(res, 200, 'Students fetched successfully', { students });
   } catch (err) {
     return next(err);

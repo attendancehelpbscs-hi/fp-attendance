@@ -97,49 +97,29 @@ export const getSingleAttendance = async (req: Request, res: Response, next: Nex
 
 export const addStudentToAttendance = async (req: Request, res: Response, next: NextFunction) => {
   // create attendance
-  const { attendance_id, student_id, time_type, section, status } = req.body as { attendance_id: string; student_id: string; time_type: 'IN' | 'OUT'; section: string; status?: 'present' | 'absent' };
+  const { attendance_id, student_id, time_type, section, status, session_type } = req.body as { attendance_id: string; student_id: string; time_type: 'IN' | 'OUT'; section: string; status?: 'present' | 'absent'; session_type?: 'AM' | 'PM' };
   const user_id = (req.user as JwtPayload).id;
 
   if (!attendance_id || !student_id || !time_type || !section) return next(new createError.BadRequest('Attendance ID, student ID, time type, and section are required'));
 
   try {
-    const courseExists = await checkIfStudentIsMarked({ attendance_id, student_id, time_type });
-    if (courseExists) {
-      return next(
-        createError(
-          400,
-          ...[
-            {
-              message: 'Student has already been marked for this time type.',
-              errorType: 'STUDENT_ALREADY_MARKED',
-            },
-          ],
-        ),
-      );
-    }
-
-    // For check-out (Departure), ensure check-in exists first
+    // For check-out (Departure), check if student is already marked present for the day
     if (time_type === 'OUT') {
-      const existingCheckIn = await checkIfStudentIsMarked({ attendance_id, student_id, time_type: 'IN' });
-      if (!existingCheckIn) {
-        return next(
-          createError(
-            400,
-            ...[
-              {
-                message: 'Student must check in before checking out.',
-                errorType: 'NO_CHECK_IN_FOUND',
-              },
-            ],
-          ),
-        );
+      const { checkIfStudentIsPresent } = await import('../services/attendance.service');
+      const isAlreadyPresent = await checkIfStudentIsPresent(attendance_id, student_id);
+      if (isAlreadyPresent) {
+        // Student is already present, no need to create additional record
+        return createSuccess(res, 200, 'Student already marked present for the day', {
+          marked: false,
+          status: 'present',
+        });
       }
     }
 
     // Use provided status or default to present
     const finalStatus = status || 'present';
 
-    await markStudentAttendance({ attendance_id, student_id, time_type, section, status: finalStatus });
+    await markStudentAttendance({ attendance_id, student_id, time_type, section, status: finalStatus, session_type });
     return createSuccess(res, 200, 'Attendance created successfully', {
       marked: true,
       status: finalStatus,

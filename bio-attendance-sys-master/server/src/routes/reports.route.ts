@@ -20,16 +20,17 @@ router.get('/:staff_id/grades/:grade/sections', auth as any, getSectionsForGrade
 // GET /api/reports/:staff_id/grades/:grade/sections/:section/students - Get students for a specific grade and section
 router.get('/:staff_id/grades/:grade/sections/:section/students', auth as any, getStudentsForGradeAndSectionController);
 // GET /api/reports/:staff_id/students/status - Get students by status for a specific grade and section
-router.get('/:staff_id/students/status', auth as any, 
+router.get('/:staff_id/students/status', auth as any,
   joiValidate(
     Joi.object({
       date: Joi.string().required(),
       grade: Joi.string().required(),
       section: Joi.string().required(),
-      status: Joi.string().valid('present', 'absent').required()
+      status: Joi.string().valid('present', 'absent').required(),
+      session: Joi.string().optional()
     }),
     'query'
-  ), 
+  ),
   getStudentsByStatusController);
 // GET /api/reports/:staff_id/students/:student_id/details - Get detailed report for a specific student
 router.get('/:staff_id/students/:student_id/details', auth as any, getStudentDetailedReportController);

@@ -129,7 +129,33 @@ const AddStudent: FC<{
     fingerprintControl.onDeviceConnectedCallback = handleDeviceConnected;
     fingerprintControl.onDeviceDisconnectedCallback = handleDeviceDisconnected;
     fingerprintControl.onSamplesAcquiredCallback = handleSampleAcquired;
-    fingerprintControl.init();
+
+    // Note: Fingerprint control is now initialized globally in App.tsx
+    // This component just sets up the callbacks for this specific use case
+
+    // Check if device is already connected (since global init might have connected it before this component mounted)
+    const checkInitialConnection = () => {
+      try {
+        // Use the public getter to check current connection status
+        if (fingerprintControl.isDeviceConnected) {
+          console.log('Device was already connected, updating UI state');
+          setDeviceConnected(true);
+        } else {
+          console.log('Device not connected yet, waiting for connection event');
+        }
+      } catch (error) {
+        console.warn('Error checking initial connection:', error);
+      }
+    };
+
+    checkInitialConnection();
+
+    // Cleanup callbacks on unmount (but don't destroy the global instance)
+    return () => {
+      fingerprintControl.onDeviceConnectedCallback = undefined;
+      fingerprintControl.onDeviceDisconnectedCallback = undefined;
+      fingerprintControl.onSamplesAcquiredCallback = undefined;
+    };
   }, []);
   const simpleValidator = useRef(
     new SimpleReactValidator({
@@ -199,7 +225,7 @@ const AddStudent: FC<{
               {simpleValidator.current.message('name', studentInput.name, 'required|string|between:2,128')}
             </FormControl>
             <FormControl marginTop="1rem">
-              <FormLabel>Matric Number (or ID Number)</FormLabel>
+              <FormLabel>ID Number</FormLabel>
               <Input
                 type="text"
                 name="matric_no"
@@ -261,10 +287,15 @@ const AddStudent: FC<{
               <Text fontSize="sm" color="gray.500" mb={1}>
                 {deviceConnected
                   ? "Place your fingerprint on the scanner to capture it."
-                  : "Fingerprint scanner not connected. Please refresh the page and try again."
+                  : "Detecting fingerprint scanner... (Automatic detection in progress)"
                 }
               </Text>
-              {deviceConnected && <Text>✅ System: Fingerprint scanner is connected</Text>}
+              {deviceConnected && <Text color="green.500">✅ System: Fingerprint scanner is connected</Text>}
+              {!deviceConnected && (
+                <Text color="orange.500" fontSize="sm">
+                  🔄 System: Automatically detecting scanner connection...
+                </Text>
+              )}
               <Box shadow="xs" h={240} w={240} margin="1rem auto 0" border="1px solid rgba(0, 0, 0, 0.04)">
                 {studentInput.fingerprint && <Image src={getFingerprintImgString(studentInput.fingerprint)} />}
               </Box>

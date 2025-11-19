@@ -7,6 +7,7 @@ export const addStudentToAttendanceSchema = Joi.object<StudentAttendance>({
   time_type: Joi.string().valid('IN', 'OUT').required(),
   section: Joi.string().min(1).max(50).pattern(/^[a-zA-Z0-9\s\-.,]+$/),
   status: Joi.string().valid('present', 'absent'),
+  session_type: Joi.string().valid('AM', 'PM'),
 });
 
 export const createAttendanceSchema = Joi.object<Pick<Attendance, 'name' | 'date' | 'staff_id'>>({

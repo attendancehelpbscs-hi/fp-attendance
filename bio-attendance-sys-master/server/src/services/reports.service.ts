@@ -1,7 +1,7 @@
 import createError from 'http-errors';
 import { prisma } from '../db/prisma-client';
 import { markAbsentForUnmarkedDays } from './attendance.service';
-import type { AttendanceStatus } from '@prisma/client';
+import { AttendanceStatus, TimeType, SessionType } from '@prisma/client';
 
 type Filters = any;
 
@@ -78,10 +78,16 @@ export const getAttendanceReports = async (staff_id: string, filters: Filters) =
       if (!groupedData[key]) {
         groupedData[key] = { presentStudents: new Set(), absentStudents: new Set() };
       }
-      if (sa.time_type === 'IN' && sa.status === 'present') {
+      if ((sa.time_type === 'IN' || sa.time_type === 'OUT') && sa.status === 'present') {
+        if (filters.session) {
+          if (sa.session_type !== filters.session) return;
+        }
         groupedData[key].presentStudents.add(sa.student_id);
       }
       if (sa.status === 'absent') {
+        if (filters.session) {
+          if (sa.session_type !== filters.session) return;
+        }
         groupedData[key].absentStudents.add(sa.student_id);
       }
     });
@@ -101,6 +107,10 @@ export const getAttendanceReports = async (staff_id: string, filters: Filters) =
         rate: Math.round(rate * 100) / 100,
       };
     });
+
+    if (filters.session) {
+      results = results.map(r => ({ ...r, session_type: filters.session }));
+    }
 
     const page = filters.page || 1;
     const per_page = filters.per_page || 10;
@@ -205,7 +215,7 @@ export const getPreviousPeriodReports = async (staff_id: string, filters: Filter
 
 export const getStudentAttendanceReports = async (staff_id: string, filters: Filters) => {
   try {
-    const where: any = { student: { staff_id }, time_type: { in: ['IN', 'OUT'] }, status: { not: 'absent' } };
+    const where: any = { student: { staff_id }, time_type: { in: [TimeType.IN, TimeType.OUT] }, status: { not: 'absent' } };
     if (filters.student_id) where.student_id = filters.student_id;
     if (filters.grade) where.student.grade = filters.grade;
     if (filters.section) where.section = filters.section;
@@ -271,6 +281,7 @@ export const getStudentAttendanceReports = async (staff_id: string, filters: Fil
       status: sa.time_type === 'IN' ? 'present' : sa.time_type === 'OUT' ? 'departure' : sa.status,
       time_type: sa.time_type,
       section: sa.section,
+      session_type: sa.session_type,
       created_at: sa.created_at,
       checkin_time: sa.time_type === 'IN' ? sa.created_at : null,
       checkout_time: sa.time_type === 'OUT' ? sa.created_at : null,
@@ -376,7 +387,7 @@ export const getStudentDetailedReport = async (staff_id: string, student_id: str
   }
 };
 
-export const getDashboardStats = async (staff_id: string) => {
+export const getDashboardStats = async (staff_id: string, session?: string) => {
   try {
     const today = new Date();
     const sevenDaysAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -386,24 +397,38 @@ export const getDashboardStats = async (staff_id: string) => {
     // Ensure absent records are created for unmarked students
     await markAbsentForUnmarkedDays(staff_id, endDate);
 
-    const totalStudents = await prisma.student.count({ where: { staff_id } });
-    const presentRecords = await prisma.studentAttendance.findMany({
+    // Total students should not be filtered by session - we want all students
+    const totalStudents = await prisma.student.count({
       where: {
-        student: { staff_id },
-        attendance: { date: endDate },
-        status: 'present',
-        time_type: 'IN'
-      },
+        staff_id
+      }
+    });
+
+    const presentWhereClause = {
+      student: { staff_id },
+      attendance: { date: endDate },
+      status: AttendanceStatus.present,
+      time_type: { in: [TimeType.IN, TimeType.OUT] },
+      ...(session ? { session_type: session as SessionType } : {})
+    };
+
+    const presentRecords = await prisma.studentAttendance.findMany({
+      where: presentWhereClause,
       select: { student_id: true },
       distinct: ['student_id']
     });
     const presentToday = presentRecords.length;
+
+    // Query absent records with session_type filter when session is specified
+    const absentWhereClause = {
+      student: { staff_id },
+      attendance: { date: endDate },
+      status: AttendanceStatus.absent,
+      ...(session ? { session_type: session as SessionType } : {})
+    };
+
     const absentRecords = await prisma.studentAttendance.findMany({
-      where: {
-        student: { staff_id },
-        attendance: { date: endDate },
-        status: 'absent'
-      },
+      where: absentWhereClause,
       select: { student_id: true },
       distinct: ['student_id']
     });
@@ -421,29 +446,42 @@ export const getDashboardStats = async (staff_id: string) => {
     // Build grade stats for today
     const gradeStatsFormatted = [];
     for (const grade of grades) {
-      const totalStudentsForGrade = await prisma.student.count({ where: { staff_id, grade } });
+      const totalStudentsForGrade = await prisma.student.count({
+        where: {
+          staff_id,
+          grade
+        }
+      });
+
       const presentRecordsForGrade = await prisma.studentAttendance.findMany({
         where: {
           student: { staff_id, grade },
           attendance: { date: endDate },
-          status: 'present',
-          time_type: 'IN'
+          status: AttendanceStatus.present,
+          time_type: { in: [TimeType.IN, TimeType.OUT] },
+          ...(session ? { session_type: session as SessionType } : {})
         },
         select: { student_id: true },
         distinct: ['student_id']
       });
       const presentStudents = presentRecordsForGrade.length;
+
+      // Query absent records with session_type filter when session is specified
+      const absentWhereClauseForGrade = {
+        student: { staff_id, grade },
+        attendance: { date: endDate },
+        status: AttendanceStatus.absent,
+        ...(session ? { session_type: session as SessionType } : {})
+      };
+
       const absentRecordsForGrade = await prisma.studentAttendance.findMany({
-        where: {
-          student: { staff_id, grade },
-          attendance: { date: endDate },
-          status: 'absent'
-        },
+        where: absentWhereClauseForGrade,
         select: { student_id: true },
         distinct: ['student_id']
       });
       const absentStudents = absentRecordsForGrade.length;
       const attendanceRateForGrade = presentStudents + absentStudents > 0 ? parseFloat(((presentStudents / (presentStudents + absentStudents)) * 100).toFixed(1)) : 0;
+
       gradeStatsFormatted.push({
         grade,
         data: [{
@@ -498,7 +536,7 @@ export const getCheckInTimeAnalysis = async (staff_id: string, filters: Filters)
   }
 };
 
-export const getStudentsByStatus = async (staff_id: string, date: string, grade: string, section: string, status: 'present' | 'absent') => {
+export const getStudentsByStatus = async (staff_id: string, date: string, grade: string, section: string, status: 'present' | 'absent', session?: string) => {
   try {
     console.log('getStudentsByStatus params:', { staff_id, date, grade, section, status });
     console.log('Searching for attendance with date criteria:', { staff_id, date });
@@ -525,7 +563,13 @@ export const getStudentsByStatus = async (staff_id: string, date: string, grade:
     } catch (dbgErr) {
       console.error('Debug fetch error:', dbgErr);
     }
-    const allAttendanceRecords = await prisma.studentAttendance.findMany({ where: { attendance: { date, staff_id } }, include: { student: { include: { courses: { include: { course: true } } } }, attendance: true } });
+    const allAttendanceRecords = await prisma.studentAttendance.findMany({
+      where: {
+        attendance: { date, staff_id },
+        ...(session ? { session_type: session as SessionType } : {})
+      },
+      include: { student: { include: { courses: { include: { course: true } } } }, attendance: true }
+    });
     console.log('All attendance records for this date:', allAttendanceRecords.length);
     const filteredRecords = allAttendanceRecords.filter(rec => {
       const st = rec.student;
@@ -549,13 +593,26 @@ export const getStudentsByStatus = async (staff_id: string, date: string, grade:
               matric_no: rec.student.matric_no,
               checkin_time: null,
               checkout_time: null,
+              time_type: '',
             };
           }
 
           if (rec.time_type === 'IN' && rec.status === 'present') {
             studentMap[studentId].checkin_time = rec.created_at ? rec.created_at.toISOString() : null;
+            const session = rec.session_type || 'AM';
+            if (!studentMap[studentId].time_type) {
+              studentMap[studentId].time_type = session;
+            } else if (!studentMap[studentId].time_type.includes(session)) {
+              studentMap[studentId].time_type += '/' + session;
+            }
           } else if (rec.time_type === 'OUT') {
             studentMap[studentId].checkout_time = rec.created_at ? rec.created_at.toISOString() : null;
+            const session = rec.session_type || 'AM';
+            if (!studentMap[studentId].time_type) {
+              studentMap[studentId].time_type = session;
+            } else if (!studentMap[studentId].time_type.includes(session)) {
+              studentMap[studentId].time_type += '/' + session;
+            }
           }
         }
       });

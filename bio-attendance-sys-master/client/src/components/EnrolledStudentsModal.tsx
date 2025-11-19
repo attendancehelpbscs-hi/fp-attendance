@@ -94,7 +94,7 @@ const EnrolledStudentsModal: FC<EnrolledStudentsModalProps> = ({ isOpen, onClose
                   <Tr>
                     <Th>S/N</Th>
                     <Th>Name</Th>
-                    <Th>Matric No</Th>
+                    <Th>ID No</Th>
                     <Th>Grade</Th>
                   </Tr>
                 </Thead>

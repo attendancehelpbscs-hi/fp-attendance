@@ -1,6 +1,6 @@
 import '../styles/Header.scss';
 import logo from '../assets/1756882646835-removebg-preview.png';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import useStore from '../store/store';
 import { LayoutDashboard, LibraryBig, Fingerprint, CalendarCheck, ChartNoAxesCombined, MessageCircleQuestion, Settings, CircleUserRound } from 'lucide-react';
 import { Menu, MenuButton, MenuList, MenuItem, Button, Modal, ModalOverlay, ModalContent, ModalHeader, ModalFooter, ModalBody, ModalCloseButton, useDisclosure, Alert, AlertIcon, AlertTitle, AlertDescription, Box } from '@chakra-ui/react';
@@ -9,6 +9,7 @@ import { toast } from 'react-hot-toast';
 const Header = () => {
   const isAuthenticated = useStore.use.isAuthenticated();
   const location = useLocation();
+  const navigate = useNavigate();
   const logoutStaff = useStore.use.logoutStaff();
   const staffInfo = useStore.use.staffInfo();
   const { isOpen: isLogoutOpen, onOpen: onLogoutOpen, onClose: onLogoutClose } = useDisclosure();
@@ -33,6 +34,8 @@ const Header = () => {
       if (response.ok) {
         logoutStaff();
         toast.success('Logged out successfully');
+        // Always redirect to login page after logout
+        navigate('/staff/login', { replace: true });
       } else {
         toast.error('Logout failed');
       }
@@ -40,16 +43,22 @@ const Header = () => {
       console.error('Logout error:', error);
       logoutStaff(); // Still logout locally even if API call fails
       toast.success('Logged out successfully');
+      // Always redirect to login page after logout
+      navigate('/staff/login', { replace: true });
     }
   };
 
   return (
     <div className="main-header">
       <div className="header-content">
-        <img src={logo} alt="FP Attendance System Logo" className="header-logo" />
-        <div className="logo-section">
-          <h1>Fingerprint-Based Attendance Monitoring System</h1>
-          <p>Bula South Central Elementary School</p>
+        <div className="logo-and-text">
+          <Link to="/">
+            <img src={logo} alt="FP Attendance System Logo" className="header-logo" />
+          </Link>
+          <div className="logo-section">
+            <h1>Fingerprint-Based Attendance Monitoring System</h1>
+            <p>Bula South Central Elementary School</p>
+          </div>
         </div>
         {isAuthenticated && !hideNav && (
           <Menu>
@@ -85,7 +94,7 @@ const Header = () => {
               </Link>
             </li>
             <li className="nav-item">
-              <Link to="/staff/manage/attendance" className={`nav-link ${location.pathname === '/staff/manage/attendance' ? 'active' : ''}`}>
+              <Link to="/staff/manage/attendance/kiosk" className={`nav-link ${location.pathname.startsWith('/staff/manage/attendance') ? 'active' : ''}`}>
                 <CalendarCheck className="nav-icon" /> Attendance
               </Link>
             </li>
@@ -95,13 +104,13 @@ const Header = () => {
               </Link>
             </li>
             <li className="nav-item">
-              <Link to="/staff/help" className={`nav-link ${location.pathname === '/staff/help' ? 'active' : ''}`}>
-                <MessageCircleQuestion className="nav-icon" /> Help
+              <Link to="/staff/settings" className={`nav-link ${location.pathname === '/staff/settings' ? 'active' : ''}`}>
+                <Settings className="nav-icon" /> Settings
               </Link>
             </li>
             <li className="nav-item">
-              <Link to="/staff/settings" className={`nav-link ${location.pathname === '/staff/settings' ? 'active' : ''}`}>
-                <Settings className="nav-icon" /> Settings
+              <Link to="/staff/help" className={`nav-link ${location.pathname === '/staff/help' ? 'active' : ''}`}>
+                <MessageCircleQuestion className="nav-icon" /> Help
               </Link>
             </li>
           </ul>

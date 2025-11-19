@@ -45,7 +45,7 @@ export const useManualMarkAttendance = useBaseMutation<{ marked: number; skipped
 export const useGetAttendanceList = (attendance_id: string, page = 1, per_page = 10, options: Omit<UseQueryOptions<GetAttendanceListResult, BaseError>, 'queryFn'> = {}) =>
   useBaseQuery<GetAttendanceListResult, BaseError>(`/api/attendance/${attendance_id}/students?page=${page}&per_page=${per_page}`, options);
 
-export const useGetReports = (staffId: string, options: { grade?: string; section?: string; dateRange?: string; startDate?: string; endDate?: string; page?: number; per_page?: number } = {}) => {
+export const useGetReports = (staffId: string, options: { grade?: string; section?: string; dateRange?: string; startDate?: string; endDate?: string; page?: number; per_page?: number; session?: string } = {}) => {
   const queryParams = new URLSearchParams();
   if (options.grade) queryParams.append('grade', options.grade);
   if (options.section) queryParams.append('section', options.section);
@@ -54,6 +54,7 @@ export const useGetReports = (staffId: string, options: { grade?: string; sectio
   if (options.endDate) queryParams.append('endDate', options.endDate);
   if (options.page) queryParams.append('page', options.page.toString());
   if (options.per_page) queryParams.append('per_page', options.per_page.toString());
+  if (options.session) queryParams.append('session', options.session);
 
   return useBaseQuery<GetReportsResult, BaseError>(`/api/reports/${staffId}?${queryParams.toString()}`);
 };
@@ -61,7 +62,7 @@ export const useGetReports = (staffId: string, options: { grade?: string; sectio
 export const useGetGradesAndSections = (staffId: string, options: Omit<UseQueryOptions<GetGradesAndSectionsResult, BaseError>, 'queryFn'> = {}) =>
   useBaseQuery<GetGradesAndSectionsResult, BaseError>(`/api/reports/${staffId}/filters`, options);
 
-export const useGetStudentReports = (staffId: string, options: { studentId?: string; grade?: string; section?: string; startDate?: string; endDate?: string; dateRange?: string; page?: number; per_page?: number } & Omit<UseQueryOptions<GetStudentReportsResult, BaseError>, 'queryFn'> = {}) => {
+export const useGetStudentReports = (staffId: string, options: { studentId?: string; grade?: string; section?: string; startDate?: string; endDate?: string; dateRange?: string; page?: number; per_page?: number; session?: string } & Omit<UseQueryOptions<GetStudentReportsResult, BaseError>, 'queryFn'> = {}) => {
   const queryParams = new URLSearchParams();
   if (options.studentId) queryParams.append('student_id', options.studentId);
   if (options.grade) queryParams.append('grade', options.grade);
@@ -71,6 +72,7 @@ export const useGetStudentReports = (staffId: string, options: { studentId?: str
   if (options.dateRange) queryParams.append('dateRange', options.dateRange);
   if (options.page) queryParams.append('page', options.page.toString());
   if (options.per_page) queryParams.append('per_page', options.per_page.toString());
+  if (options.session) queryParams.append('session', options.session);
 
   return useBaseQuery<GetStudentReportsResult, BaseError>(`/api/reports/${staffId}/students?${queryParams.toString()}`, options);
 };
@@ -110,16 +112,23 @@ export const useMarkStudentAttendance = useBaseMutation<MarkStudentAttendanceRes
   'post'
 );
 
-export const useGetDashboardStats = (staffId: string, options: Omit<UseQueryOptions<GetDashboardStatsResult, BaseError>, 'queryFn'> = {}) =>
-  useBaseQuery<GetDashboardStatsResult, BaseError>(`/api/reports/${staffId}/dashboard`, options);
+export const useGetDashboardStats = (staffId: string, options: { session?: string } & Omit<UseQueryOptions<GetDashboardStatsResult, BaseError>, 'queryFn'> = {}) => {
+  const { session, ...queryOptions } = options;
+  const queryParams = new URLSearchParams();
+  if (session) queryParams.append('session', session);
+  const url = queryParams.toString() ? `/api/reports/${staffId}/dashboard?${queryParams.toString()}` : `/api/reports/${staffId}/dashboard`;
 
-export const useGetCheckInTimeAnalysis = (staffId: string, options: { grade?: string; section?: string; dateRange?: string; startDate?: string; endDate?: string } & Omit<UseQueryOptions<GetCheckInTimeAnalysisResult, BaseError>, 'queryFn'> = {}) => {
+  return useBaseQuery<GetDashboardStatsResult, BaseError>(url, queryOptions);
+};
+
+export const useGetCheckInTimeAnalysis = (staffId: string, options: { grade?: string; section?: string; dateRange?: string; startDate?: string; endDate?: string; session?: string } & Omit<UseQueryOptions<GetCheckInTimeAnalysisResult, BaseError>, 'queryFn'> = {}) => {
   const queryParams = new URLSearchParams();
   if (options.grade) queryParams.append('grade', options.grade);
   if (options.section) queryParams.append('section', options.section);
   if (options.dateRange) queryParams.append('dateRange', options.dateRange);
   if (options.startDate) queryParams.append('startDate', options.startDate);
   if (options.endDate) queryParams.append('endDate', options.endDate);
+  if (options.session) queryParams.append('session', options.session);
 
   return useBaseQuery<GetCheckInTimeAnalysisResult, BaseError>(`/api/reports/${staffId}/check-in-analysis?${queryParams.toString()}`, options);
 };
@@ -130,6 +139,7 @@ export const useGetStudentsByStatus = (
   grade: string,
   section: string,
   status: 'present' | 'absent',
+  session?: string,
   options: Omit<
     UseQueryOptions<
       { status: string; statusCode: number; message: string; data: { students: { id: string; name: string; matric_no: string; grade: string; section: string; checkin_time?: string; checkout_time?: string }[] } },
@@ -143,9 +153,10 @@ export const useGetStudentsByStatus = (
   queryParams.append('grade', grade);
   queryParams.append('section', section);
   queryParams.append('status', status);
+  if (session && session !== 'all') queryParams.append('session', session);
 
   return useBaseQuery<
-    { status: string; statusCode: number; message: string; data: { students: { id: string; name: string; matric_no: string; grade: string; section: string; checkin_time?: string; checkout_time?: string }[] } },
+    { status: string; statusCode: number; message: string; data: { students: { id: string; name: string; matric_no: string; grade: string; section: string; checkin_time?: string; checkout_time?: string; time_type?: string }[] } },
     BaseError
   >(`/api/reports/${staffId}/students/status?${queryParams.toString()}`, options);
 };

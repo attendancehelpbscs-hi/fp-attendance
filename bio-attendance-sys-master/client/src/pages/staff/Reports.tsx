@@ -122,6 +122,7 @@ const Reports: FC = () => {
   // Unified filter states
   const [selectedGrade, setSelectedGrade] = useState<string>('');
   const [selectedSection, setSelectedSection] = useState<string>('');
+  const [selectedSession, setSelectedSession] = useState<string>('all');
   const [selectedDateRange, setSelectedDateRange] = useState<string>('all');
   const [startDate, setStartDate] = useState<Date | null>(null); // No default date
   const [endDate, setEndDate] = useState<Date | null>(new Date()); // Default to today
@@ -175,12 +176,13 @@ const Reports: FC = () => {
   // Reset to first page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [selectedGrade, selectedSection, selectedDateRange, searchTerm, selectedReportType]);
+  }, [selectedGrade, selectedSection, selectedSession, selectedDateRange, searchTerm, selectedReportType]);
 
   // Reset filters when report type changes
   useEffect(() => {
     setSelectedGrade('');
     setSelectedSection('');
+    setSelectedSession('all');
     setSearchTerm('');
     setStartDate(null); // Reset to no default date
     setEndDate(new Date()); // Reset to default today
@@ -208,6 +210,7 @@ const Reports: FC = () => {
   const { data: reportsData, isLoading, error } = useGetReports(staffInfo?.id || '', {
     grade: selectedGrade || undefined,
     section: selectedSection || undefined,
+    session: selectedSession !== 'all' ? selectedSession : undefined,
     dateRange: selectedDateRange,
     startDate: selectedReportType === 'student-summary' ? (startDate ? startDate.toISOString().split('T')[0] : undefined) : undefined,
     endDate: selectedReportType === 'student-summary' ? (endDate ? endDate.toISOString().split('T')[0] : undefined) : undefined,
@@ -219,6 +222,7 @@ const Reports: FC = () => {
   const { data: chartData } = useGetReports(staffInfo?.id || '', {
     grade: selectedGrade || undefined,
     section: selectedSection || undefined,
+    session: selectedSession !== 'all' ? selectedSession : undefined,
     dateRange: selectedDateRange,
     startDate: selectedReportType === 'student-summary' ? (startDate ? startDate.toISOString().split('T')[0] : undefined) : undefined,
     endDate: selectedReportType === 'student-summary' ? (endDate ? endDate.toISOString().split('T')[0] : undefined) : undefined,
@@ -235,6 +239,7 @@ const Reports: FC = () => {
     {
       grade: selectedGrade || undefined,
       section: selectedSection || undefined,
+      session: selectedSession !== 'all' ? selectedSession : undefined,
       startDate: startDate ? startDate.toISOString().split('T')[0] : undefined,
       endDate: endDate ? endDate.toISOString().split('T')[0] : undefined,
       dateRange: selectedDateRange,
@@ -270,6 +275,7 @@ const Reports: FC = () => {
   const { data: checkInTimeAnalysisData, isLoading: checkInTimeAnalysisLoading } = useGetCheckInTimeAnalysis(staffInfo?.id || '', {
     grade: selectedGrade || undefined,
     section: selectedSection || undefined,
+    session: selectedSession !== 'all' ? selectedSession : undefined,
     dateRange: selectedDateRange,
     startDate: undefined,
     endDate: undefined,
@@ -287,6 +293,7 @@ const Reports: FC = () => {
   const resetFilters = () => {
     setSelectedGrade('');
     setSelectedSection('');
+    setSelectedSession('all');
     setSelectedDateRange('all');
     setStartDate(null);
     setEndDate(new Date());
@@ -323,7 +330,8 @@ const Reports: FC = () => {
     let data = attendanceData.filter((item: any) => {
       const gradeMatch = !selectedGrade || item.grade === selectedGrade;
       const sectionMatch = !selectedSection || item.section === selectedSection;
-      return gradeMatch && sectionMatch;
+      const sessionMatch = selectedSession === 'all' || item.session_type === selectedSession;
+      return gradeMatch && sectionMatch && sessionMatch;
     });
 
     if (searchTerm) {
@@ -336,23 +344,53 @@ const Reports: FC = () => {
     }
 
     return data;
-  }, [attendanceData, selectedGrade, selectedSection, searchTerm]);
+  }, [attendanceData, selectedGrade, selectedSection, selectedSession, searchTerm]);
+
+  // For Daily Records with session filtering, aggregate data by session when session is selected
+  const aggregatedAttendanceData = useMemo(() => {
+    if (selectedSession === 'all') {
+      return filteredAttendanceData;
+    }
+
+    // When session is selected, aggregate present/absent by date/grade/section/session
+    const aggregated = filteredAttendanceData.reduce((acc: any[], item: any) => {
+      const key = `${item.date}-${item.grade}-${item.section}-${selectedSession}`;
+      const existing = acc.find(a => `${a.date}-${a.grade}-${a.section}-${a.session_type}` === key);
+
+      if (existing) {
+        existing.present += item.present;
+        existing.absent += item.absent;
+      } else {
+        acc.push({
+          ...item,
+          session_type: selectedSession,
+          present: item.present,
+          absent: item.absent,
+        });
+      }
+      return acc;
+    }, []);
+
+    return aggregated;
+  }, [filteredAttendanceData, selectedSession]);
 
   // Filtered data for charts (using chartAttendanceData)
   const filteredChartData = useMemo(() => {
     let data = chartAttendanceData.filter((item: any) => {
       const gradeMatch = !selectedGrade || item.grade === selectedGrade;
       const sectionMatch = !selectedSection || item.section === selectedSection;
-      return gradeMatch && sectionMatch;
+      const sessionMatch = selectedSession === 'all' || item.session_type === selectedSession;
+      return gradeMatch && sectionMatch && sessionMatch;
     });
 
     return data;
-  }, [chartAttendanceData, selectedGrade, selectedSection]);
+  }, [chartAttendanceData, selectedGrade, selectedSection, selectedSession]);
 
   const filteredStudentData = useMemo(() => {
     let data = studentAttendanceData.filter((item: any) => {
       const gradeMatch = !selectedGrade || item.grade === selectedGrade;
       const sectionMatch = !selectedSection || item.section === selectedSection;
+      const sessionMatch = selectedSession === 'all' || item.session_type === selectedSession;
       const dateMatch = (() => {
         if (!startDate && !endDate) return true;
         const itemDateStr = new Date(item.date).toISOString().split('T')[0];
@@ -362,7 +400,7 @@ const Reports: FC = () => {
         if (endStr && itemDateStr > endStr) return false;
         return true;
       })();
-      return gradeMatch && sectionMatch && dateMatch;
+      return gradeMatch && sectionMatch && sessionMatch && dateMatch;
     });
 
     if (searchTerm) {
@@ -377,11 +415,11 @@ const Reports: FC = () => {
     }
 
     return data;
-  }, [studentAttendanceData, selectedGrade, selectedSection, startDate, endDate, searchTerm]);
+  }, [studentAttendanceData, selectedGrade, selectedSection, selectedSession, startDate, endDate, searchTerm]);
 
   // Sorted data
   const sortedData = useMemo(() => {
-    const data = selectedReportType === 'daily-records' ? filteredAttendanceData : filteredStudentData;
+    const data = selectedReportType === 'daily-records' ? aggregatedAttendanceData : filteredStudentData;
     if (!sortConfig) return data;
 
     return [...data].sort((a, b) => {
@@ -396,7 +434,7 @@ const Reports: FC = () => {
       if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
       return 0;
     });
-  }, [filteredAttendanceData, filteredStudentData, sortConfig, selectedReportType]);
+  }, [aggregatedAttendanceData, filteredStudentData, sortConfig, selectedReportType]);
 
   // Pagination logic - use server-side pagination when available
   const totalPages = reportsMeta?.total_pages || Math.ceil(sortedData.length / itemsPerPage);
@@ -406,7 +444,7 @@ const Reports: FC = () => {
   // Calculate summary stats from filtered data
   const summaryStats = useMemo(() => {
     const enrolledStudents = studentsData?.data?.students?.length || 0;
-    const data = selectedReportType === 'daily-records' ? filteredAttendanceData : filteredStudentData;
+    const data = selectedReportType === 'daily-records' ? aggregatedAttendanceData : filteredStudentData;
     if (data.length === 0) return { avgRate: 0, totalStudents: enrolledStudents, lowAttendance: 0, perfectAttendance: 0 };
 
     if (selectedReportType === 'daily-records') {
@@ -425,7 +463,7 @@ const Reports: FC = () => {
       const perfectAttendance = data.filter((item: any) => item.status === 'present').length;
       return { avgRate, totalStudents, lowAttendance, perfectAttendance };
     }
-  }, [filteredAttendanceData, filteredStudentData, selectedReportType, studentsData]);
+  }, [aggregatedAttendanceData, filteredStudentData, selectedReportType, studentsData]);
 
   // Chart data preparation - always use daily records data for trends and patterns
   const attendanceTrendData = useMemo(() => {
@@ -550,9 +588,9 @@ const Reports: FC = () => {
     ];
   }, [summaryStats]);
 
-  // Update summary stats to always use filteredAttendanceData for consistency across tabs
+  // Update summary stats to always use aggregatedAttendanceData for consistency across tabs
   const updatedSummaryStats = useMemo(() => {
-    const data = filteredAttendanceData;
+    const data = aggregatedAttendanceData;
     if (data.length === 0) return { avgRate: 0, totalStudents: studentsData?.data?.students?.length || 0, lowAttendance: 0, perfectAttendance: 0 };
 
     const totalRate = data.reduce((sum: number, item: any) => sum + item.rate, 0);
@@ -561,21 +599,21 @@ const Reports: FC = () => {
     const lowAttendance = data.filter((item: any) => item.rate < 70).length;
     const perfectAttendance = data.filter((item: any) => item.rate === 100).length;
     return { avgRate, totalStudents, lowAttendance, perfectAttendance };
-  }, [filteredAttendanceData, studentsData]);
+  }, [aggregatedAttendanceData, studentsData]);
 
   const exportToCSV = () => {
     const data = selectedReportType === 'daily-records' ? paginatedData : filteredStudentData;
     const headers = selectedReportType === 'daily-records'
-      ? ['Date', 'Grade', 'Section', 'Present']
-      : ['Student Name', 'Matric No', 'Grade', 'Date', 'Status', 'Section'];
+      ? ['Date', 'Grade', 'Section', 'Session', 'Present']
+      : ['Student Name', 'ID No', 'Grade', 'Date', 'Status', 'Session', 'Section'];
 
     const csvContent = [
       headers.join(','),
       ...data.map((row: any) => {
         if (selectedReportType === 'daily-records') {
-        return [row.date, row.grade, row.section, row.present].join(',');
+        return [row.date, row.grade, row.section, row.session_type || 'N/A', row.present].join(',');
         } else {
-          return [row.student_name, row.matric_no, row.grade, row.date, row.status, row.section].join(',');
+          return [row.student_name, row.matric_no, row.grade, row.date, row.status, row.session_type || 'N/A', row.section].join(',');
         }
       })
     ].join('\n');
@@ -586,8 +624,6 @@ const Reports: FC = () => {
     link.setAttribute('href', url);
     link.setAttribute('download', `${selectedReportType}_report_${new Date().toISOString().split('T')[0]}.csv`);
     link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
     document.body.removeChild(link);
   };
 
@@ -606,14 +642,16 @@ const Reports: FC = () => {
     yPosition += 7;
     doc.text(`Section: ${selectedSection || 'All Sections'}`, 14, yPosition);
     yPosition += 7;
+    doc.text(`Session: ${selectedSession === 'all' ? 'All Sessions' : selectedSession}`, 14, yPosition);
+    yPosition += 7;
     doc.text(`Date Range: ${selectedDateRange}`, 14, yPosition);
     yPosition += 7;
     doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, yPosition);
 
     // Prepare table data
     const tableColumns = selectedReportType === 'daily-records'
-      ? ['Date', 'Grade', 'Section', 'Present']
-      : ['Student Name', 'Matric No', 'Grade', 'Date', 'Status', 'Section'];
+      ? ['Date', 'Grade', 'Section', 'Session', 'Present']
+      : ['Student Name', 'ID No', 'Grade', 'Date', 'Status', 'Session', 'Section'];
 
     const tableRows = data.map((row: any) => {
       if (selectedReportType === 'daily-records') {
@@ -621,6 +659,7 @@ const Reports: FC = () => {
           row.date,
           row.grade,
           row.section,
+          row.session_type || 'N/A',
           row.present.toString()
         ];
       } else {
@@ -630,6 +669,7 @@ const Reports: FC = () => {
           row.grade,
           row.date,
           row.status,
+          row.session_type || 'N/A',
           row.section
         ];
       }
@@ -854,6 +894,14 @@ const Reports: FC = () => {
               </Select>
             </GridItem>
 
+            <GridItem>
+              <Text fontWeight="bold" marginBottom="0.5rem">Session</Text>
+              <Select value={selectedSession} onChange={(e) => setSelectedSession(e.target.value)}>
+                <option value="all">All Sessions</option>
+                <option value="AM">AM Session</option>
+                <option value="PM">PM Session</option>
+              </Select>
+            </GridItem>
             <GridItem>
               <Text fontWeight="bold" marginBottom="0.5rem">Date Range</Text>
               <Select value={selectedDateRange} onChange={(e) => setSelectedDateRange(e.target.value)}>
@@ -1168,29 +1216,31 @@ const Reports: FC = () => {
                       <Thead>
                         <Tr>
                           <Th>Student Name</Th>
-                          <Th>Matric No</Th>
+                          <Th>ID No</Th>
                           <Th>Grade</Th>
                           <Th>Date</Th>
                           <Th>Time</Th>
                           <Th>Status</Th>
+                          <Th>Session</Th>
                           <Th>Section</Th>
                         </Tr>
                       </Thead>
                       <Tbody>
                         {studentPaginatedData.map((row: any, index: number) => (
-                          <Tr key={index}>
-                            <Td>{row.student_name}</Td>
-                            <Td>{row.matric_no}</Td>
-                            <Td>{row.grade}</Td>
-                            <Td>{new Date(row.date).toLocaleDateString()}</Td>
-                            <Td>{row.created_at ? dayjs(row.created_at).format('hh:mm A') : '-'}</Td>
-                            <Td>
-                              <Badge colorScheme={row.status === 'present' ? 'green' : row.status === 'departure' ? 'blue' : 'red'}>
-                                {row.status}
-                              </Badge>
-                            </Td>
-                            <Td>{row.section}</Td>
-                          </Tr>
+                        <Tr key={index}>
+                          <Td>{row.student_name}</Td>
+                          <Td>{row.matric_no}</Td>
+                          <Td>{row.grade}</Td>
+                          <Td>{new Date(row.date).toLocaleDateString()}</Td>
+                          <Td>{row.created_at ? dayjs(row.created_at).format('hh:mm A') : '-'}</Td>
+                          <Td>
+                            <Badge colorScheme={row.status === 'present' ? 'green' : row.status === 'departure' ? 'blue' : 'red'}>
+                              {row.status}
+                            </Badge>
+                          </Td>
+                          <Td>{row.session_type || 'N/A'}</Td>
+                          <Td>{row.section}</Td>
+                        </Tr>
                         ))}
                       </Tbody>
                     </Table>
@@ -1518,6 +1568,7 @@ const Reports: FC = () => {
         grade={listModalGrade}
         section={listModalSection}
         status={listModalStatus}
+        session={selectedSession}
       />
     </WithStaffLayout>
   );

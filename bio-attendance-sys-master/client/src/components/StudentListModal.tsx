@@ -37,6 +37,7 @@ interface StudentListModalProps {
   grade: string;
   section: string;
   status: 'present' | 'absent';
+  session?: string;
 }
 
 const StudentListModal: React.FC<StudentListModalProps> = ({
@@ -46,10 +47,11 @@ const StudentListModal: React.FC<StudentListModalProps> = ({
   grade,
   section,
   status,
+  session,
 }) => {
   const staffInfo = useStore.use.staffInfo();
 
-  console.log('StudentListModal params:', { date, grade, section, status }); // Debug log
+  console.log('StudentListModal params:', { date, grade, section, status, session }); // Debug log
 
     // Defensive: always extract students as array
     const { data: studentsData, isLoading, error, refetch } = useGetStudentsByStatus(
@@ -58,6 +60,7 @@ const StudentListModal: React.FC<StudentListModalProps> = ({
       grade,
       section,
       status,
+      session,
       {
         enabled: !!staffInfo?.id && isOpen && !!date && !!grade && !!section,
         refetchOnMount: true
@@ -126,9 +129,10 @@ const StudentListModal: React.FC<StudentListModalProps> = ({
                 <Thead>
                   <Tr>
                     <Th>Student Name</Th>
-                    <Th>Matric No</Th>
+                    <Th>ID No</Th>
                     <Th>Check-in Time</Th>
                     <Th>Check-out Time</Th>
+                    <Th>Session Type</Th>
                   </Tr>
                 </Thead>
                 <Tbody>
@@ -142,6 +146,7 @@ const StudentListModal: React.FC<StudentListModalProps> = ({
                       <Td>
                         {student.checkout_time ? new Date(student.checkout_time).toLocaleTimeString() : '-'}
                       </Td>
+                      <Td>{student.time_type || '-'}</Td>
                     </Tr>
                   ))}
                 </Tbody>

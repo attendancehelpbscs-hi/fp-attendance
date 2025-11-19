@@ -100,19 +100,6 @@ const ManageAttendance: FC = () => {
         </Flex>
       </Flex>
 
-
-
-      {/* Instructions */}
-      <Box marginBottom="2rem" maxW="600px">
-        <Text fontSize="lg" fontWeight="bold" mb={2}>Getting Started</Text>
-        <Text color="gray.600" mb={2}>
-          To manage attendance sessions, click the "Open Attendance Kiosk" button above to start marking attendance using the fingerprint scanner.
-        </Text>
-        <Text color="gray.600">
-          The kiosk provides real-time attendance tracking and scanner status updates.
-        </Text>
-      </Box>
-
       {isLoading ? (
         <Box marginTop="4rem" display="flex" justifyContent="center">
           <Spinner color="var(--bg-primar)" />

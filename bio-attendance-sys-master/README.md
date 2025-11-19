@@ -10,7 +10,7 @@ Download and install the client for windows here: [HID DigitalPersona Client](ht
 
 ### Core Features
 - **Student Management**: Comprehensive student profile management with biometric enrollment, grades, and course assignments
-- **Course Management**: Create and manage courses with matric numbers and grade classifications
+- **Course Management**: Create and manage courses with ID numbers and grade classifications
 - **Biometric Attendance Marking**: Secure fingerprint-based attendance tracking with high accuracy
 - **Manual Attendance Marking**: Alternative manual attendance marking when biometric scanning is unavailable
 - **Time Tracking**: IN/OUT time recording with configurable grace periods and late thresholds
@@ -172,7 +172,6 @@ The system provides comprehensive REST APIs. Key endpoints include:
 ### Attendance
 - `POST /api/attendance/mark` - Mark attendance (biometric/manual)
 - `GET /api/attendance` - Get attendance records
-- `POST /api/attendance/manual` - Manual attendance entry
 
 ### Reports & Analytics
 - `GET /api/reports/dashboard` - Dashboard statistics

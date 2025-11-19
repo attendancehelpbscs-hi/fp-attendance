@@ -356,9 +356,9 @@ const ManageStudents: FC = () => {
       />
 
       {/* Attendance History Modal */}
-      <Modal isOpen={isOpen} onClose={onClose} size="lg">
+      <Modal isOpen={isOpen} onClose={onClose} size="6xl">
         <ModalOverlay />
-        <ModalContent>
+        <ModalContent maxW="95vw">
           <ModalHeader>Attendance History - {selectedStudentForHistory?.name}</ModalHeader>
           <ModalCloseButton />
           <ModalBody paddingBottom="2rem">
@@ -412,6 +412,7 @@ const ManageStudents: FC = () => {
                                 <Th>Date</Th>
                                 <Th>Status</Th>
                                 <Th>Time Type</Th>
+                                <Th>Session</Th>
                                 <Th>Section</Th>
                                 <Th>Created At</Th>
                               </Tr>
@@ -428,8 +429,9 @@ const ManageStudents: FC = () => {
                                     </Badge>
                                   </Td>
                                   <Td>{record.time_type || 'N/A'}</Td>
+                                  <Td>{record.session_type || 'N/A'}</Td>
                                   <Td>{record.section}</Td>
-                                  <Td>{record.created_at ? new Date(record.created_at).toLocaleString() : 'N/A'}</Td>
+                                  <Td whiteSpace="nowrap">{record.created_at ? new Date(record.created_at).toLocaleString() : 'N/A'}</Td>
                                 </Tr>
                               ))}
                             </Tbody>

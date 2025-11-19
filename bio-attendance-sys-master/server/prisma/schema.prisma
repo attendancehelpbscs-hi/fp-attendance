@@ -100,6 +100,7 @@ model StudentAttendance {
   attendance     Attendance      @relation(fields: [attendance_id], references: [id])
   attendance_id  String
   time_type      TimeType?
+  session_type   SessionType      @default(AM)
   section        String
   status         AttendanceStatus @default(present)
   created_at     DateTime         @default(now())
@@ -115,6 +116,11 @@ enum TimeType {
 enum AttendanceStatus {
   present
   absent
+}
+
+enum SessionType {
+  AM
+  PM
 }
 
 model Token {

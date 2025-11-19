@@ -198,11 +198,47 @@ const MarkAttendance: FC<{
     setIdentificationStatus('scanning');
   };
 
+  // Set up fingerprint control callbacks (global init is handled in App.tsx)
   useEffect(() => {
     fingerprintControl.onDeviceConnectedCallback = handleDeviceConnected;
     fingerprintControl.onDeviceDisconnectedCallback = handleDeviceDisconnected;
     fingerprintControl.onSamplesAcquiredCallback = handleSampleAcquired;
-    fingerprintControl.init();
+
+    // Check initial connection status (same as AttendanceKiosk)
+    const checkInitialConnection = () => {
+      try {
+        if (fingerprintControl.isDeviceConnected) {
+          console.log('MarkAttendance: Device was already connected');
+          setDeviceConnected(true);
+        } else {
+          console.log('MarkAttendance: Device not connected yet, waiting for connection event');
+          setDeviceConnected(false);
+
+          // Add a small delay to check again in case the global init is still running
+          setTimeout(() => {
+            if (fingerprintControl.isDeviceConnected) {
+              console.log('MarkAttendance: Device connected after delay');
+              setDeviceConnected(true);
+            } else {
+              console.log('MarkAttendance: Device still not connected after delay');
+              setDeviceConnected(false);
+            }
+          }, 3000); // Wait 3 seconds for global init to complete
+        }
+      } catch (error) {
+        console.warn('MarkAttendance: Error checking initial connection:', error);
+        setDeviceConnected(false);
+      }
+    };
+
+    checkInitialConnection();
+
+    // Cleanup callbacks on unmount (but don't destroy the global instance)
+    return () => {
+      fingerprintControl.onDeviceConnectedCallback = undefined;
+      fingerprintControl.onDeviceDisconnectedCallback = undefined;
+      fingerprintControl.onSamplesAcquiredCallback = undefined;
+    };
   }, []);
 
   const simpleValidator = useRef(

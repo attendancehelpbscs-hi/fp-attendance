@@ -129,25 +129,5 @@ config();
   await new Promise<void>((resolve) => httpServer.listen({ port: envConfig.port }, resolve));
   console.log(`🚀 HTTP Server ready at http://localhost:${envConfig.port}`);
 
-  // Schedule daily absent marking at 5:00 PM
-  cron.schedule('0 17 * * *', async () => {
-    console.log('Running daily absent marking job...');
-    try {
-      // Get all staff members
-      const staffMembers = await prisma.staff.findMany({ select: { id: true } });
-
-      const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
-
-      for (const staff of staffMembers) {
-        const { markAbsentForUnmarkedDays } = await import('./services/attendance.service');
-        await markAbsentForUnmarkedDays(staff.id, today);
-      }
-
-      console.log('Daily absent marking completed successfully');
-    } catch (error) {
-      console.error('Error in daily absent marking job:', error);
-    }
-  });
-
-  console.log('⏰ Daily absent marking scheduled for 5:00 PM');
+  // Daily absent marking cron job removed - now handled on student enrollment
 })();

@@ -46,14 +46,14 @@ const PrivacyPolicy: FC = () => {
               <ListIcon as={FaUserLock} color="blue.500" mt={1} />
               <Box>
                 <Text fontWeight="bold">Personal Information:</Text>
-                <Text>Student names, IDs, matriculation/ID numbers, contact details, and academic information.</Text>
+                <Text>Student names, IDs, contact details, and academic information.</Text>
               </Box>
             </ListItem>
             <ListItem display="flex" alignItems="flex-start">
               <ListIcon as={FaDatabase} color="blue.500" mt={1} />
               <Box>
                 <Text fontWeight="bold">Attendance Records:</Text>
-                <Text>Timestamps, attendance status, and location data for attendance tracking.</Text>
+                <Text>Timestamps and attendance status for attendance tracking.</Text>
               </Box>
             </ListItem>
             <ListItem display="flex" alignItems="flex-start">

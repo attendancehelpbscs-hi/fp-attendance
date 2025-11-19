@@ -8,6 +8,7 @@ export const getReportsSchema = Joi.object({
   endDate: Joi.string().optional(),
   page: Joi.number().integer().min(1).optional(),
   per_page: Joi.number().integer().min(1).max(100).optional(),
+  session: Joi.string().valid('AM', 'PM').optional(),
 });
 
 export const getStudentReportsSchema = Joi.object({
@@ -19,8 +20,9 @@ export const getStudentReportsSchema = Joi.object({
   dateRange: Joi.string().optional(),
   page: Joi.number().integer().min(1).optional(),
   per_page: Joi.number().integer().min(1).max(100).optional(),
+  session: Joi.string().valid('AM', 'PM').optional(),
 });
 
 export const getDashboardStatsSchema = Joi.object({
-  // No query params needed for dashboard stats
+  session: Joi.string().valid('AM', 'PM').optional(),
 });

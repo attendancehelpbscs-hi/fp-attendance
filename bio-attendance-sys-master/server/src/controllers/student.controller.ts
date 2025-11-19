@@ -15,6 +15,7 @@ import type { Student } from '@prisma/client';
 import type { PaginationMeta } from '../interfaces/helper.interface';
 import { getStudentCourses } from '../services/student.service';
 import { handleFingerprintData } from '../helpers/fingerprint-security.helper';
+import { markAbsentForStudent } from '../services/attendance.service';
 
 export const getStudents = async (req: Request, res: Response, next: NextFunction) => {
   // get students that belongs to single staff
@@ -133,7 +134,7 @@ export const createStudent = async (req: Request, res: Response, next: NextFunct
           400,
           ...[
             {
-              message: 'Student with the same matric number already exists.',
+              message: 'Student with the same ID number already exists.',
               errorType: 'STUDENT_ALREADY_EXISTS',
             },
           ],
@@ -143,6 +144,11 @@ export const createStudent = async (req: Request, res: Response, next: NextFunct
     const newStudent = { staff_id, name, matric_no, grade, fingerprint, fingerprint_hash: null, encrypted_fingerprint: null, created_at: new Date() };
     const savedStudent = await saveStudentToDb(newStudent);
     await saveStudentCoursesToDb(courses.map((course_id) => ({ course_id, student_id: savedStudent.id })));
+
+    // Mark student absent for AM and PM sessions on enrollment date
+    const today = new Date().toISOString().split('T')[0];
+    await markAbsentForStudent(savedStudent.id, today);
+
     const studentCourses = await getStudentCourses(savedStudent.id);
     return createSuccess(res, 200, 'Student created successfully', {
       student: { ...savedStudent, courses: studentCourses.map((item) => item.course) },

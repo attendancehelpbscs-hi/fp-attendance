@@ -60,7 +60,7 @@ const AttendanceList: FC<{ isOpen: boolean; onClose: () => void; attendance: Att
                       {student?.student?.name} ({student?.student?.matric_no}) - {student?.student?.grade}
                       <br />
                       <Text as="span" fontSize="sm" color="gray.600">
-                        {student?.time_type || 'N/A'} - Section: {student?.section} - Time: {student?.created_at ? dayjs(student?.created_at).format('HH:mm:ss') : 'N/A'} - Status: {student?.time_type === 'IN' ? 'Present' : student?.time_type === 'OUT' ? 'Departure' : 'Absent'}
+                        {student?.time_type || 'N/A'} - Session: {student?.session_type || 'N/A'} - Section: {student?.section} - Time: {student?.created_at ? dayjs(student?.created_at).format('HH:mm:ss') : 'N/A'} - Status: {student?.time_type === 'IN' ? 'Present' : student?.time_type === 'OUT' ? 'Departure' : 'Absent'}
                       </Text>
                     </Text>
                   </ListItem>

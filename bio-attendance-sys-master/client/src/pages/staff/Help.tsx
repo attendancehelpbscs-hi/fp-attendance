@@ -80,7 +80,7 @@ const Help: FC = () => {
               </ListItem>
               <ListItem>
                 <ListIcon as={CheckCircleIcon} color="green.500" />
-                Add new students using the "+" button - enter name, matriculation/ID number, grade, and assign courses/sections
+                Add new students using the "+" button - enter name, ID number, grade, and assign courses/sections
               </ListItem>
               <ListItem>
                 <ListIcon as={CheckCircleIcon} color="green.500" />

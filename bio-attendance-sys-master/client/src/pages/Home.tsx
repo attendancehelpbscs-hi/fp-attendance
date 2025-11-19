@@ -1,20 +1,27 @@
 import type { FC } from 'react';
-import { Card, CardHeader, Heading, Flex, Button, Grid, GridItem, Stat, StatLabel, StatNumber, StatHelpText, StatArrow, Alert, AlertIcon, AlertTitle, AlertDescription, Box, Text, Badge, List, ListItem, ListIcon, CircularProgress, CircularProgressLabel, Icon } from '@chakra-ui/react';
-import { Link } from 'react-router-dom';
+import { Card, CardHeader, Heading, Flex, Button, Grid, GridItem, Stat, StatLabel, StatNumber, StatHelpText, StatArrow, Alert, AlertIcon, AlertTitle, AlertDescription, Box, Text, Badge, List, ListItem, ListIcon, CircularProgress, CircularProgressLabel, Icon, Modal, ModalOverlay, ModalContent, ModalHeader, ModalFooter, ModalBody, ModalCloseButton, Table, Thead, Tbody, Tr, Th, Td, TableContainer, HStack, Select } from '@chakra-ui/react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useState, useEffect, useMemo } from 'react';
 import { fingerprintControl } from '../lib/fingerprint';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { FaUsers, FaCheck } from 'react-icons/fa6';
+import { FaHistory } from 'react-icons/fa';
 import { MdCancel } from 'react-icons/md';
 
 import { useGetDashboardStats, useGetReports } from '../api/atttendance.api';
-import { useGetAuditLogs } from '../api/audit.api';
+import { getAuditLogs } from '../api/audit.api';
 import useStore from '../store/store';
 
 const Home: FC = () => {
+  const navigate = useNavigate();
   const [scannerConnected, setScannerConnected] = useState<boolean>(false);
   const [scannerStatus, setScannerStatus] = useState<string>('Checking...');
-
+  const [isActivityLogsOpen, setIsActivityLogsOpen] = useState(false);
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalLogs, setTotalLogs] = useState(0);
+  const [selectedSession, setSelectedSession] = useState<string>('all');
 
   const isAuthenticated = useStore.use.isAuthenticated();
   const staffInfo = useStore.use.staffInfo();
@@ -24,24 +31,35 @@ const Home: FC = () => {
     isAuthenticated && staffInfo?.id ? staffInfo.id : '',
     {
       enabled: isAuthenticated && !!staffInfo?.id,
+      session: selectedSession !== 'all' ? selectedSession : undefined,
     }
   );
+
+  // Filter dashboard data by session type
+  const filteredDashboardData = useMemo(() => {
+    if (!dashboardData?.data || selectedSession === 'all') return dashboardData?.data;
+
+    const filtered = { ...dashboardData.data };
+
+    // Note: Dashboard API currently doesn't return session_type in gradeStats
+    // This filtering will work once the backend is updated to include session_type
+    // For now, we'll show all data when a specific session is selected
+    // TODO: Update backend to include session_type in dashboard stats
+
+    return filtered;
+  }, [dashboardData, selectedSession]);
 
   // Fetch real data for daily trend (last 7 days)
   const { data: reportsData, refetch: refetchReports } = useGetReports(
     isAuthenticated && staffInfo?.id ? staffInfo.id : '',
     {
       dateRange: '7days',
+      session: selectedSession !== 'all' ? selectedSession : undefined,
     }
   );
 
-  // Fetch recent audit logs
-  const { data: auditData } = useGetAuditLogs(1, 3, {
-    enabled: isAuthenticated && !!staffInfo?.id,
-  });
-
   // Use real data if available, otherwise fallback to mock data
-  const stats = dashboardData?.data || {
+  const stats = filteredDashboardData || dashboardData?.data || {
     totalStudents: 254,
     presentToday: 200,
     absentToday: 54,
@@ -54,33 +72,58 @@ const Home: FC = () => {
   const dailyTrendData = useMemo(() => {
     if (reportsData?.data?.reports) {
       const reports = reportsData.data.reports;
-      // Group by date and sum present/absent across all grades
+      // Group by date and session, then sum present/absent across all grades
       const dateGroups: Record<string, { present: number; absent: number }> = {};
       reports.forEach((report: any) => {
         const dateKey = new Date(report.date).toISOString().split('T')[0];
-        if (!dateGroups[dateKey]) {
-          dateGroups[dateKey] = { present: 0, absent: 0 };
+        const session = report.session_type || 'AM'; // Default to AM if not specified
+        const key = `${dateKey}-${session}`;
+
+        if (!dateGroups[key]) {
+          dateGroups[key] = { present: 0, absent: 0 };
         }
-        dateGroups[dateKey].present += report.present;
-        dateGroups[dateKey].absent += report.absent;
+        dateGroups[key].present += report.present;
+        dateGroups[key].absent += report.absent;
       });
 
-      // Get last 7 days
+      // Get last 7 days, filtered by selected session
       const last7Days = [];
       for (let i = 6; i >= 0; i--) {
         const date = new Date();
         date.setDate(date.getDate() - i);
         const dateKey = date.toISOString().split('T')[0];
         const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
-        const group = dateGroups[dateKey];
-        const present = group ? group.present : 0;
-        const absent = group ? group.absent : 0;
+
+        // Sum data for both AM and PM sessions, or filter by selected session
+        let present = 0;
+        let absent = 0;
+
+        if (selectedSession === 'all') {
+          // Sum both AM and PM
+          const amKey = `${dateKey}-AM`;
+          const pmKey = `${dateKey}-PM`;
+          const amGroup = dateGroups[amKey];
+          const pmGroup = dateGroups[pmKey];
+          present = (amGroup ? amGroup.present : 0) + (pmGroup ? pmGroup.present : 0);
+          absent = (amGroup ? amGroup.absent : 0) + (pmGroup ? pmGroup.absent : 0);
+        } else {
+          // Filter by selected session
+          const key = `${dateKey}-${selectedSession}`;
+          const group = dateGroups[key];
+          present = group ? group.present : 0;
+          absent = group ? group.absent : 0;
+        }
+
         last7Days.push({
           day: dayName,
           Present: present,
           Absent: absent,
         });
       }
+
+      // Sort by weekday order: Mon, Tue, Wed, Thu, Fri, Sat, Sun
+      const dayOrder = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      last7Days.sort((a, b) => dayOrder.indexOf(a.day) - dayOrder.indexOf(b.day));
 
       return last7Days;
     }
@@ -95,9 +138,21 @@ const Home: FC = () => {
       { day: 'Sat', Present: 180, Absent: 74 },
       { day: 'Sun', Present: 150, Absent: 104 },
     ];
-  }, [reportsData]);
+  }, [reportsData, selectedSession]);
 
 
+
+  const fetchAuditLogs = async (page: number = currentPage) => {
+    try {
+      const response = await getAuditLogs(page);
+      setAuditLogs(response.data.logs);
+      setTotalPages(response.data.totalPages);
+      setTotalLogs(response.data.total);
+      setCurrentPage(page);
+    } catch (error) {
+      console.error('Failed to fetch audit logs:', error);
+    }
+  };
 
   useEffect(() => {
     const handleDeviceConnected = () => {
@@ -112,17 +167,54 @@ const Home: FC = () => {
 
     fingerprintControl.onDeviceConnected = handleDeviceConnected;
     fingerprintControl.onDeviceDisconnected = handleDeviceDisconnected;
-    fingerprintControl.init();
 
-    // Check initial status
-    setTimeout(() => {
-      if (!scannerConnected) {
-        setScannerStatus('Not Detected');
+    // Check initial connection status (same as AttendanceKiosk)
+    const checkInitialConnection = () => {
+      try {
+        if (fingerprintControl.isDeviceConnected) {
+          console.log('Home: Device was already connected');
+          // Call the callback to update UI state
+          handleDeviceConnected();
+        } else {
+          console.log('Home: Device not connected yet, waiting for connection event');
+          setScannerStatus('Checking...');
+
+          // Add a small delay to check again in case the global init is still running
+          setTimeout(() => {
+            if (fingerprintControl.isDeviceConnected) {
+              console.log('Home: Device connected after delay');
+              // Call the callback to update UI state
+              handleDeviceConnected();
+            } else {
+              console.log('Home: Device still not connected after delay');
+              setScannerConnected(false);
+              setScannerStatus('Not Detected');
+            }
+          }, 3000); // Wait 3 seconds for global init to complete
+        }
+      } catch (error) {
+        console.warn('Home: Error checking initial connection:', error);
+        setScannerConnected(false);
+        setScannerStatus('Error');
       }
-    }, 2000);
+    };
 
-    // Recent activity / audit logs removed from dashboard to simplify UI
-  }, [scannerConnected]);
+    checkInitialConnection();
+
+    // Cleanup callbacks on unmount (but don't destroy the global instance)
+    return () => {
+      // Clear callbacks to prevent memory leaks
+      fingerprintControl.onDeviceConnected = null as any;
+      fingerprintControl.onDeviceDisconnected = null as any;
+    };
+  }, []);
+
+  // Redirect to staff login if not authenticated
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigate('/staff/login', { replace: true });
+    }
+  }, [isAuthenticated, navigate]);
 
   return (
     <div>
@@ -150,53 +242,28 @@ const Home: FC = () => {
         </AlertDescription>
       </Alert>
 
-      {/* Recent Activity & Audit Logs Floating Widget */}
-      {isAuthenticated && auditData?.data?.logs && (
-        <Box
-          position="fixed"
-          bottom="20px"
-          left="20px"
-          maxW="240px"
-          zIndex="10"
-          boxShadow="lg"
-          borderRadius="md"
-          bg="white"
-          p={3}
-          border="1px solid"
-          borderColor="gray.200"
-        >
-          <Text fontSize="sm" fontWeight="bold" mb={2}>
-            Recent Activity
-          </Text>
-          <List spacing={1}>
-            {auditData.data.logs.slice(0, 2).map((log: any, index: number) => (
-              <ListItem key={index} fontSize="xs">
-                <ListIcon as={FaCheck} color="green.500" />
-                <Text as="span" fontWeight="medium">
-                  {log.staff?.name || 'Unknown'}:
-                </Text>{' '}
-                {log.action}
-                {log.details && (
-                  <Text as="span" color="gray.600" ml={1}>
-                    ({log.details})
-                  </Text>
-                )}
-                <Text as="span" color="gray.500" ml={1}>
-                  {new Date(log.created_at).toLocaleString()}
-                </Text>
-              </ListItem>
-            ))}
-          </List>
-          <Text fontSize="xs" color="gray.600" mt={2}>
-            For full audit logs or to download, go to Settings → Audit Logs.
-          </Text>
-        </Box>
-      )}
+
 
       {/* Dashboard Stats - Only show if authenticated */}
       {isAuthenticated && staffInfo && (
         <Card marginBottom="2rem" maxW="800px" marginX="auto">
           <Box padding="1rem">
+            {/* Session Filter */}
+            <Flex justifyContent="center" marginBottom="1rem">
+              <Select
+                placeholder="Select Session"
+                value={selectedSession}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSelectedSession(e.target.value)}
+                maxW="200px"
+                bg="white"
+                borderColor="gray.300"
+              >
+                <option value="all">All Sessions</option>
+                <option value="AM">Morning (AM)</option>
+                <option value="PM">Afternoon (PM)</option>
+              </Select>
+            </Flex>
+
             {/* Key Stats */}
             <Grid templateColumns="repeat(3, 1fr)" gap={6} marginBottom="2rem">
               <Card bg="gray.50" p={4} borderRadius="md" boxShadow="md">
@@ -345,33 +412,107 @@ const Home: FC = () => {
 
 
       {/* Quick Action Buttons */}
-      <Card maxW={600} margin="1rem auto">
+      <Card maxW={800} margin="1rem auto">
         <CardHeader fontWeight={600} fontSize="1.7rem" textAlign="center">
           Quick Actions
         </CardHeader>
-        <Flex flexDirection={{ base: 'column', md: 'row' }} gap="1rem" padding="1rem" justifyContent="center">
-          <Button bg="var(--bg-primary)" color="white" _hover={{ background: 'var(--bg-primary-light)' }}>
+        <Flex flexDirection={{ base: 'column', md: 'row' }} gap="1rem" padding="1rem" justifyContent="center" flexWrap="wrap">
+          <Button bg="var(--bg-primary)" color="white" _hover={{ background: 'var(--bg-primary-light)' }} minW="160px">
             <Link to="/staff/manage/attendance" className="login-link">
               Mark Attendance
             </Link>
           </Button>
-          <Button bg="var(--bg-primary)" color="white" _hover={{ background: 'var(--bg-primary-light)' }}>
+          <Button bg="var(--bg-primary)" color="white" _hover={{ background: 'var(--bg-primary-light)' }} minW="160px">
             <Link to="/staff/manage/students" className="login-link">
               Manage Students
             </Link>
           </Button>
-          <Button bg="var(--bg-primary)" color="white" _hover={{ background: 'var(--bg-primary-light)' }}>
+          <Button bg="var(--bg-primary)" color="white" _hover={{ background: 'var(--bg-primary-light)' }} minW="160px">
             <Link to="/staff/reports" className="login-link">
               View Reports
             </Link>
           </Button>
-          <Button bg="var(--bg-primary)" color="white" _hover={{ background: 'var(--bg-primary-light)' }}>
+          {isAuthenticated && (
+            <Button
+              bg="var(--bg-primary)"
+              color="white"
+              _hover={{ background: 'var(--bg-primary-light)' }}
+              leftIcon={<FaHistory />}
+              minW="160px"
+              onClick={() => {
+                setIsActivityLogsOpen(true);
+                fetchAuditLogs(1);
+              }}
+            >
+              Activity Logs
+            </Button>
+          )}
+          <Button bg="var(--bg-primary)" color="white" _hover={{ background: 'var(--bg-primary-light)' }} minW="160px">
             <Link to="/staff/login" className="login-link">
               Staff Login
             </Link>
           </Button>
         </Flex>
       </Card>
+
+      {/* Activity Logs Modal */}
+      <Modal isOpen={isActivityLogsOpen} onClose={() => setIsActivityLogsOpen(false)} size="6xl">
+        <ModalOverlay />
+        <ModalContent maxW="90vw">
+          <ModalHeader>Activity Logs</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <TableContainer>
+              <Table variant="simple" size="sm">
+                <Thead>
+                  <Tr>
+                    <Th width="15%">Action</Th>
+                    <Th width="20%">User</Th>
+                    <Th width="25%">Timestamp</Th>
+                    <Th width="40%">Details</Th>
+                  </Tr>
+                </Thead>
+                <Tbody>
+                  {auditLogs.map((log: any) => (
+                    <Tr key={log.id}>
+                      <Td fontSize="sm">{log.action}</Td>
+                      <Td fontSize="sm">{log.staff?.name || 'Unknown'}</Td>
+                      <Td fontSize="sm">{new Date(log.created_at).toLocaleString()}</Td>
+                      <Td fontSize="sm" wordBreak="break-word">{log.details || 'N/A'}</Td>
+                    </Tr>
+                  ))}
+                </Tbody>
+              </Table>
+            </TableContainer>
+            <Box marginTop="1rem">
+              <HStack spacing={4} justify="center">
+                <Button
+                  onClick={() => fetchAuditLogs(currentPage - 1)}
+                  isDisabled={currentPage === 1}
+                  size="sm"
+                >
+                  Previous
+                </Button>
+                <Text>
+                  Page {currentPage} of {totalPages} ({totalLogs} total logs)
+                </Text>
+                <Button
+                  onClick={() => fetchAuditLogs(currentPage + 1)}
+                  isDisabled={currentPage === totalPages}
+                  size="sm"
+                >
+                  Next
+                </Button>
+              </HStack>
+            </Box>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="ghost" onClick={() => setIsActivityLogsOpen(false)}>
+              Close
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </div>
   );
 };

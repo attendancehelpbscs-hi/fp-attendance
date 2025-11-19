@@ -22,6 +22,7 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { Toaster } from 'react-hot-toast';
 import AuthLayout from './layouts/AuthLayout';
 import { useGetStaffSettings } from './api/staff.api';
+import { fingerprintControl } from './lib/fingerprint';
 
 function App() {
   useStore();
@@ -41,6 +42,53 @@ function App() {
       setStaffSettings(staffSettingsData.settings);
     }
   }, [staffSettingsData, setStaffSettings]);
+
+  // Initialize fingerprint control globally on app start
+  useEffect(() => {
+    const initializeFingerprint = async () => {
+      try {
+        // Check if already initialized to avoid duplicate initialization
+        if (fingerprintControl.isDeviceConnected) {
+          console.log('Global fingerprint control already connected');
+          return;
+        }
+
+        await fingerprintControl.init();
+        console.log('Global fingerprint control initialized successfully');
+
+        // Set up global callbacks
+        fingerprintControl.onDeviceConnectedCallback = () => {
+          console.log('Global: Device connected');
+        };
+
+        fingerprintControl.onDeviceDisconnectedCallback = () => {
+          console.log('Global: Device disconnected');
+        };
+
+      } catch (error) {
+        console.error('Failed to initialize global fingerprint control:', error);
+        // Don't retry here as components will handle their own initialization if needed
+      }
+    };
+
+    // Initialize immediately
+    initializeFingerprint();
+
+    // Also try to initialize after a short delay in case the device wasn't ready
+    const delayedInit = setTimeout(() => {
+      if (!fingerprintControl.isDeviceConnected) {
+        console.log('Retrying global fingerprint initialization...');
+        initializeFingerprint();
+      }
+    }, 2000);
+
+    // Cleanup on app unmount
+    return () => {
+      clearTimeout(delayedInit);
+      // Don't destroy here as components might still be using it
+      // fingerprintControl.destroy();
+    };
+  }, []);
 
   const router = createBrowserRouter([
     {

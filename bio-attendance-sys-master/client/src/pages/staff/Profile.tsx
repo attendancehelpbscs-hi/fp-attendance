@@ -31,7 +31,7 @@ const Profile: FC = () => {
         </Box>
         <Heading textAlign="center" fontSize={22} fontWeight={600}>
           {staffInfo?.firstName || staffInfo?.lastName
-            ? `${staffInfo?.firstName || ''} ${staffInfo?.lastName || ''}`.trim() + (staffInfo?.name ? ` (${staffInfo.name})` : '')
+            ? `${staffInfo?.firstName || ''} ${staffInfo?.lastName || ''}`
             : staffInfo?.name || 'Staff Member'}
         </Heading>
         <Text textAlign="center" marginTop="0.5rem">

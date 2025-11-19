@@ -4,6 +4,7 @@ export interface MarkAttendanceInput {
   time_type: 'IN' | 'OUT';
   section: string;
   status?: 'present' | 'absent';
+  session_type?: 'AM' | 'PM';
 }
 
 export interface ManualMarkAttendanceInput {
@@ -44,6 +45,7 @@ export interface AttendanceReportData {
   date: string;
   grade: string;
   section: string;
+  session_type?: 'AM' | 'PM';
   present: number;
   absent: number;
   rate: number;
@@ -57,6 +59,7 @@ export interface StudentAttendanceReportData {
   date: string;
   status: 'present' | 'absent';
   section: string;
+  session_type?: 'AM' | 'PM';
 }
 
 export interface StudentAttendanceSummary {
@@ -89,6 +92,7 @@ export interface StudentDetailedReport {
     date: string;
     status: 'present' | 'absent';
     time_type: 'IN' | 'OUT' | null;
+    session_type: 'AM' | 'PM' | null;
     section: string;
     created_at: string;
   }[];
@@ -152,6 +156,7 @@ export interface GetAttendanceListResult {
         grade: string;
       };
       time_type: 'IN' | 'OUT';
+      session_type: 'AM' | 'PM';
       section: string;
       status: 'present' | 'absent';
       created_at: string;
