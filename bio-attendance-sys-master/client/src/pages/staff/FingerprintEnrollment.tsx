@@ -89,14 +89,17 @@ const FingerprintEnrollment: FC = () => {
 
   const handleSampleAcquired = (event: any) => {
     console.log('Sample acquired => ', event?.samples);
-    const rawImages = event?.samples.map((sample: string) => Base64.fromBase64Url(sample));
-    setLiveFingerprintImage(rawImages[0]);
+    if (event?.samples && event.samples.length > 0) {
+      // Use raw sample directly for live preview - DigitalPersona intermediate samples are already displayable
+      console.log('Raw sample for display:', event.samples[0].substring(0, 50) + '...');
+      setLiveFingerprintImage(event.samples[0]);
+    }
   };
 
   useEffect(() => {
     fingerprintControl.onDeviceConnectedCallback = handleDeviceConnected;
     fingerprintControl.onDeviceDisconnectedCallback = handleDeviceDisconnected;
-    fingerprintControl.onSamplesAcquiredCallback = handleSampleAcquired;
+    fingerprintControl.onIntermediateSampleCallback = handleSampleAcquired; // Use onIntermediateSampleCallback for live preview
     fingerprintControl.onFingerprintCaptured = (fingerprint) => {
       setFingerprintImage(fingerprint);
       setLiveFingerprintImage(null);
@@ -122,7 +125,7 @@ const FingerprintEnrollment: FC = () => {
     return () => {
       fingerprintControl.onDeviceConnectedCallback = undefined;
       fingerprintControl.onDeviceDisconnectedCallback = undefined;
-      fingerprintControl.onSamplesAcquiredCallback = undefined;
+      fingerprintControl.onIntermediateSampleCallback = undefined; // Clean up the correct callback
       fingerprintControl.onFingerprintCaptured = undefined;
     };
   }, []);

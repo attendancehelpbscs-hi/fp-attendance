@@ -99,71 +99,107 @@ def get_fingerprint_match_score(fingerprint1_path, fingerprint2_path):
         return 0.0
 
 def validate_fingerprint_data(fingerprint_data):
-    """Validate fingerprint data and attempt repair if corrupted"""
+    """Validate fingerprint data and attempt repair if corrupted - now more robust"""
     try:
         # Check if it's a valid PNG by examining the header
         if len(fingerprint_data) < 8 or fingerprint_data[:8] != b'\x89PNG\r\n\x1a\n':
-            logging.warning("Invalid PNG header, attempting repair")
+            logging.warning("Invalid PNG header")
             return None
 
-        # Try to use PIL/Pillow for PNG repair if available
+        # First, try direct OpenCV decode (fastest if it works)
+        try:
+            nparr = np.frombuffer(fingerprint_data, np.uint8)
+            img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+            
+            if img is not None:
+                logging.info("Direct OpenCV decode successful")
+                return fingerprint_data
+        except Exception as e:
+            logging.debug(f"Direct decode failed: {e}")
+
+        # Try PIL/Pillow for PNG repair (best for CRC errors)
         try:
             from PIL import Image
             import io
 
-            # Try to open with PIL which is more forgiving
+            # PIL is more forgiving with CRC errors
             img_buffer = io.BytesIO(fingerprint_data)
             img = Image.open(img_buffer)
-
+            
             # Convert to RGB if necessary
             if img.mode != 'RGB':
                 img = img.convert('RGB')
 
-            # Save back to bytes
+            # Save back to bytes with maximum quality
             output_buffer = io.BytesIO()
-            img.save(output_buffer, format='PNG')
+            img.save(output_buffer, format='PNG', optimize=False)
             repaired_data = output_buffer.getvalue()
+            
             logging.info("Successfully repaired PNG using PIL")
             return repaired_data
 
         except ImportError:
-            logging.warning("PIL not available for PNG repair")
+            logging.warning("PIL not available - install with: pip install Pillow")
         except Exception as pil_error:
             logging.warning(f"PIL repair failed: {str(pil_error)}")
 
-        # If PIL fails, try OpenCV repair
+        # Last resort: Try to decode ignoring errors and re-encode
+        try:
+            # Save to temporary file and let OpenCV handle it
+            import tempfile
+            with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
+                tmp_file.write(fingerprint_data)
+                tmp_path = tmp_file.name
+            
+            # Try to read the file (OpenCV might be more forgiving with files)
+            img = cv2.imread(tmp_path, cv2.IMREAD_COLOR)
+            
+            # Clean up temp file
+            try:
+                os.remove(tmp_path)
+            except:
+                pass
+            
+            if img is not None:
+                # Re-encode as PNG
+                success, png_data = cv2.imencode('.png', img)
+                if success:
+                    logging.info("Successfully repaired PNG using OpenCV file I/O")
+                    return png_data.tobytes()
+        
+        except Exception as file_error:
+            logging.warning(f"File-based repair failed: {str(file_error)}")
+
+        # If everything fails, try to decode anyway and ignore errors
         try:
             nparr = np.frombuffer(fingerprint_data, np.uint8)
+            
+            # Try all available decode flags
+            for flag in [cv2.IMREAD_UNCHANGED, cv2.IMREAD_ANYDEPTH | cv2.IMREAD_ANYCOLOR, 
+                        cv2.IMREAD_GRAYSCALE, cv2.IMREAD_COLOR, cv2.IMREAD_IGNORE_ORIENTATION]:
+                try:
+                    img = cv2.imdecode(nparr, flag)
+                    if img is not None:
+                        # Convert to BGR if needed
+                        if len(img.shape) == 2:
+                            img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+                        elif img.shape[2] == 4:
+                            img = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
+                        
+                        # Re-encode as clean PNG
+                        success, png_data = cv2.imencode('.png', img)
+                        if success:
+                            logging.info(f"Successfully decoded and repaired with flag: {flag}")
+                            return png_data.tobytes()
+                except Exception as flag_error:
+                    continue
+        
+        except Exception as decode_error:
+            logging.error(f"All decode attempts failed: {str(decode_error)}")
 
-            # Try different decoding options
-            img = None
-            for flag in [cv2.IMREAD_UNCHANGED, cv2.IMREAD_ANYDEPTH | cv2.IMREAD_ANYCOLOR, cv2.IMREAD_GRAYSCALE, cv2.IMREAD_COLOR]:
-                img = cv2.imdecode(nparr, flag)
-                if img is not None:
-                    logging.info(f"Successfully decoded with OpenCV flag: {flag}")
-                    break
-
-            if img is not None:
-                # Ensure image has proper dimensions and channels
-                if len(img.shape) == 2:
-                    img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
-                elif img.shape[2] == 4:
-                    img = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
-
-                # Convert to JPEG first then back to PNG
-                success, jpeg_data = cv2.imencode('.jpg', img)
-                if success:
-                    img_jpeg = cv2.imdecode(jpeg_data, cv2.IMREAD_COLOR)
-                    success_png, png_data = cv2.imencode('.png', img_jpeg)
-                    if success_png:
-                        logging.info("Successfully repaired PNG by converting through JPEG")
-                        return png_data.tobytes()
-
-        except Exception as cv_error:
-            logging.warning(f"OpenCV repair failed: {str(cv_error)}")
-
-        # Return original data if repair failed
-        return fingerprint_data
+        # If we got here, we couldn't repair it
+        logging.error("Could not repair fingerprint data")
+        return None
 
     except Exception as e:
         logging.error(f"PNG validation/repair failed: {str(e)}")

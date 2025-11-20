@@ -12,3 +12,4 @@
 - [x] Process fingerprint data the same way as AddStudent
 - [x] Update enrollment API call to use the captured fingerprint data
 - [x] Test the updated enrollment process
+- [x] Fix callback naming: Use onIntermediateSampleCallback for live preview instead of onSampleAcquiredCallback
