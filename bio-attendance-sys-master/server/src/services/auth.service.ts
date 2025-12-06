@@ -11,24 +11,38 @@ export const getStaffFromDb = async (staffEmail: string, staffPassword: string, 
     where: {
       email: staffEmail,
     },
+    include: {
+      courses: {
+        select: {
+          course_code: true,
+          grade: true,
+          matric_no: true
+        },
+        take: 1, // Get the first course for section/grade info
+        orderBy: {
+          created_at: 'desc'
+        }
+      }
+    }
   });
+
   if (!staff) {
     if (isForgotPasswordCheck) {
       return null; // Return null for forgot password check without throwing error
     }
     throw new createError.NotFound('Staff does not exist');
-    } else {
-      if (isForgotPasswordCheck) {
-        return { staff }; // Return staff info for forgot password
-      }
+  } else {
+    if (isForgotPasswordCheck) {
+      return { staff }; // Return staff info for forgot password
+    }
 
-      const { id, firstName, lastName, name, email, password, created_at, profilePicture } = staff;
-      const profilePictureData = profilePicture || undefined;
+    const { id, firstName, lastName, name, email, password, role, created_at, profilePicture, courses } = staff;
+    const profilePictureData = profilePicture || undefined;
 
-      try {
-        const match = await validatePassword(staffPassword, password);
+    try {
+      const match = await validatePassword(staffPassword, password);
 
-        if (match) {
+      if (match) {
         // Log successful login
         await prisma.auditLog.create({
           data: {
@@ -40,19 +54,30 @@ export const getStaffFromDb = async (staffEmail: string, staffPassword: string, 
 
         const accessToken = await signAccessToken({ id });
         const refreshToken = await signRefreshToken({ id });
+
+        // Include grade and section for teachers
+        const staffResponse: any = {
+          id,
+          firstName,
+          lastName,
+          name,
+          email,
+          role, // Include role in the return object
+          created_at,
+          profilePicture: profilePictureData,
+        };
+
+        if (role === 'TEACHER' && courses.length > 0) {
+          staffResponse.grade = courses[0].grade;
+          staffResponse.section = courses[0].course_code;
+          staffResponse.matric_no = courses[0].matric_no;
+        }
+
         return new Promise<RegisterReturn>((resolve) =>
           resolve({
             accessToken,
             refreshToken,
-            staff: {
-              id,
-              firstName,
-              lastName,
-              name,
-              email,
-              created_at,
-              profilePicture: profilePictureData,
-            },
+            staff: staffResponse,
           }),
         );
       } else {
@@ -102,7 +127,6 @@ export const delRefreshToken = async (staff_id: string): Promise<number | undefi
     await deleteRefreshTokensByStaffId(staff_id);
 
     return new Promise((resolve) => {
-      // resolve(value);
       resolve(undefined);
     });
   } catch (err) {

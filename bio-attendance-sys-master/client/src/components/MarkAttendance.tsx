@@ -20,6 +20,7 @@ import {
   Select,
   Switch,
   HStack,
+  VStack,
 } from '@chakra-ui/react';
 import { InfoIcon } from '@chakra-ui/icons';
 import { Flex } from '@chakra-ui/react';
@@ -56,18 +57,20 @@ const MarkAttendance: FC<{
   const [fingerprints, setFingerprints] = useState<{ newFingerprint: string }>({
     newFingerprint: '',
   });
+  const [liveFingerprintImage, setLiveFingerprintImage] = useState<string | null>(null);
   const [identifiedStudent, setIdentifiedStudent] = useState<StudentFingerprint | null>(null);
   const [identificationStatus, setIdentificationStatus] = useState<'idle' | 'scanning' | 'identifying' | 'success' | 'error'>('idle');
   const [confidence, setConfidence] = useState<number>(0);
   const [continuousMode, setContinuousMode] = useState<boolean>(false);
   const [, forceUpdate] = useState<boolean>(false);
-  const studentFingerprintsData = useGetStudentsFingerprints(staffInfo?.id as string, {
+  const studentFingerprintsData = useGetStudentsFingerprints(staffInfo?.id as string, 1, 1000, {
     queryKey: ['studentsfingerprints', staffInfo?.id],
   });
 
   const defaultMarkInput = () => {
     setMarkInput((prev) => ({ ...prev, student_id: '', section: '' }));
     setFingerprints((prev) => ({ ...prev, newFingerprint: '' }));
+    setLiveFingerprintImage(null);
     setIdentifiedStudent(null);
     setIdentificationStatus('idle');
     setConfidence(0);
@@ -110,31 +113,61 @@ const MarkAttendance: FC<{
     if (!fingerprints.newFingerprint) return;
 
     setIdentificationStatus('identifying');
-    const data = new FormData();
-    data.append('file', dataURLtoFile(getFingerprintImgString(fingerprints.newFingerprint), 'scanned_fingerprint.jpeg'));
-    data.append('staff_id', staffInfo?.id as string);
 
     try {
-      const res = await axios.post(`${constants.matchBaseUrl}/identify/fingerprint`, data, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
+      // Convert base64 to File object for upload (same as kiosk)
+      const base64Data = fingerprints.newFingerprint;
+
+      // Remove data URL prefix if present
+      const cleanBase64 = base64Data.includes(',')
+        ? base64Data.split(',')[1]
+        : base64Data;
+
+      // Convert base64 to blob
+      const byteCharacters = atob(cleanBase64);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: 'image/png' });
+      const file = new File([blob], 'scanned_fingerprint.png', { type: 'image/png' });
+
+      // Create FormData (Python server expects this format)
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('staff_id', staffInfo?.id as string);
+
+      // Send to Python server
+      const res = await axios.post(
+        `${constants.matchBaseUrl}/identify/fingerprint`,
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        }
+      );
 
       const { student_id, confidence } = res.data;
-      setConfidence(confidence);
 
-      if (student_id && confidence > 5) { // Adjusted threshold to accept legitimate matches
-        const student = studentFingerprintsData.data?.data?.students?.find((s: StudentFingerprint) => s.id === student_id);
+      if (student_id && confidence > 40) { // Use same threshold as kiosk
+        const student = studentFingerprintsData.data?.data?.students?.find(
+          (s: StudentFingerprint) => s.id === student_id
+        );
+
         if (student) {
           setIdentifiedStudent(student);
+          setConfidence(confidence);
           setMarkInput((prev) => ({
             ...prev,
             student_id: student_id,
-            section: (student.courses.length > 0 ? student.courses[0].course_code : student.grade).slice(0, 10), // Truncate to max 10 characters
+            section: (student.courses.length > 0
+              ? student.courses[0].course_code
+              : student.grade).slice(0, 10),
           }));
           setIdentificationStatus('success');
-          toast.success(`Student identified: ${student.name} (${student.matric_no})`);
+          toast.success(`Student identified: ${student.name} (${student.matric_no}) - ${confidence.toFixed(1)}% confidence`);
 
           // Auto-mark if continuous mode is enabled
           if (continuousMode) {
@@ -157,10 +190,20 @@ const MarkAttendance: FC<{
         setIdentificationStatus('error');
         toast.error('Fingerprint not recognized. Please try again.');
       }
-    } catch (err) {
+    } catch (err: any) {
       setIdentificationStatus('error');
-      toast.error('Could not identify fingerprint');
-      console.error('Err: ', err);
+
+      console.error('Identification error: ', err);
+
+      if (err.response?.status === 404) {
+        toast.error('No students enrolled with fingerprints.');
+      } else if (err.response?.status === 400) {
+        toast.error('Invalid fingerprint data. Please try again.');
+      } else if (err.response?.status === 500) {
+        toast.error('Server error. Check if Python server is running.');
+      } else {
+        toast.error(err.response?.data?.message || 'Could not identify fingerprint');
+      }
     }
   };
 
@@ -195,7 +238,17 @@ const MarkAttendance: FC<{
     const rawImages = event?.samples.map((sample: string) => Base64.fromBase64Url(sample));
 
     setFingerprints((prev) => ({ ...prev, newFingerprint: rawImages[0] }));
+    setLiveFingerprintImage(null); // Clear live preview when final sample is acquired
     setIdentificationStatus('scanning');
+  };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const handleIntermediateSample = (event: any) => {
+    console.log('Intermediate sample acquired => ', event);
+    if (event?.samples && event.samples.length > 0) {
+      const rawImages = event.samples.map((sample: string) => Base64.fromBase64Url(sample));
+      setLiveFingerprintImage(rawImages[0]);
+    }
   };
 
   // Set up fingerprint control callbacks (global init is handled in App.tsx)
@@ -203,6 +256,7 @@ const MarkAttendance: FC<{
     fingerprintControl.onDeviceConnectedCallback = handleDeviceConnected;
     fingerprintControl.onDeviceDisconnectedCallback = handleDeviceDisconnected;
     fingerprintControl.onSamplesAcquiredCallback = handleSampleAcquired;
+    fingerprintControl.onIntermediateSampleCallback = handleIntermediateSample;
 
     // Check initial connection status (same as AttendanceKiosk)
     const checkInitialConnection = () => {
@@ -305,7 +359,27 @@ const MarkAttendance: FC<{
                 margin="1rem auto"
                 border="1px solid rgba(0, 0, 0, 0.04)"
               >
-                {fingerprints.newFingerprint && <Image src={getFingerprintImgString(fingerprints.newFingerprint)} />}
+                {liveFingerprintImage && (
+                  <VStack spacing={2}>
+                    <Image src={getFingerprintImgString(liveFingerprintImage)} alt="Live Fingerprint Preview" />
+                    <Text color="blue.600" fontSize="xs" fontWeight="bold">
+                      Live Preview - Keep finger on scanner
+                    </Text>
+                  </VStack>
+                )}
+                {fingerprints.newFingerprint && !liveFingerprintImage && (
+                  <VStack spacing={2}>
+                    <Image src={getFingerprintImgString(fingerprints.newFingerprint)} alt="Captured Fingerprint" />
+                    <Text color="green.600" fontSize="xs" fontWeight="bold">
+                      Capture Complete - Ready to Mark
+                    </Text>
+                  </VStack>
+                )}
+                {!liveFingerprintImage && !fingerprints.newFingerprint && (
+                  <Text color="gray.500" fontSize="sm" textAlign="center" padding="1rem">
+                    Place your finger on the scanner
+                  </Text>
+                )}
               </Box>
 
               {identificationStatus === 'identifying' && (

@@ -6,6 +6,12 @@ import {
   deleteStudent,
   getSingleStudent,
   getStudentsFingerprints,
+  checkFingerprintUniqueness,
+  // NEW: Multi-fingerprint enrollment endpoints
+  getStudentFingerprints,
+  enrollStudentFingerprint,
+  deleteStudentFingerprint,
+  checkFingerprintUniquenessMulti,
 } from '../controllers/student.controller';
 import { createStudentSchema, updateStudentSchema } from '../joi/student.joi';
 import joiValidate from '../middlewares/joi.middleware';
@@ -14,46 +20,45 @@ import auth from '../middlewares/auth.middleware';
 
 const studentRoute = Router();
 
-/*
-@route 			GET /api/students/staff/:id?page=$1 (get students by a staff)
-@description 	get students
-@access 		Private
-*/
+// Existing routes
 studentRoute.get('/students/staff/:staff_id', joiValidate(paginateInputSchema, 'query'), auth, getStudents);
-
-/*
-@route 			GET /api/student/:id/staff/:staff_id (get students by a staff)
-@description 	get single student by a staff
-@access 		Public
-*/
 studentRoute.get('/student/:id', getSingleStudent);
-
-/*
-@route 			POST /api/student (create student)
-@description 	add new student
-@access 		Private
-*/
 studentRoute.post('/student', joiValidate(createStudentSchema), auth, createStudent);
-
-/*
-@route 			PUT /api/student (update student)
-@description update student
-@access 		Private
-*/
 studentRoute.put('/student/:id', joiValidate(updateStudentSchema), auth, updateStudent);
-
-/*
-@route 			DELETE /api/student (delete student)
-@description 	delete student
-@access 		Private
-*/
 studentRoute.delete('/student/:id', auth, deleteStudent);
+studentRoute.get('/students/fingerprints/:staff_id', auth, getStudentsFingerprints);
+studentRoute.post('/student/check-fingerprint', auth, checkFingerprintUniqueness);
+
+// ============================================================================
+// NEW: Multi-Fingerprint Enrollment Routes
+// ============================================================================
 
 /*
-@route 			GET /api/students/fingerprints/:staff_id (get students fingerprints for identification)
-@description 	get students fingerprints
-@access 		Public
+@route        GET /api/student/:student_id/fingerprints
+@description  Get all enrolled fingerprints for a specific student
+@access       Private
 */
-studentRoute.get('/students/fingerprints/:staff_id', getStudentsFingerprints);
+studentRoute.get('/student/:student_id/fingerprints', auth, getStudentFingerprints);
+
+/*
+@route        POST /api/student/fingerprint/enroll
+@description  Enroll a new fingerprint for a student
+@access       Private
+*/
+studentRoute.post('/student/fingerprint/enroll', auth, enrollStudentFingerprint);
+
+/*
+@route        DELETE /api/student/fingerprint/:fingerprint_id
+@description  Delete a specific fingerprint
+@access       Private
+*/
+studentRoute.delete('/student/fingerprint/:fingerprint_id', auth, deleteStudentFingerprint);
+
+/*
+@route        POST /api/student/check-fingerprint-multi
+@description  Check if fingerprint is unique across ALL enrolled fingerprints
+@access       Private
+*/
+studentRoute.post('/student/check-fingerprint-multi', auth, checkFingerprintUniquenessMulti);
 
 export default studentRoute;

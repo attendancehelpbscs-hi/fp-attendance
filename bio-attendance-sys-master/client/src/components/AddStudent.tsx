@@ -33,7 +33,23 @@ import useStore from '../store/store';
 import { queryClient } from '../lib/query-client';
 
 
-export const getFingerprintImgString = (base64ImageData: string) => `data:image/png;base64,${base64ImageData}`;
+export const getFingerprintImgString = (base64ImageData: string) => {
+  // If it's already a data URL, return as is
+  if (base64ImageData.startsWith('data:image/')) {
+    return base64ImageData;
+  }
+
+  // If it contains a comma, it might be a data URL, extract the base64 part
+  if (base64ImageData.includes(',')) {
+    const parts = base64ImageData.split(',');
+    if (parts.length > 1) {
+      return `data:image/png;base64,${parts[1]}`;
+    }
+  }
+
+  // Otherwise, assume it's just base64 data and add the prefix
+  return `data:image/png;base64,${base64ImageData}`;
+};
 
 const AddStudent: FC<{
   isOpen: boolean;
@@ -48,7 +64,7 @@ const AddStudent: FC<{
     staff_id: staffInfo?.id as string,
     name: '',
     matric_no: '',
-    grade: '',
+    grade: staffInfo?.role === 'TEACHER' ? staffInfo?.grade || '' : '',
     fingerprint: undefined,
     courses: [],
   } as AddStudentInput);
@@ -67,33 +83,26 @@ const AddStudent: FC<{
     { queryKey: ['availablecourses', page], keepPreviousData: true }
   );
   const defaultStudentInput = () =>
-    setStudentInput((prev: AddStudentInput) => ({ ...prev, name: '', matric_no: '', grade: '', courses: [], fingerprint: undefined }));
+    setStudentInput((prev: AddStudentInput) => ({
+      ...prev,
+      name: '',
+      matric_no: '',
+      grade: staffInfo?.role === 'TEACHER' ? staffInfo?.grade || '' : '',
+      courses: [],
+      fingerprint: undefined
+    }));
   const { isLoading, mutate: addStudent } = useAddStudent({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['students'] });
       closeDrawer();
-      toast.success('Course added successfully');
+      toast.success('Student added successfully');
       defaultStudentInput();
     },
-    onError: (err) => {
+    onError: (err: any) => {
       toast.error((err.response?.data?.message as string) ?? 'An error occured');
     },
   });
-  const { isLoading: isUpdating, mutate: updateStudent } = useUpdateStudent({
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['students'] });
-      queryClient.invalidateQueries({ queryKey: ['reports'] });
-      queryClient.invalidateQueries({ queryKey: ['student-reports'] });
-      queryClient.invalidateQueries({ queryKey: ['grades-sections'] });
-      setActiveStudent(null);
-      closeDrawer();
-      toast.success('Student updated successfully');
-      defaultStudentInput();
-    },
-    onError: (err) => {
-      toast.error((err.response?.data?.message as string) ?? 'An error occured');
-    },
-  });
+  const { isLoading: isUpdating, mutate: updateStudent } = useUpdateStudent();
   useEffect(() => {
     if (isOpen && activeStudent) {
       setStudentInput((prev: AddStudentInput) => ({
@@ -103,8 +112,23 @@ const AddStudent: FC<{
         grade: activeStudent.grade,
         courses: activeStudent.courses?.map((course) => course.id),
       }));
+    } else if (isOpen && !activeStudent && staffInfo?.role === 'TEACHER' && courseData?.data?.courses) {
+      // Auto-populate grade and section for teachers when adding new students
+      const teacherGrade = staffInfo.grade || '';
+      const teacherSection = staffInfo.section || '';
+
+      // Find the course that matches the teacher's grade and section
+      const teacherCourse = courseData.data.courses.find(
+        (course: any) => course.grade === teacherGrade && course.course_code === teacherSection
+      );
+
+      setStudentInput((prev: AddStudentInput) => ({
+        ...prev,
+        grade: teacherGrade,
+        courses: teacherCourse ? [teacherCourse.id] : [],
+      }));
     }
-  }, [isOpen, activeStudent]);
+  }, [isOpen, activeStudent, courseData?.data?.courses, staffInfo]);
 
 
 
@@ -129,12 +153,19 @@ const AddStudent: FC<{
 
   const handleAddStudent: FormEventHandler = async (e) => {
     e.preventDefault();
+
+    // For teachers, ensure grade is set
+    const finalStudentInput = { ...studentInput };
+    if (staffInfo?.role === 'TEACHER' && !finalStudentInput.grade && staffInfo.grade) {
+      finalStudentInput.grade = staffInfo.grade;
+    }
+
     if (simpleValidator.current.allValid()) {
       try {
         if (activeStudent) {
           onConfirmOpen();
         } else {
-          addStudent(studentInput);
+          addStudent(finalStudentInput);
         }
       } catch (err) {
         console.log('error => ', err);
@@ -191,7 +222,9 @@ const AddStudent: FC<{
             </FormControl>
             <FormControl marginTop="1rem">
               <FormLabel>Grade</FormLabel>
-              <Text fontSize="sm" color="gray.500" mb={1}>(Select grade level)</Text>
+              <Text fontSize="sm" color="gray.500" mb={1}>
+                {staffInfo?.role === 'TEACHER' ? '(Auto-filled from your assignment)' : '(Select grade level)'}
+              </Text>
               <Select
                 value={studentInput.grade ? { value: studentInput.grade, label: `Grade ${studentInput.grade}` } : null}
                 name="grade"
@@ -205,11 +238,12 @@ const AddStudent: FC<{
                 ]}
                 className="basic-single-select"
                 classNamePrefix="select"
+                isDisabled={staffInfo?.role === 'TEACHER'} // Disable for teachers
                 onChange={(newValue: any) => {
                   setStudentInput((prev: AddStudentInput) => ({ ...prev, grade: newValue ? newValue.value : '', courses: [] }));
                 }}
               />
-              {simpleValidator.current.message(
+              {staffInfo?.role !== 'TEACHER' && simpleValidator.current.message(
                 'grade',
                 studentInput.grade,
                 'required|string|between:1,6',
@@ -217,6 +251,9 @@ const AddStudent: FC<{
             </FormControl>
             <FormControl marginTop="1rem">
               <FormLabel>Section</FormLabel>
+              <Text fontSize="sm" color="gray.500" mb={1}>
+                {staffInfo?.role === 'TEACHER' ? '(Auto-filled from your assignment)' : '(Select section)'}
+              </Text>
               <Select
                 value={studentInput.courses && studentInput.courses.length > 0 ? {
                   value: studentInput.courses[0],
@@ -229,7 +266,7 @@ const AddStudent: FC<{
                 onChange={(newValue: any) =>
                   setStudentInput((prev: AddStudentInput) => ({ ...prev, courses: newValue ? [newValue.value] : [] }))
                 }
-                isDisabled={!studentInput.grade}
+                isDisabled={!studentInput.grade || staffInfo?.role === 'TEACHER'} // Disable for teachers
               />
             </FormControl>
 

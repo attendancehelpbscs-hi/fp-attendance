@@ -96,6 +96,23 @@ export const markAbsentForUnmarkedDays = async (staff_id: string, date: string):
   }
 };
 
+export const markDailyAbsentsForAllStaff = async (): Promise<void> => {
+  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0]; // YYYY-MM-DD format for yesterday
+
+  // Get all staff members
+  const staffMembers = await prisma.staff.findMany({
+    select: { id: true }
+  });
+
+  for (const staff of staffMembers) {
+    try {
+      await markAbsentForUnmarkedDays(staff.id, yesterday);
+    } catch (error) {
+      console.error(`Error marking absents for staff ${staff.id}:`, error);
+    }
+  }
+};
+
 export const markAbsentForStudent = async (student_id: string, date: string): Promise<void> => {
   // Get student with courses
   const student = await prisma.student.findUnique({

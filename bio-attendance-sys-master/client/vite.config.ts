@@ -6,6 +6,14 @@ import rollupNodePolyFill from 'rollup-plugin-polyfill-node';
 export default defineConfig({
   plugins: [react()],
   define: { global: 'globalThis' },
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://localhost:5005',
+        changeOrigin: true,
+      },
+    },
+  },
   resolve: {
     alias: {
       // Provide browser implementations for Node core modules used by third-party libs

@@ -23,15 +23,26 @@ import {
 } from '@chakra-ui/react';
 import { useGetStudents } from '../api/student.api';
 import useStore from '../store/store';
-import type { Course, Student } from '../interfaces/api.interface';
+import type { Course, Student, Teacher } from '../interfaces/api.interface';
 
-interface EnrolledStudentsModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  course: Course;
-}
+type EnrolledStudentsModalProps =
+  | {
+      isOpen: boolean;
+      onClose: () => void;
+      course: Course;
+      teacher?: never;
+    }
+  | {
+      isOpen: boolean;
+      onClose: () => void;
+      course?: never;
+      teacher: Teacher;
+    };
 
-const EnrolledStudentsModal: FC<EnrolledStudentsModalProps> = ({ isOpen, onClose, course }) => {
+const EnrolledStudentsModal: FC<EnrolledStudentsModalProps> = (props) => {
+  const { isOpen, onClose } = props;
+  const course = 'course' in props ? props.course : undefined;
+  const teacher = 'teacher' in props ? props.teacher : undefined;
   const staffInfo = useStore.use.staffInfo();
   const [page, setPage] = useState<number>(1);
   const [per_page] = useState<number>(10); // Students per page in modal
@@ -47,13 +58,42 @@ const EnrolledStudentsModal: FC<EnrolledStudentsModalProps> = ({ isOpen, onClose
       keepPreviousData: true,
     }
   );
+  const errorMessage = (error as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Failed to load students.';
 
-  // Filter students enrolled in the selected course
-  const allEnrolledStudents = data?.data?.students?.filter((student: Student) =>
-    student.courses.some((c: Course) => c.id === course.id)
-  ) || [];
+  const normalize = (value?: string | null) => (value ? value.trim().toLowerCase() : '');
 
-  // Paginate the enrolled students
+  const allEnrolledStudents =
+    data?.data?.students?.filter((student: Student) => {
+      if (course) {
+        return student.courses.some((c: Course) => c.id === course.id);
+      }
+      if (teacher) {
+        const teacherSection = normalize(teacher.section);
+        const teacherGrade = normalize(teacher.grade);
+        const teacherName = normalize(teacher.name);
+        const studentSection = normalize(student.section);
+        const studentGrade = normalize(student.grade);
+        const sectionMatch = teacherSection ? studentSection === teacherSection : false;
+        const gradeMatch = teacherGrade ? studentGrade === teacherGrade : false;
+        const courseMatch = student.courses.some((c: Course) => {
+          const courseCode = normalize(c.course_code);
+          const courseName = normalize(c.course_name);
+          return (teacherSection && courseCode === teacherSection) || (teacherName && courseName === teacherName);
+        });
+        if (teacherSection && teacherGrade) {
+          return sectionMatch || (gradeMatch && courseMatch);
+        }
+        if (teacherSection) {
+          return sectionMatch || courseMatch;
+        }
+        if (teacherGrade) {
+          return gradeMatch || courseMatch;
+        }
+        return courseMatch;
+      }
+      return false;
+    }) || [];
+
   const totalEnrolled = allEnrolledStudents.length;
   const totalPages = Math.ceil(totalEnrolled / per_page) || 1;
   const startIndex = (page - 1) * per_page;
@@ -67,11 +107,19 @@ const EnrolledStudentsModal: FC<EnrolledStudentsModalProps> = ({ isOpen, onClose
     per_page,
   };
 
+  const headingText = course
+    ? `Enrolled Students - ${course.course_name} (${course.course_code})`
+    : `Enrolled Students - ${teacher?.name ?? 'Teacher'}${teacher?.section ? ` (${teacher.section})` : ''}`;
+
+  const captionTarget = course?.course_name ?? teacher?.section ?? teacher?.name ?? 'this teacher';
+  const captionText = `Students enrolled in ${captionTarget}`;
+  const emptyStateMessage = course ? 'No students enrolled in this course.' : 'No students found for this teacher.';
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="xl">
       <ModalOverlay />
       <ModalContent>
-        <ModalHeader>Enrolled Students - {course.course_name} ({course.course_code})</ModalHeader>
+        <ModalHeader>{headingText}</ModalHeader>
         <ModalCloseButton />
         <ModalBody>
           {isLoading ? (
@@ -80,16 +128,16 @@ const EnrolledStudentsModal: FC<EnrolledStudentsModalProps> = ({ isOpen, onClose
             </Box>
           ) : isError ? (
             <Box display="flex" justifyContent="center" padding="4rem">
-              <Text>Error: {error?.response?.data?.message}</Text>
+              <Text>Error: {errorMessage}</Text>
             </Box>
           ) : enrolledStudents.length === 0 ? (
             <Box display="flex" justifyContent="center" padding="4rem">
-              <Text>No students enrolled in this course.</Text>
+              <Text>{emptyStateMessage}</Text>
             </Box>
           ) : (
             <TableContainer>
               <Table variant="simple">
-                <TableCaption>Students enrolled in {course.course_name}</TableCaption>
+                <TableCaption>{captionText}</TableCaption>
                 <Thead>
                   <Tr>
                     <Th>S/N</Th>

@@ -1,12 +1,14 @@
 // import FingerprintSigninControl from './lib/fingerprint';
 import { useEffect } from 'react';
-import { createBrowserRouter, RouterProvider } from 'react-router-dom';
+import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom';
 import WithMainLayout from './layouts/WithMainLayout';
 import Home from './pages/Home';
 import NotFound from './pages/NotFound';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import About from './pages/About';
 import Login from './pages/staff/Login';
+import TeacherLogin from './pages/TeacherLogin';
+import TeacherRegister from './pages/TeacherRegister';
 import ForgotPassword from './pages/staff/ForgotPassword';
 import ResetPassword from './pages/staff/ResetPassword';
 import Profile from './pages/staff/Profile';
@@ -16,6 +18,7 @@ import StudentManagement from './pages/staff/StudentManagement';
 import FingerprintEnrollment from './pages/staff/FingerprintEnrollment';
 import Settings from './pages/staff/Settings';
 import ManageAttendance from './pages/staff/ManageAttendance';
+import ManageTeachers from './pages/staff/ManageTeachers';
 import Reports from './pages/staff/Reports';
 import Help from './pages/staff/Help';
 import AttendanceKiosk from './pages/staff/AttendanceKiosk';
@@ -108,6 +111,26 @@ function App() {
         </WithMainLayout>
       ),
     },
+    {
+      path: '/teacher-login',
+      element: (
+        <WithMainLayout>
+          <AuthLayout routeType="noauth">
+            <TeacherLogin />
+          </AuthLayout>
+        </WithMainLayout>
+      ),
+    },
+    {
+      path: '/teacher-register',
+      element: (
+        <WithMainLayout>
+          <AuthLayout routeType="noauth">
+            <TeacherRegister />
+          </AuthLayout>
+        </WithMainLayout>
+      ),
+    },
 
     {
       path: '/staff/forgot-password',
@@ -176,6 +199,16 @@ function App() {
         <WithMainLayout>
           <AuthLayout routeType="auth">
             <ManageStudents />
+          </AuthLayout>
+        </WithMainLayout>
+      ),
+    },
+    {
+      path: '/staff/manage/teachers',
+      element: (
+        <WithMainLayout>
+          <AuthLayout routeType="auth">
+            <ManageTeachers />
           </AuthLayout>
         </WithMainLayout>
       ),

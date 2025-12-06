@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import type { FC, ChangeEventHandler, FormEventHandler } from 'react';
-import { Card, CardHeader, Heading, FormControl, FormLabel, Input, Button, Link, Text, InputGroup, InputRightElement, IconButton, Tabs, TabList, TabPanels, Tab, TabPanel, Box } from '@chakra-ui/react';
+import { Card, CardHeader, Heading, FormControl, FormLabel, Input, Button, Link, Text, InputGroup, InputRightElement, IconButton, Tabs, TabList, TabPanels, Tab, TabPanel, Box, Image, Flex } from '@chakra-ui/react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
-import { ViewIcon, ViewOffIcon } from '@chakra-ui/icons';
+import { ViewIcon, ViewOffIcon, EmailIcon, LockIcon } from '@chakra-ui/icons';
 import '../../styles/Staff.scss';
 import type { LoginStaffInput } from '../../interfaces/api.interface';
 import { useLoginStaff, useFingerprintLogin } from '../../api/staff.api';
@@ -23,6 +23,7 @@ const Login: FC = () => {
   const navigate = useNavigate();
   const [fingerprintData, setFingerprintData] = useState<string>('');
   const [deviceConnected, setDeviceConnected] = useState<boolean>(false);
+  const [currentSlide, setCurrentSlide] = useState<number>(0);
 
   const { isLoading, mutate: loginStaff } = useLoginStaff({
     onSuccess: (response) => {
@@ -36,6 +37,11 @@ const Login: FC = () => {
       const staff = responseData?.staff;
 
       console.log('🔍 Extracted values:', { accessToken, refreshToken, staff });
+      
+      // Store role information for role-based access control
+      if (staff && staff.role) {
+        console.log('🔍 User role:', staff.role);
+      }
 
       if (!accessToken || !refreshToken || !staff) {
         console.error('❌ Missing required data!');
@@ -65,7 +71,8 @@ const Login: FC = () => {
 
         if (state.isAuthenticated && state.tokens) {
           console.log('✅ Login successful, navigating to profile...');
-          navigate('/staff/profile', { replace: true });
+          // Use window.location.replace instead of navigate for full page reload
+          window.location.replace('/staff/profile');
         } else {
           console.error('❌ Store not updated properly!');
           toast.error('Login failed: Authentication state not updated');
@@ -109,7 +116,8 @@ const Login: FC = () => {
 
         if (state.isAuthenticated && state.tokens) {
           console.log('✅ Fingerprint login successful, navigating to profile...');
-          navigate('/staff/profile', { replace: true });
+          // Use window.location.replace instead of navigate for full page reload
+          window.location.replace('/staff/profile');
         } else {
           console.error('❌ Fingerprint login failed: Store not updated properly!');
           toast.error('Fingerprint login failed: Authentication state not updated');
@@ -118,7 +126,8 @@ const Login: FC = () => {
     },
     onError: (err) => {
       console.error('❌ Fingerprint login error:', err);
-      toast.error((err.response?.data?.message as string) ?? 'Fingerprint login failed');
+      const errorMessage = err?.response?.data?.message || err?.message || 'Fingerprint login failed. Please try again.';
+      toast.error(errorMessage);
     },
   });
 
@@ -238,98 +247,170 @@ const Login: FC = () => {
     };
   }, []);
 
+  // Auto-slideshow effect
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentSlide((prev) => (prev + 1) % 2);
+    }, 3000); // Change slide every 3 seconds
+
+    return () => clearInterval(interval);
+  }, []);
+
   return (
-    <div>
-      <Card maxW={400} margin="1rem auto">
-        <CardHeader fontWeight={600} fontSize="1.7rem" textAlign="center">
-          Login
-        </CardHeader>
-        <Tabs variant="enclosed">
-          <TabList>
-            <Tab>Email & Password</Tab>
-            <Tab>Fingerprint</Tab>
-          </TabList>
-          <TabPanels>
-            <TabPanel>
-              <form className="login-form" method="post" action="#" onSubmit={handleLoginStaff}>
-                <FormControl>
-                  <FormLabel>Email address</FormLabel>
-                  <Input type="email" value={loginInput.email} name="email" required onChange={handleInputChange} />
-                  {simpleValidator.current.message('email', loginInput.email, 'required|email|between:2,128')}
-                </FormControl>
-                <FormControl marginTop="1rem">
-                  <FormLabel>Password</FormLabel>
-                  <InputGroup>
-                    <Input
-                      type={showPassword ? 'text' : 'password'}
-                      value={loginInput.password}
-                      name="password"
-                      required
-                      onChange={handleInputChange}
-                    />
-                    <InputRightElement>
-                      <IconButton
-                        variant="ghost"
-                        aria-label={showPassword ? 'Hide password' : 'Show password'}
-                        icon={showPassword ? <ViewOffIcon /> : <ViewIcon />}
-                        onClick={() => setShowPassword(!showPassword)}
-                        size="sm"
-                      />
-                    </InputRightElement>
-                  </InputGroup>
-                  {simpleValidator.current.message('password', loginInput.password, 'required|between:4,15')}
-                </FormControl>
-                <Button
-                  w="100%"
-                  type="submit"
-                  bg="var(--bg-primary)"
-                  color="white"
-                  marginTop="2rem"
-                  _hover={{ background: 'var(--bg-primary-light)' }}
-                  disabled={isLoading}
-                >
-                  {isLoading ? 'Logging in...' : 'Login'}
-                </Button>
-              </form>
-            </TabPanel>
-            <TabPanel>
-              <Box textAlign="center">
-                <Text fontSize="sm" color="gray.600" mb={4}>
-                  Place your enrolled finger on the scanner to login
+    <div className="login-page">
+      <div className="moving-background"></div>
+      <div className="login-content">
+        <div className="login-container">
+          <div className="login-image">
+            <Image src="/White Tosca Modern Art Exhibition Trifold Brochurevv.png" alt="Illustration" />
+          </div>
+          <div className="login-form-container">
+            <Card w={500} margin="1rem 0 1rem 0">
+              <CardHeader textAlign="center" paddingBottom="0">
+                <Heading as="h1" className="login-title">Welcome Back, Admin</Heading>
+                <Text className="welcome-message">Sign in to access your dashboard</Text>
+              </CardHeader>
+              <Tabs variant="enclosed">
+                <TabList>
+                  <Tab>Email & Password</Tab>
+                  <Tab>Fingerprint</Tab>
+                </TabList>
+                <TabPanels>
+                  <TabPanel>
+                    <form className="login-form" method="post" action="#" onSubmit={handleLoginStaff}>
+                      <FormControl position="relative">
+                        <FormLabel>Email address</FormLabel>
+                        <EmailIcon className="input-icon" />
+                        <Input
+                          type="email"
+                          value={loginInput.email}
+                          name="email"
+                          placeholder="Enter your email"
+                          required
+                          onChange={handleInputChange}
+                          aria-label="Email address"
+                        />
+                        {simpleValidator.current.message('email', loginInput.email, 'required|email|between:2,128')}
+                      </FormControl>
+                      <FormControl marginTop="1rem" position="relative">
+                        <FormLabel>Password</FormLabel>
+                        <LockIcon className="input-icon" />
+                        <InputGroup>
+                          <Input
+                            type={showPassword ? 'text' : 'password'}
+                            value={loginInput.password}
+                            name="password"
+                            placeholder="Enter your password"
+                            required
+                            onChange={handleInputChange}
+                            aria-label="Password"
+                          />
+                          <InputRightElement>
+                            <IconButton
+                              variant="ghost"
+                              aria-label={showPassword ? 'Hide password' : 'Show password'}
+                              icon={showPassword ? <ViewOffIcon /> : <ViewIcon />}
+                              onClick={() => setShowPassword(!showPassword)}
+                              size="sm"
+                              className="password-toggle"
+                            />
+                          </InputRightElement>
+                        </InputGroup>
+                        {simpleValidator.current.message('password', loginInput.password, 'required|between:4,15')}
+                      </FormControl>
+                      <Button
+                        w="100%"
+                        type="submit"
+                        bg="var(--bg-primary)"
+                        color="white"
+                        marginTop="2rem"
+                        _hover={{ background: 'var(--bg-primary-light)' }}
+                        disabled={isLoading}
+                      >
+                        {isLoading ? 'Logging in...' : 'Login'}
+                      </Button>
+                    </form>
+                  </TabPanel>
+                  <TabPanel>
+                    <Box textAlign="center">
+                      <Text fontSize="sm" color="gray.600" mb={4}>
+                        Place your enrolled finger on the scanner to login
+                      </Text>
+                      <Text fontSize="sm" color="gray.500" mb={2}>
+                        {deviceConnected
+                          ? "✅ System: Fingerprint scanner is connected"
+                          : "❌ System: Fingerprint scanner not connected. Please refresh the page and try again."
+                        }
+                      </Text>
+                      <Box shadow="xs" h={120} w={120} margin="1rem auto" border="1px solid rgba(0, 0, 0, 0.04)">
+                        {fingerprintData && <img src={`data:image/png;base64,${fingerprintData}`} alt="Fingerprint" />}
+                      </Box>
+                      <Button
+                        w="100%"
+                        bg="var(--bg-primary)"
+                        color="white"
+                        marginTop="2rem"
+                        _hover={{ background: 'var(--bg-primary-light)' }}
+                        onClick={handleFingerprintLogin}
+                        disabled={!fingerprintData}
+                      >
+                        Login with Fingerprint
+                      </Button>
+                      <Text fontSize="sm" color="gray.500" mt={4}>
+                        Don't have your fingerprint enrolled? Go to Settings to enroll it first.
+                      </Text>
+                    </Box>
+                  </TabPanel>
+                </TabPanels>
+              </Tabs>
+              <Text padding="1rem" textAlign="center">
+                <Link as={RouterLink} to="/staff/forgot-password" textDecoration="underline">
+                  Forgot Password?
+                </Link>
+              </Text>
+              <Box 
+                padding="0.5rem" 
+                textAlign="center" 
+                bg="var(--bg-primary-light)" 
+                borderRadius="md" 
+                mt={4}
+                mb={2}
+              >
+                <Text fontWeight="bold" color="white" >
+                  Are you a teacher?
                 </Text>
-                <Text fontSize="sm" color="gray.500" mb={2}>
-                  {deviceConnected
-                    ? "✅ System: Fingerprint scanner is connected"
-                    : "❌ System: Fingerprint scanner not connected. Please refresh the page and try again."
-                  }
-                </Text>
-                <Box shadow="xs" h={120} w={120} margin="1rem auto" border="1px solid rgba(0, 0, 0, 0.04)">
-                  {fingerprintData && <img src={`data:image/png;base64,${fingerprintData}`} alt="Fingerprint" />}
-                </Box>
-                <Button
-                  w="100%"
-                  bg="var(--bg-primary)"
-                  color="white"
-                  marginTop="2rem"
-                  _hover={{ background: 'var(--bg-primary-light)' }}
-                  onClick={handleFingerprintLogin}
-                  disabled={!fingerprintData}
-                >
-                  Login with Fingerprint
-                </Button>
-                <Text fontSize="sm" color="gray.500" mt={4}>
-                  Don't have your fingerprint enrolled? Go to Settings to enroll it first.
-                </Text>
+                <Flex justifyContent="center" mt={2}>
+                  <Link 
+                    as={RouterLink} 
+                    to="/teacher-login" 
+                    color="white" 
+                    bg="var(--bg-primary)" 
+                    px={4} 
+                    py={2} 
+                    borderRadius="md" 
+                    mr={2}
+                    _hover={{ bg: "var(--bg-primary-dark)" }}
+                  >
+                    Login here
+                  </Link>
+                  <Link 
+                    as={RouterLink} 
+                    to="/teacher-register" 
+                    color="white" 
+                    bg="var(--bg-primary)" 
+                    px={4} 
+                    py={2} 
+                    borderRadius="md"
+                    _hover={{ bg: "var(--bg-primary-dark)" }}
+                  >
+                    Register here
+                  </Link>
+                </Flex>
               </Box>
-            </TabPanel>
-          </TabPanels>
-        </Tabs>
-        <Text padding="1rem" textAlign="center">
-          <Link as={RouterLink} to="/staff/forgot-password" textDecoration="underline">
-            Forgot Password?
-          </Link>
-        </Text>
-      </Card>
+            </Card>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

@@ -18,6 +18,8 @@ const StudentReportDetail: FC<StudentReportDetailProps> = ({ report, onExport })
         return <Tag colorScheme="orange">Late</Tag>;
       case 'absent':
         return <Tag colorScheme="red">Absent</Tag>;
+      case 'departure':
+        return <Tag colorScheme="blue">Departure</Tag>;
       default:
         return <Tag>{status}</Tag>;
     }
@@ -39,15 +41,21 @@ const StudentReportDetail: FC<StudentReportDetailProps> = ({ report, onExport })
           <HStack spacing={8}>
             <VStack>
               <Text fontWeight="bold">Weekly</Text>
-              <Text>{summaries.weekly.present_days} days</Text>
+              <Text>{summaries.weekly.present_days} present</Text>
+              <Text color="yellow.600">{summaries.weekly.late_days} late</Text>
+              <Text color="red.500">{summaries.weekly.absent_days} absent</Text>
             </VStack>
             <VStack>
               <Text fontWeight="bold">Monthly</Text>
-              <Text>{summaries.monthly.present_days} days</Text>
+              <Text>{summaries.monthly.present_days} present</Text>
+              <Text color="yellow.600">{summaries.monthly.late_days} late</Text>
+              <Text color="red.500">{summaries.monthly.absent_days} absent</Text>
             </VStack>
             <VStack>
               <Text fontWeight="bold">Yearly</Text>
-              <Text>{summaries.yearly.present_days} days</Text>
+              <Text>{summaries.yearly.present_days} present</Text>
+              <Text color="yellow.600">{summaries.yearly.late_days} late</Text>
+              <Text color="red.500">{summaries.yearly.absent_days} absent</Text>
             </VStack>
           </HStack>
         </Box>
@@ -73,8 +81,8 @@ const StudentReportDetail: FC<StudentReportDetailProps> = ({ report, onExport })
                   {getStatusTag(record.status)}
                 </Box>
                 <Box>
-                  <Text>Check-in: {record.time_type === 'IN' ? new Date(record.created_at).toLocaleTimeString() : '--'}</Text>
-                  <Text>Check-out: {record.time_type === 'OUT' ? new Date(record.created_at).toLocaleTimeString() : '--'}</Text>
+                  <Text>Check-in: {record.checkin_time ? new Date(record.checkin_time).toLocaleTimeString() : '--'}</Text>
+                  <Text>Check-out: {record.checkout_time ? new Date(record.checkout_time).toLocaleTimeString() : '--'}</Text>
                 </Box>
               </HStack>
             ))}

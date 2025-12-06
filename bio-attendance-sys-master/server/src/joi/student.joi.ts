@@ -18,3 +18,8 @@ export const updateStudentSchema = Joi.object<Partial<Student> & { courses?: str
   fingerprint: Joi.string().min(2).optional(),
   courses: Joi.array().items(Joi.string().min(3).max(128)),
 }).unknown(true);
+
+export const checkDuplicateFingerprintSchema = Joi.object({
+  fingerprint: Joi.string().min(2).required(),
+  staff_id: Joi.string().min(3).max(128).required(),
+});

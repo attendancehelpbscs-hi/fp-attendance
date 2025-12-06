@@ -53,7 +53,7 @@ import autoTable from 'jspdf-autotable';
 import useStore from '../../store/store';
 import { toast } from 'react-hot-toast';
 import { getAuditLogs } from '../../api/audit.api';
-import { useBackupData, useClearAuditLogs, useUpdateStaffProfile } from '../../api/staff.api';
+import { useBackupData, useClearAuditLogs, useUpdateStaffProfile, useUpdateStaffSettings } from '../../api/staff.api';
 import noDp from '../../assets/no-dp.png';
 import { fingerprintControl } from '../../lib/fingerprint';
 import { Base64 } from '@digitalpersona/core';
@@ -63,11 +63,16 @@ const Settings: FC = () => {
   const staffInfo = useStore.use.staffInfo();
   const staffSettings = useStore.use.staffSettings();
   const setStaffSettings = useStore.use.setStaffSettings();
+  const isAdmin = staffInfo?.role === 'ADMIN';
 
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalLogs, setTotalLogs] = useState(0);
+  const [lateCutoff, setLateCutoff] = useState('07:30');
+  const [graceMinutes, setGraceMinutes] = useState(0);
+  const [pmLateEnabled, setPmLateEnabled] = useState(false);
+  const [pmLateCutoff, setPmLateCutoff] = useState('12:50');
   const { isOpen: isBackupOpen, onOpen: onBackupOpen, onClose: onBackupClose } = useDisclosure();
   const { isOpen: isClearLogsOpen, onOpen: onClearLogsOpen, onClose: onClearLogsClose } = useDisclosure();
   const { isOpen: isViewLogsOpen, onOpen: onViewLogsOpen, onClose: onViewLogsClose } = useDisclosure();
@@ -77,10 +82,15 @@ const Settings: FC = () => {
   const backupMutation = useBackupData();
   const clearLogsMutation = useClearAuditLogs();
   const updateProfileMutation = useUpdateStaffProfile()();
+  const updateSettingsMutation = useUpdateStaffSettings();
 
 
 
   const handleBackup = async () => {
+    if (!isAdmin) {
+      toast.error('Only administrators can perform this action');
+      return;
+    }
     try {
       await backupMutation.mutateAsync({});
       toast.success('Data backup completed successfully');
@@ -92,16 +102,53 @@ const Settings: FC = () => {
   };
 
   const handleClearLogs = async () => {
+    if (!isAdmin) {
+      toast.error('Only administrators can perform this action');
+      return;
+    }
     try {
       await clearLogsMutation.mutateAsync({});
       toast.success('System logs cleared successfully');
       onClearLogsClose();
-      // Refresh audit logs
       setCurrentPage(1);
       await fetchAuditLogs(1);
     } catch (error) {
       toast.error('Failed to clear logs');
       console.error('Clear logs error:', error);
+    }
+  };
+
+  const handleSaveAttendanceSettings = async () => {
+    if (!isAdmin) {
+      toast.error('Only administrators can perform this action');
+      return;
+    }
+    const normalizedGrace = Number.isFinite(Number(graceMinutes)) ? Number(graceMinutes) : 0;
+    if (!lateCutoff) {
+      toast.error('Please select a late cutoff time');
+      return;
+    }
+    if (pmLateEnabled && !pmLateCutoff) {
+      toast.error('Please select a PM late cutoff time');
+      return;
+    }
+    try {
+      await updateSettingsMutation.mutateAsync({
+        school_start_time: lateCutoff,
+        grace_period_minutes: normalizedGrace,
+        pm_late_cutoff_enabled: pmLateEnabled,
+        pm_late_cutoff_time: pmLateEnabled ? pmLateCutoff : null,
+      });
+      setStaffSettings({
+        grace_period_minutes: normalizedGrace,
+        school_start_time: lateCutoff,
+        late_threshold_hours: staffSettings?.late_threshold_hours ?? 1,
+        pm_late_cutoff_enabled: pmLateEnabled,
+        pm_late_cutoff_time: pmLateEnabled ? pmLateCutoff : null,
+      });
+      toast.success('Attendance settings updated successfully');
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Failed to update attendance settings');
     }
   };
 
@@ -171,13 +218,21 @@ const Settings: FC = () => {
   useEffect(() => {
     setFirstName(staffInfo?.firstName || '');
     setLastName(staffInfo?.lastName || '');
-    // Create blob URL for display if profilePicture exists
     if (staffInfo?.profilePicture) {
       setProfilePicture(`data:image/jpeg;base64,${staffInfo.profilePicture}`);
     } else {
       setProfilePicture('');
     }
   }, [staffInfo]);
+
+  useEffect(() => {
+    if (staffSettings) {
+      setLateCutoff(staffSettings.school_start_time || '07:30');
+      setGraceMinutes(staffSettings.grace_period_minutes ?? 0);
+      setPmLateEnabled(staffSettings.pm_late_cutoff_enabled ?? false);
+      setPmLateCutoff(staffSettings.pm_late_cutoff_time || '12:50');
+    }
+  }, [staffSettings]);
 
   // Handle device connection events (same as student enrollment)
   const handleDeviceConnected = () => {
@@ -380,7 +435,7 @@ const Settings: FC = () => {
                     <Input
                       type="text"
                       value={firstName}
-                      onChange={(e) => setFirstName(e.target.value)}
+                      onChange={(e) => setFirstName(e.target.value.toUpperCase())}
                       placeholder="Enter your first name"
                     />
                   </FormControl>
@@ -389,7 +444,7 @@ const Settings: FC = () => {
                     <Input
                       type="text"
                       value={lastName}
-                      onChange={(e) => setLastName(e.target.value)}
+                      onChange={(e) => setLastName(e.target.value.toUpperCase())}
                       placeholder="Enter your last name"
                     />
                   </FormControl>
@@ -528,14 +583,79 @@ const Settings: FC = () => {
             <VStack spacing={4} align="stretch">
               <Card maxW={500} margin="1rem auto">
                 <Box padding="1rem">
+                  <Heading size="md" marginBottom="1rem">Attendance Settings</Heading>
+                  <VStack spacing={4} align="stretch">
+                    <FormControl>
+                      <FormLabel>AM Late Cutoff</FormLabel>
+                      <Input type="time" value={lateCutoff} onChange={(e) => setLateCutoff(e.target.value)} isDisabled={!isAdmin} />
+                    </FormControl>
+                    <FormControl>
+                      <FormLabel>Grace Period (minutes)</FormLabel>
+                      <NumberInput min={0} value={graceMinutes} onChange={(_, valueNumber) => setGraceMinutes(Number.isNaN(valueNumber) ? 0 : valueNumber)} isDisabled={!isAdmin}>
+                        <NumberInputField />
+                        <NumberInputStepper>
+                          <NumberIncrementStepper />
+                          <NumberDecrementStepper />
+                        </NumberInputStepper>
+                      </NumberInput>
+                    </FormControl>
+                    <FormControl display="flex" alignItems="center">
+                      <FormLabel htmlFor="pm-late-enabled" mb="0">
+                        Enable PM Late Cutoff
+                      </FormLabel>
+                      <Switch
+                        id="pm-late-enabled"
+                        isChecked={pmLateEnabled}
+                        onChange={(e) => setPmLateEnabled(e.target.checked)}
+                        isDisabled={!isAdmin}
+                      />
+                    </FormControl>
+                    {pmLateEnabled && (
+                      <FormControl>
+                        <FormLabel>PM Late Cutoff</FormLabel>
+                        <Select
+                          value={pmLateCutoff}
+                          onChange={(e) => setPmLateCutoff(e.target.value)}
+                          isDisabled={!isAdmin}
+                        >
+                          <option value="12:30">12:30 PM</option>
+                          <option value="12:35">12:35 PM</option>
+                          <option value="12:40">12:40 PM</option>
+                          <option value="12:45">12:45 PM</option>
+                          <option value="12:50">12:50 PM</option>
+                          <option value="12:55">12:55 PM</option>
+                          <option value="13:00">1:00 PM</option>
+                          <option value="13:05">1:05 PM</option>
+                          <option value="13:10">1:10 PM</option>
+                          <option value="13:15">1:15 PM</option>
+                          <option value="13:20">1:20 PM</option>
+                          <option value="13:25">1:25 PM</option>
+                          <option value="13:30">1:30 PM</option>
+                          <option value="13:35">1:35 PM</option>
+                          <option value="13:40">1:40 PM</option>
+                          <option value="13:45">1:45 PM</option>
+                          <option value="13:50">1:50 PM</option>
+                          <option value="13:55">1:55 PM</option>
+                          <option value="14:00">2:00 PM</option>
+                        </Select>
+                      </FormControl>
+                    )}
+                    <Button colorScheme="blue" onClick={handleSaveAttendanceSettings} isLoading={updateSettingsMutation.isLoading} isDisabled={!isAdmin}>
+                      Save Attendance Settings
+                    </Button>
+                  </VStack>
+                </Box>
+              </Card>
+              <Card maxW={500} margin="1rem auto">
+                <Box padding="1rem">
                   <Heading size="md" marginBottom="1rem">Data Management</Heading>
                   <VStack spacing={4} align="stretch">
                     <Box>
                       <HStack spacing={4} marginBottom="0.5rem">
-                        <Button leftIcon={<DownloadIcon />} colorScheme="blue" onClick={onBackupOpen} isLoading={backupMutation.isLoading}>
+                        <Button leftIcon={<DownloadIcon />} colorScheme="blue" onClick={onBackupOpen} isLoading={backupMutation.isLoading} isDisabled={!isAdmin}>
                           Backup Data
                         </Button>
-                        <Button leftIcon={<DeleteIcon />} colorScheme="red" onClick={onClearLogsOpen} isLoading={clearLogsMutation.isLoading}>
+                        <Button leftIcon={<DeleteIcon />} colorScheme="red" onClick={onClearLogsOpen} isLoading={clearLogsMutation.isLoading} isDisabled={!isAdmin}>
                           Clear Logs
                         </Button>
                       </HStack>
@@ -628,7 +748,7 @@ const Settings: FC = () => {
             <Text>Are you sure you want to backup all system data? This may take a few minutes.</Text>
           </ModalBody>
           <ModalFooter>
-            <Button colorScheme="blue" mr={3} onClick={handleBackup}>
+            <Button colorScheme="blue" mr={3} onClick={handleBackup} isDisabled={!isAdmin}>
               Yes, Backup
             </Button>
             <Button variant="ghost" onClick={onBackupClose}>
@@ -657,7 +777,7 @@ const Settings: FC = () => {
             </Alert>
           </ModalBody>
           <ModalFooter>
-            <Button colorScheme="red" mr={3} onClick={handleClearLogs}>
+            <Button colorScheme="red" mr={3} onClick={handleClearLogs} isDisabled={!isAdmin}>
               Yes, Clear Logs
             </Button>
             <Button variant="ghost" onClick={onClearLogsClose}>

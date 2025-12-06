@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { FC } from 'react';
+import axios from 'axios';
 import WithStaffLayout from '../../layouts/WithStaffLayout';
 import {
   Heading,
@@ -34,14 +35,21 @@ import {
   ModalFooter,
 } from '@chakra-ui/react';
 import { SearchIcon } from '@chakra-ui/icons';
-import { Fingerprint, RefreshCw, CheckCircle } from 'lucide-react';
-import { fingerprintControl } from '../../lib/fingerprint';
-import { Base64 } from '@digitalpersona/core';
+import { Fingerprint, RefreshCw, CheckCircle, Trash2 } from 'lucide-react';
+import { fingerprintControl, cleanFingerprintData } from '../../lib/fingerprint';
 import useStore from '../../store/store';
-import { useGetStudents, useUpdateStudent } from '../../api/student.api';
+import {
+  useGetStudents,
+  useGetStudentFingerprints,
+  useAddStudentFingerprint,
+  useCheckFingerprintUniquenesMulti,
+  useDeleteStudentFingerprint,
+} from '../../api/student.api';
 import { toast } from 'react-hot-toast';
 import { Student } from '../../interfaces/api.interface';
 import { getFingerprintImgString } from '../../components/AddStudent';
+import { queryClient } from '../../lib/query-client';
+import constants from '../../config/constants.config';
 
 const FingerprintEnrollment: FC = () => {
   const staffInfo = useStore.use.staffInfo();
@@ -50,13 +58,22 @@ const FingerprintEnrollment: FC = () => {
   const [liveFingerprintImage, setLiveFingerprintImage] = useState<string | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
   const [isEnrolling, setIsEnrolling] = useState(false);
+  const [isChecking, setIsChecking] = useState(false);
+  const [checkResult, setCheckResult] = useState<{
+    isUnique: boolean;
+    confidence?: number;
+    matchedStudent?: { id: string; name: string; matric_no: string };
+    matchedFingerType?: string;
+    message: string;
+  } | null>(null);
   const [enrollmentStatus, setEnrollmentStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [searchTerm, setSearchTerm] = useState('');
   const [gradeFilter, setGradeFilter] = useState('');
   const [deviceConnected, setDeviceConnected] = useState<boolean>(false);
-  // Store the captured fingerprint separately for display
-  const [enrolledFingerprintDisplay, setEnrolledFingerprintDisplay] = useState<string | null>(null);
+  const [fingerType, setFingerType] = useState<string>('thumb');
   const { isOpen, onOpen, onClose } = useDisclosure();
+
+  const isAdmin = staffInfo?.role === 'ADMIN';
 
   const { data: studentsData, isLoading, refetch } = useGetStudents(
     staffInfo?.id as string,
@@ -68,7 +85,19 @@ const FingerprintEnrollment: FC = () => {
     }
   );
 
-  const updateStudentMutation = useUpdateStudent();
+  const addFingerprintMutation = useAddStudentFingerprint();
+  const checkFingerprintMutation = useCheckFingerprintUniquenesMulti();
+  const deleteFingerprintMutation = useDeleteStudentFingerprint();
+
+  // Fetch enrolled fingerprints for selected student
+  const { data: fingerprintsData, refetch: refetchFingerprints } = useGetStudentFingerprints(
+    selectedStudent?.id || '',
+    {
+      enabled: !!selectedStudent?.id,
+    }
+  );
+
+  const enrolledFingerprints = fingerprintsData?.data?.fingerprints || [];
 
   const filteredStudents = studentsData?.data?.students?.filter((student: Student) => {
     const matchesSearch = student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -87,25 +116,31 @@ const FingerprintEnrollment: FC = () => {
     setDeviceConnected(false);
   };
 
-  const handleSampleAcquired = (event: any) => {
-    console.log('Sample acquired => ', event?.samples);
+  const handleIntermediateSample = (event: any) => {
+    console.log('Intermediate sample acquired => ', event);
+
     if (event?.samples && event.samples.length > 0) {
-      // Use raw sample directly for live preview - DigitalPersona intermediate samples are already displayable
-      console.log('Raw sample for display:', event.samples[0].substring(0, 50) + '...');
-      setLiveFingerprintImage(event.samples[0]);
+      console.log('Setting live fingerprint from samples');
+      const cleanedSample = cleanFingerprintData(event.samples[0]);
+      setLiveFingerprintImage(cleanedSample);
+    } else if (event?.quality !== undefined) {
+      console.log('Quality reported:', event.quality);
     }
+  };
+
+  const handleFingerprintCaptured = (fingerprint: string) => {
+    console.log('Final fingerprint captured');
+    setFingerprintImage(fingerprint);
+    setLiveFingerprintImage(null);
+    setIsCapturing(false);
+    toast.success('Fingerprint captured successfully');
   };
 
   useEffect(() => {
     fingerprintControl.onDeviceConnectedCallback = handleDeviceConnected;
     fingerprintControl.onDeviceDisconnectedCallback = handleDeviceDisconnected;
-    fingerprintControl.onIntermediateSampleCallback = handleSampleAcquired; // Use onIntermediateSampleCallback for live preview
-    fingerprintControl.onFingerprintCaptured = (fingerprint) => {
-      setFingerprintImage(fingerprint);
-      setLiveFingerprintImage(null);
-      setIsCapturing(false);
-      toast.success('Fingerprint captured successfully');
-    };
+    fingerprintControl.onIntermediateSampleCallback = handleIntermediateSample;
+    fingerprintControl.onFingerprintCaptured = handleFingerprintCaptured;
 
     const checkInitialConnection = () => {
       try {
@@ -125,7 +160,7 @@ const FingerprintEnrollment: FC = () => {
     return () => {
       fingerprintControl.onDeviceConnectedCallback = undefined;
       fingerprintControl.onDeviceDisconnectedCallback = undefined;
-      fingerprintControl.onIntermediateSampleCallback = undefined; // Clean up the correct callback
+      fingerprintControl.onIntermediateSampleCallback = undefined;
       fingerprintControl.onFingerprintCaptured = undefined;
     };
   }, []);
@@ -136,39 +171,62 @@ const FingerprintEnrollment: FC = () => {
       return;
     }
 
+    // Check if student already has 5 fingerprints
+    if (enrolledFingerprints.length >= 5) {
+      toast.error('Maximum of 5 fingerprints per student reached');
+      return;
+    }
+
+    // Check if this finger type is already enrolled
+    if (enrolledFingerprints.some(fp => fp.finger_type === fingerType)) {
+      toast.error(`This student already has a ${fingerType} fingerprint enrolled`);
+      return;
+    }
+
     setIsEnrolling(true);
+
     try {
-      const result = await updateStudentMutation.mutateAsync({
-        id: selectedStudent.id,
+      // Add the new fingerprint
+      await addFingerprintMutation.mutateAsync({
+        student_id: selectedStudent.id,
         fingerprint: fingerprintImage,
-        courses: selectedStudent.courses?.map(course => course.id),
-        url: `/${selectedStudent.id}`,
+        finger_type: fingerType,
       });
 
       setEnrollmentStatus('success');
-      toast.success(`Fingerprint enrolled successfully for ${selectedStudent.name}`);
+      toast.success(`Fingerprint (${fingerType}) enrolled successfully for ${selectedStudent.name}`);
 
-      // Store the raw fingerprint image for display
-      setEnrolledFingerprintDisplay(fingerprintImage);
-      
-      // Update the selected student (mark as having fingerprint enrolled)
-      setSelectedStudent({ 
-        ...result.data.student, 
-        fingerprint: 'enrolled' // Just a flag to indicate it's enrolled
-      });
-
+      // Refetch fingerprints and students list
+      refetchFingerprints();
       refetch();
+
+      // Invalidate fingerprint cache for attendance kiosk
+      queryClient.invalidateQueries(['studentsfingerprints', staffInfo?.id]);
+
+      // Invalidate Python server cache for the enrolled student
+      try {
+        await axios.post(`${constants.matchBaseUrl}/invalidate-cache/${selectedStudent.id}`);
+        console.log('Python server cache invalidated for student:', selectedStudent.id);
+      } catch (cacheError) {
+        console.warn('Failed to invalidate Python server cache:', cacheError);
+      }
+
+      // Clear the fingerprint image for next capture
       setFingerprintImage(null);
-    } catch (error) {
+      setCheckResult(null);
+      setFingerType('thumb');
+    } catch (error: any) {
       console.error('Fingerprint enrollment error:', error);
       setEnrollmentStatus('error');
-      toast.error('Failed to enroll fingerprint');
+
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to enroll fingerprint';
+      toast.error(errorMessage);
     } finally {
       setIsEnrolling(false);
     }
   };
 
-  const handleReEnroll = async () => {
+  const handleStartCapture = async () => {
     if (!selectedStudent) {
       toast.error('Please select a student first');
       return;
@@ -177,23 +235,81 @@ const FingerprintEnrollment: FC = () => {
     setFingerprintImage(null);
     setLiveFingerprintImage(null);
     setEnrollmentStatus('idle');
-
+    setCheckResult(null);
     setIsCapturing(true);
+
     try {
       await fingerprintControl.init();
-      toast.success('Place your finger on the scanner to re-enroll...');
+      toast.success('Ready! Place your finger on the scanner...');
     } catch (error) {
       console.error('Fingerprint capture error:', error);
-      toast.error('Failed to initialize fingerprint reader');
+      toast.error('Failed to initialize fingerprint reader. Check if device is connected.');
       setIsCapturing(false);
     }
   };
 
-  // When selecting a student, check if they have enrolled fingerprint in current session
   const handleSelectStudent = (student: Student) => {
     setSelectedStudent(student);
-    // Reset the enrolled fingerprint display when switching students
-    setEnrolledFingerprintDisplay(null);
+    setFingerprintImage(null);
+    setLiveFingerprintImage(null);
+    setCheckResult(null);
+    setEnrollmentStatus('idle');
+  };
+
+  const handleCheckFingerprint = async () => {
+    if (!fingerprintImage) {
+      toast.error('Please capture a fingerprint first');
+      return;
+    }
+
+    setIsChecking(true);
+    setCheckResult(null);
+
+    try {
+      const result = await checkFingerprintMutation.mutateAsync({
+        fingerprint: fingerprintImage,
+        excludeStudentId: selectedStudent?.id,
+      });
+      setCheckResult(result.data);
+
+      if (!result.data.isUnique) {
+        toast.error(result.data.message);
+      } else {
+        toast.success('Fingerprint is unique and ready to enroll');
+      }
+    } catch (error: any) {
+      console.error('Fingerprint check error:', error);
+      toast.error('Failed to check fingerprint uniqueness');
+    } finally {
+      setIsChecking(false);
+    }
+  };
+
+  const handleDeleteFingerprint = async (fingerprintId: string) => {
+    if (!selectedStudent) return;
+
+    if (!confirm('Are you sure you want to delete this fingerprint?')) return;
+
+    try {
+      await deleteFingerprintMutation.mutateAsync({
+        fingerprint_id: fingerprintId,
+        student_id: selectedStudent.id,
+      });
+
+      toast.success('Fingerprint deleted successfully');
+      refetchFingerprints();
+      refetch();
+
+      // Invalidate Python server cache
+      try {
+        await axios.post(`${constants.matchBaseUrl}/invalidate-cache/${selectedStudent.id}`);
+      } catch (cacheError) {
+        console.warn('Failed to invalidate Python server cache:', cacheError);
+      }
+    } catch (error: any) {
+      console.error('Delete fingerprint error:', error);
+      toast.error(error.response?.data?.message || 'Failed to delete fingerprint');
+    }
   };
 
   return (
@@ -208,16 +324,20 @@ const FingerprintEnrollment: FC = () => {
         <Alert status="info">
           <AlertIcon />
           <Box>
-            <AlertTitle>Fingerprint Enrollment Module</AlertTitle>
+            <AlertTitle>Multi-Fingerprint Enrollment</AlertTitle>
             <AlertDescription>
-              Select a student, capture their fingerprint, and enroll it in the system for attendance recognition.
+              Enroll up to 5 different fingerprints per student. Each fingerprint must be unique across all students.
             </AlertDescription>
           </Box>
         </Alert>
       </Box>
 
       <Box marginBottom="2rem">
-        {deviceConnected && <Text color="green.500" fontSize="lg" fontWeight="bold">✅ System: Fingerprint scanner is connected</Text>}
+        {deviceConnected && (
+          <Text color="green.500" fontSize="lg" fontWeight="bold">
+            ✅ System: Fingerprint scanner is connected
+          </Text>
+        )}
         {!deviceConnected && (
           <Text color="orange.500" fontSize="lg" fontWeight="bold">
             🔄 System: Automatically detecting scanner connection...
@@ -273,7 +393,9 @@ const FingerprintEnrollment: FC = () => {
                             <VStack align="start" spacing={1}>
                               <Text fontWeight="bold">{student.name}</Text>
                               <Text fontSize="sm" color="gray.600">ID: {student.matric_no}</Text>
-                              <Badge colorScheme="blue">Grade {student.grade}</Badge>
+                              <HStack>
+                                <Badge colorScheme="blue">Grade {student.grade}</Badge>
+                              </HStack>
                             </VStack>
                           </CardBody>
                         </Card>
@@ -289,67 +411,231 @@ const FingerprintEnrollment: FC = () => {
         <Box flex="1" minW="300px">
           <Card>
             <CardHeader>
-              <Heading size="md">Fingerprint Enrollment</Heading>
+              <Flex justifyContent="space-between" alignItems="center">
+                <Heading size="md">Fingerprint Enrollment</Heading>
+                {isAdmin && (
+                  <Badge colorScheme="blue" fontSize="sm">
+                    View Only (Admin Access)
+                  </Badge>
+                )}
+              </Flex>
             </CardHeader>
             <CardBody>
               {selectedStudent ? (
                 <VStack spacing={4} align="stretch">
+                  {isAdmin && (
+                    <Alert status="info" size="sm">
+                      <AlertIcon />
+                      <AlertDescription>
+                        Admin users can view enrolled fingerprints but cannot enroll new ones.
+                      </AlertDescription>
+                    </Alert>
+                  )}
                   <Box>
                     <Text fontWeight="bold">Selected Student:</Text>
                     <Text>{selectedStudent.name}</Text>
                     <Text fontSize="sm" color="gray.600">ID: {selectedStudent.matric_no}</Text>
                   </Box>
 
-                  <HStack spacing={4}>
-                    {fingerprintImage && (
-                      <Button
-                        leftIcon={<Fingerprint />}
-                        colorScheme="green"
-                        onClick={handleEnrollFingerprint}
-                        isLoading={isEnrolling}
-                        loadingText="Enrolling..."
-                      >
-                        Enroll Fingerprint
-                      </Button>
-                    )}
-                  </HStack>
-
-                  <Box>
-                    <Text fontWeight="bold" marginBottom="1rem">Live Fingerprint Scanner:</Text>
-                    <Box
-                      width="240px"
-                      height="240px"
-                      border="2px solid #e2e8f0"
-                      borderRadius="md"
-                      display="flex"
-                      alignItems="center"
-                      justifyContent="center"
-                      overflow="hidden"
-                      bg={isCapturing ? 'gray.50' : 'white'}
-                    >
-                      {isCapturing && !liveFingerprintImage && (
-                        <Text color="gray.500" fontSize="sm" textAlign="center">
-                          Place your finger on the scanner...
-                        </Text>
-                      )}
-                      {liveFingerprintImage && (
-                        <Image
-                          src={getFingerprintImgString(liveFingerprintImage)}
-                          alt="Live Fingerprint"
-                          maxW="100%"
-                          maxH="100%"
-                          objectFit="contain"
-                        />
-                      )}
-                      {!isCapturing && !liveFingerprintImage && (
-                        <Text color="gray.500" fontSize="sm" textAlign="center">
-                          Click "Re-enroll Fingerprint" to start
-                        </Text>
-                      )}
+                  {/* Enrolled Fingerprints Display */}
+                  {enrolledFingerprints.length > 0 && (
+                    <Box>
+                      <Text fontWeight="bold" marginBottom="0.5rem">Enrolled Fingerprints ({enrolledFingerprints.length}/5):</Text>
+                      <VStack spacing={2} align="stretch">
+                        {enrolledFingerprints.map((fp) => (
+                          <HStack
+                            key={fp.id}
+                            justify="space-between"
+                            p={2}
+                            bg="green.50"
+                            borderRadius="md"
+                            border="1px solid"
+                            borderColor="green.200"
+                          >
+                            <HStack>
+                              <Badge colorScheme="green" variant="solid" px={2} py={1}>
+                                {fp.finger_type}
+                              </Badge>
+                              <Text fontSize="xs" color="gray.600">
+                                {new Date(fp.created_at).toLocaleDateString()}
+                              </Text>
+                            </HStack>
+                            <Button
+                              size="xs"
+                              colorScheme="red"
+                              variant="ghost"
+                              leftIcon={<Trash2 size={14} />}
+                              onClick={() => handleDeleteFingerprint(fp.id)}
+                            >
+                              Delete
+                            </Button>
+                          </HStack>
+                        ))}
+                      </VStack>
                     </Box>
-                  </Box>
+                  )}
 
-                  {enrollmentStatus === 'success' && (
+                  {/* Finger Type Selection and Scanner - Hidden for Admin */}
+                  {!isAdmin && (
+                    <>
+                      {/* Finger Type Selection */}
+                      <Box>
+                        <Text fontWeight="bold" marginBottom="0.5rem">Select Finger Type:</Text>
+                        <Select
+                          value={fingerType}
+                          onChange={(e) => setFingerType(e.target.value)}
+                          isDisabled={isCapturing || isEnrolling}
+                        >
+                          <option value="thumb">Thumb</option>
+                          <option value="index">Index Finger</option>
+                          <option value="middle">Middle Finger</option>
+                          <option value="ring">Ring Finger</option>
+                          <option value="pinky">Pinky Finger</option>
+                        </Select>
+                      </Box>
+
+                      {/* Live Scanner Display */}
+                      <Box>
+                        <Text fontWeight="bold" marginBottom="1rem">Live Fingerprint Scanner:</Text>
+                        <Box
+                          width="240px"
+                          height="240px"
+                          border="2px solid #e2e8f0"
+                          borderRadius="md"
+                          display="flex"
+                          alignItems="center"
+                          justifyContent="center"
+                          overflow="hidden"
+                          bg={isCapturing ? 'blue.50' : 'white'}
+                        >
+                          {isCapturing && !liveFingerprintImage && !fingerprintImage && (
+                            <VStack>
+                              <Spinner size="xl" color="blue.500" />
+                              <Text color="gray.600" fontSize="sm" textAlign="center">
+                                Place your finger on the scanner...
+                              </Text>
+                            </VStack>
+                          )}
+                          {liveFingerprintImage && (
+                            <VStack spacing={2}>
+                              <Image
+                                src={getFingerprintImgString(liveFingerprintImage)}
+                                alt="Live Fingerprint Preview"
+                                maxW="100%"
+                                maxH="100%"
+                                objectFit="contain"
+                              />
+                              <Text color="blue.600" fontSize="xs" fontWeight="bold">
+                                Live Preview - Keep finger on scanner
+                              </Text>
+                            </VStack>
+                          )}
+                          {fingerprintImage && !liveFingerprintImage && (
+                            <VStack spacing={2}>
+                              <Image
+                                src={getFingerprintImgString(fingerprintImage)}
+                                alt="Captured Fingerprint"
+                                maxW="100%"
+                                maxH="100%"
+                                objectFit="contain"
+                              />
+                              <Text color="green.600" fontSize="xs" fontWeight="bold">
+                                Capture Complete - Ready to Check
+                              </Text>
+                            </VStack>
+                          )}
+                          {!isCapturing && !liveFingerprintImage && !fingerprintImage && (
+                            <Text color="gray.500" fontSize="sm" textAlign="center" padding="1rem">
+                              Click "Start Capture" to begin
+                            </Text>
+                          )}
+                        </Box>
+                      </Box>
+                    </>
+                  )}
+
+                  {/* Action Buttons */}
+                  {!isAdmin && (
+                    <HStack spacing={4}>
+                      {!isCapturing && !fingerprintImage && (
+                        <Button
+                          leftIcon={<Fingerprint />}
+                          colorScheme="blue"
+                          onClick={handleStartCapture}
+                          isDisabled={!deviceConnected || enrolledFingerprints.length >= 5}
+                        >
+                          Start Capture
+                        </Button>
+                      )}
+                      {fingerprintImage && !checkResult && (
+                        <Button
+                          leftIcon={<CheckCircle />}
+                          colorScheme="orange"
+                          onClick={handleCheckFingerprint}
+                          isLoading={isChecking}
+                          loadingText="Checking..."
+                        >
+                          Check Fingerprint
+                        </Button>
+                      )}
+                      {fingerprintImage && checkResult && checkResult.isUnique && (
+                        <Button
+                          leftIcon={<CheckCircle />}
+                          colorScheme="green"
+                          onClick={handleEnrollFingerprint}
+                          isLoading={isEnrolling}
+                          loadingText="Enrolling..."
+                        >
+                          Enroll Fingerprint
+                        </Button>
+                      )}
+                      {(isCapturing || fingerprintImage) && (
+                        <Button
+                          leftIcon={<RefreshCw />}
+                          variant="outline"
+                          onClick={handleStartCapture}
+                          isDisabled={!deviceConnected}
+                        >
+                          Recapture
+                        </Button>
+                      )}
+                    </HStack>
+                  )}
+
+                  {/* Check Result Display - Hidden for Admin */}
+                  {!isAdmin && checkResult && (
+                    <Alert status={checkResult.isUnique ? 'success' : 'warning'}>
+                      <AlertIcon />
+                      <Box>
+                        <AlertTitle>
+                          {checkResult.isUnique ? 'Fingerprint is Unique ✅' : 'Fingerprint Already Exists ⚠️'}
+                        </AlertTitle>
+                        <AlertDescription>
+                          {checkResult.message}
+                          {checkResult.matchedStudent && (
+                            <>
+                              <Text mt={2} fontSize="sm" fontWeight="bold">
+                                Matched with: {checkResult.matchedStudent.name} (ID: {checkResult.matchedStudent.matric_no})
+                              </Text>
+                              {checkResult.matchedFingerType && (
+                                <Text fontSize="sm" color="gray.600">
+                                  Finger Type: {checkResult.matchedFingerType}
+                                </Text>
+                              )}
+                            </>
+                          )}
+                          {checkResult.confidence && (
+                            <Text mt={1} fontSize="sm" color="gray.600">
+                              Confidence: {Math.round(checkResult.confidence)}%
+                            </Text>
+                          )}
+                        </AlertDescription>
+                      </Box>
+                    </Alert>
+                  )}
+
+                  {/* Enrollment Status Messages - Hidden for Admin */}
+                  {!isAdmin && enrollmentStatus === 'success' && (
                     <Alert status="success">
                       <AlertIcon />
                       <Box>
@@ -361,7 +647,7 @@ const FingerprintEnrollment: FC = () => {
                     </Alert>
                   )}
 
-                  {enrollmentStatus === 'error' && (
+                  {!isAdmin && enrollmentStatus === 'error' && (
                     <Alert status="error">
                       <AlertIcon />
                       <Box>
@@ -383,29 +669,21 @@ const FingerprintEnrollment: FC = () => {
               )}
             </CardBody>
             <CardFooter>
-              <VStack spacing={2} align="stretch" width="100%">
-                <Button
-                  leftIcon={<RefreshCw />}
-                  variant="outline"
-                  onClick={handleReEnroll}
-                  isDisabled={!selectedStudent}
-                >
-                  Re-enroll Fingerprint
-                </Button>
-                <Button
-                  leftIcon={<CheckCircle />}
-                  colorScheme="purple"
-                  onClick={onOpen}
-                  isDisabled={!selectedStudent || isEnrolling}
-                >
-                  View Enrollment Status
-                </Button>
-              </VStack>
+              <Button
+                leftIcon={<CheckCircle />}
+                colorScheme="purple"
+                onClick={onOpen}
+                isDisabled={!selectedStudent}
+                width="100%"
+              >
+                View Enrollment Status
+              </Button>
             </CardFooter>
           </Card>
         </Box>
       </Flex>
 
+      {/* Enrollment Status Modal */}
       <Modal isOpen={isOpen} onClose={onClose} size="lg">
         <ModalOverlay />
         <ModalContent>
@@ -424,81 +702,23 @@ const FingerprintEnrollment: FC = () => {
                 <Box>
                   <Text fontWeight="bold">Enrollment Status:</Text>
                   <HStack>
-                    <Badge colorScheme={selectedStudent.fingerprint ? 'green' : 'red'}>
-                      {selectedStudent.fingerprint ? 'Enrolled' : 'Not Enrolled'}
+                    <Badge colorScheme={enrolledFingerprints.length > 0 ? 'green' : 'red'}>
+                      {enrolledFingerprints.length > 0 ? `${enrolledFingerprints.length} Fingerprint(s) Enrolled` : 'Not Enrolled'}
                     </Badge>
-                    {selectedStudent.fingerprint && (
-                      <Text fontSize="sm" color="gray.600">
-                        Fingerprint on file
-                      </Text>
-                    )}
                   </HStack>
                 </Box>
 
-                {enrolledFingerprintDisplay && (
+                {enrolledFingerprints.length > 0 && (
                   <Box>
-                    <Text fontWeight="bold" marginBottom="1rem">Recently Captured Fingerprint:</Text>
-                    <Box
-                      width="200px"
-                      height="200px"
-                      border="2px solid #e2e8f0"
-                      borderRadius="md"
-                      display="flex"
-                      alignItems="center"
-                      justifyContent="center"
-                      overflow="hidden"
-                      bg="gray.50"
-                    >
-                      <img
-                        src={getFingerprintImgString(enrolledFingerprintDisplay)}
-                        alt="Enrolled Fingerprint"
-                        style={{
-                          maxWidth: '100%',
-                          maxHeight: '100%',
-                          objectFit: 'contain'
-                        }}
-                      />
-                    </Box>
-                    <Text fontSize="xs" color="gray.500" marginTop="0.5rem">
-                      This is the fingerprint that was just captured in this session
-                    </Text>
+                    <Text fontWeight="bold" marginBottom="0.5rem">Enrolled Fingers:</Text>
+                    <HStack spacing={2} flexWrap="wrap">
+                      {enrolledFingerprints.map((fp) => (
+                        <Badge key={fp.id} colorScheme="green" variant="subtle" px={2} py={1}>
+                          {fp.finger_type}
+                        </Badge>
+                      ))}
+                    </HStack>
                   </Box>
-                )}
-
-                {selectedStudent.fingerprint && !enrolledFingerprintDisplay && (
-                  <Alert status="info">
-                    <AlertIcon />
-                    <Box>
-                      <AlertTitle>Fingerprint Enrolled</AlertTitle>
-                      <AlertDescription>
-                        This student has a fingerprint on file. The fingerprint image is encrypted for security and cannot be displayed after enrollment. To view a fingerprint preview, capture and enroll a new one.
-                      </AlertDescription>
-                    </Box>
-                  </Alert>
-                )}
-
-                {selectedStudent.fingerprint && (
-                  <Alert status="success">
-                    <AlertIcon />
-                    <Box>
-                      <AlertTitle>Ready for Attendance</AlertTitle>
-                      <AlertDescription>
-                        This student's fingerprint is enrolled and ready for attendance recognition.
-                      </AlertDescription>
-                    </Box>
-                  </Alert>
-                )}
-
-                {!selectedStudent.fingerprint && (
-                  <Alert status="warning">
-                    <AlertIcon />
-                    <Box>
-                      <AlertTitle>No Fingerprint Enrolled</AlertTitle>
-                      <AlertDescription>
-                        This student needs to have their fingerprint enrolled before they can use the attendance system.
-                      </AlertDescription>
-                    </Box>
-                  </Alert>
                 )}
               </VStack>
             ) : (

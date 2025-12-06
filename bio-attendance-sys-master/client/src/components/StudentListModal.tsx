@@ -36,7 +36,7 @@ interface StudentListModalProps {
   date: string;
   grade: string;
   section: string;
-  status: 'present' | 'absent';
+  status: 'present' | 'absent' | 'late';
   session?: string;
 }
 
@@ -99,7 +99,7 @@ const StudentListModal: React.FC<StudentListModalProps> = ({
       <ModalOverlay />
       <ModalContent>
         <ModalHeader>
-          {status === 'present' ? 'Present' : 'Absent'} Students - {grade} {section} ({new Date(date).toLocaleDateString()})
+          {status === 'present' ? 'Present' : status === 'late' ? 'Late' : 'Absent'} Students - {grade} {section} ({new Date(date).toLocaleDateString()})
         </ModalHeader>
         <ModalCloseButton />
         <ModalBody>

@@ -1,5 +1,5 @@
 import type { FC } from 'react';
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, Fragment } from 'react';
 import WithStaffLayout from '../../layouts/WithStaffLayout';
 import {
   Card,
@@ -10,6 +10,7 @@ import {
   GridItem,
   Select,
   Button,
+  ButtonGroup,
   Table,
   Thead,
   Tbody,
@@ -68,14 +69,17 @@ import {
   Area,
   ComposedChart,
 } from 'recharts';
-import { useGetReports, useGetGradesAndSections, useGetStudentReports, useGetSectionsForGrade, useGetStudentsForGradeAndSection, useGetStudentDetailedReport, useGetCheckInTimeAnalysis, useGetStudentsByStatus } from '../../api/atttendance.api';
+import { useGetReports, useGetGradesAndSections, useGetStudentReports, useGetSectionsForGrade, useGetStudentsForGradeAndSection, useGetStudentDetailedReport, useGetCheckInTimeAnalysis, useGetStudentsByStatus, useGetSF2Report } from '../../api/atttendance.api';
+import { getHolidays, addHoliday, updateHoliday, deleteHoliday } from '../../api/holiday.api';
 import { useGetStudents } from '../../api/student.api';
 import { useToast } from '@chakra-ui/react';
 import { Tabs, TabList, TabPanels, Tab, TabPanel } from '@chakra-ui/react';
 import useStore from '../../store/store';
 import dayjs from 'dayjs';
-import type { AttendanceReportData, StudentAttendanceReportData, StudentAttendanceSummary, StudentDetailedReport } from '../../interfaces/api.interface';
+import type { AttendanceReportData, StudentAttendanceReportData, StudentAttendanceSummary, StudentDetailedReport, SF2ReportData, BaseError } from '../../interfaces/api.interface';
 import StudentReportDetail from '../../components/StudentReportDetail';
+import MonthlyAttendanceSummary from '../../components/MonthlyAttendanceSummary';
+import { axiosClient } from '../../lib/axios-client';
 
 import StudentListModal from '../../components/StudentListModal';
 
@@ -96,14 +100,36 @@ declare module 'recharts' {
 }
 
 // Report Types
-type ReportType = 'daily-records' | 'student-summary' | 'attendance-trends' | 'attendance-patterns';
+type ReportType = 'sf2' | 'daily-records' | 'student-summary' | 'monthly-summary' | 'attendance-trends' | 'attendance-patterns' | 'holiday-management';
 
 const REPORT_TYPES: { value: ReportType; label: string; description: string }[] = [
+  { value: 'sf2', label: 'DepEd SF2', description: 'DepEd School Form 2 daily attendance' },
   { value: 'daily-records', label: 'Daily Records', description: 'Detailed attendance records with color coding' },
   { value: 'student-summary', label: 'Student Summary', description: 'Individual student attendance summaries' },
+  { value: 'monthly-summary', label: 'Monthly Attendance Summary', description: 'Monthly attendance summaries organized by month' },
   { value: 'attendance-trends', label: 'Attendance Trends', description: 'Trends and patterns over time' },
   { value: 'attendance-patterns', label: 'Attendance Patterns', description: 'Pattern analysis and insights' },
+  { value: 'holiday-management', label: 'Holiday Management', description: 'Manage school holidays and special days' },
 ];
+
+const MONTHS = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+
+const DEFAULT_SF2_MONTH = new Date().getMonth() + 1;
+const DEFAULT_SF2_YEAR = new Date().getFullYear();
+const getDefaultSchoolYear = (year: number) => `${year}-${year + 1}`;
 
 // Grade color mapping
 const gradeColors: Record<string, string> = {
@@ -117,17 +143,28 @@ const gradeColors: Record<string, string> = {
 
 const Reports: FC = () => {
   const staffInfo = useStore.use.staffInfo();
-  const [selectedReportType, setSelectedReportType] = useState<ReportType>('daily-records');
+  const [selectedReportType, setSelectedReportType] = useState<ReportType>('sf2');
 
   // Unified filter states
   const [selectedGrade, setSelectedGrade] = useState<string>('');
   const [selectedSection, setSelectedSection] = useState<string>('');
   const [selectedSession, setSelectedSession] = useState<string>('all');
   const [selectedDateRange, setSelectedDateRange] = useState<string>('all');
-  const [startDate, setStartDate] = useState<Date | null>(null); // No default date
-  const [endDate, setEndDate] = useState<Date | null>(new Date()); // Default to today
+  const [startDate, setStartDate] = useState<Date | null>(null);
+  const [endDate, setEndDate] = useState<Date | null>(new Date());
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [searchInput, setSearchInput] = useState<string>('');
+  const [studentSummaryView, setStudentSummaryView] = useState<'records' | 'monthly'>('records');
+  const [sf2Month, setSf2Month] = useState<number>(DEFAULT_SF2_MONTH);
+  const [sf2Year, setSf2Year] = useState<number>(DEFAULT_SF2_YEAR);
+  const [sf2SchoolId, setSf2SchoolId] = useState<string>('112444');
+  const [sf2SchoolName, setSf2SchoolName] = useState<string>('Bula South Central School');
+  const [sf2SchoolYear, setSf2SchoolYear] = useState<string>(getDefaultSchoolYear(DEFAULT_SF2_YEAR));
+  const [sf2SchoolHeadName, setSf2SchoolHeadName] = useState<string>('Jocelyn Hernandez');
+  const [sf2Region, setSf2Region] = useState<string>('V');
+  const [sf2Division, setSf2Division] = useState<string>('DepEd Region V (Bicol Region)');
+  const [sf2District, setSf2District] = useState<string>('Bula South District');
+  const [sf2DownloadFormat, setSf2DownloadFormat] = useState<'excel' | 'pdf' | null>(null);
 
   // Sorting and pagination
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
@@ -154,7 +191,7 @@ const Reports: FC = () => {
 
   // Student List Modal states
   const [isListModalOpen, setIsListModalOpen] = useState<boolean>(false);
-  const [listModalStatus, setListModalStatus] = useState<'present' | 'absent'>('present');
+  const [listModalStatus, setListModalStatus] = useState<'present' | 'absent' | 'late'>('present');
   const [listModalDate, setListModalDate] = useState<string>('');
   const [listModalGrade, setListModalGrade] = useState<string>('');
   const [listModalSection, setListModalSection] = useState<string>('');
@@ -171,6 +208,13 @@ const Reports: FC = () => {
   const [gradePerformancePage, setGradePerformancePage] = useState<number>(1);
   const [gradePerformanceItemsPerPage, setGradePerformanceItemsPerPage] = useState<number>(10);
 
+  // Holiday management states
+  const [holidays, setHolidays] = useState<any[]>([]);
+  const [selectedHolidayDate, setSelectedHolidayDate] = useState<Date | null>(null);
+  const [holidayName, setHolidayName] = useState<string>('');
+  const [holidayType, setHolidayType] = useState<string>('regular');
+  const [isAddingHoliday, setIsAddingHoliday] = useState<boolean>(false);
+
   const toast = useToast();
 
   // Reset to first page when filters change
@@ -184,12 +228,19 @@ const Reports: FC = () => {
     setSelectedSection('');
     setSelectedSession('all');
     setSearchTerm('');
-    setStartDate(null); // Reset to no default date
-    setEndDate(new Date()); // Reset to default today
+    setStartDate(null);
+    setEndDate(new Date());
     setCurrentPage(1);
     setSortConfig(null);
     setSelectedStudent(null);
     setShowStudentDetail(false);
+    setSf2Month(DEFAULT_SF2_MONTH);
+    setSf2Year(DEFAULT_SF2_YEAR);
+    setSf2SchoolId('112444');
+    setSf2SchoolName('Bula South Central School');
+    setSf2SchoolYear(getDefaultSchoolYear(DEFAULT_SF2_YEAR));
+    setSf2SchoolHeadName('Jocelyn Hernandez');
+    setSf2DownloadFormat(null);
   }, [selectedReportType]);
 
   // Reset student-specific states when report type changes
@@ -206,6 +257,63 @@ const Reports: FC = () => {
     setAttendancePercentagePage(1);
     setGradePerformancePage(1);
   }, [selectedReportType]);
+
+  // Load holidays when holiday management tab is selected
+  useEffect(() => {
+    if (selectedReportType === 'holiday-management') {
+      loadHolidays();
+    }
+  }, [selectedReportType]);
+
+  const loadHolidays = async () => {
+    try {
+      const result = await getHolidays();
+      setHolidays(result.data.holidays);
+    } catch (error) {
+      toast({ status: 'error', title: 'Failed to load holidays' });
+    }
+  };
+
+  const handleAddHoliday = async () => {
+    if (!selectedHolidayDate || !holidayName.trim()) {
+      toast({ status: 'warning', title: 'Please select a date and enter holiday name' });
+      return;
+    }
+
+    try {
+      setIsAddingHoliday(true);
+      // Format date in local timezone to avoid UTC conversion issues
+      const year = selectedHolidayDate.getFullYear();
+      const month = String(selectedHolidayDate.getMonth() + 1).padStart(2, '0');
+      const day = String(selectedHolidayDate.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
+
+      await addHoliday({
+        date: dateStr,
+        name: holidayName.trim(),
+        type: holidayType
+      });
+      toast({ status: 'success', title: 'Holiday added successfully' });
+      setSelectedHolidayDate(null);
+      setHolidayName('');
+      setHolidayType('regular');
+      loadHolidays();
+    } catch (error) {
+      toast({ status: 'error', title: 'Failed to add holiday' });
+    } finally {
+      setIsAddingHoliday(false);
+    }
+  };
+
+  const handleDeleteHoliday = async (id: string) => {
+    try {
+      await deleteHoliday(id);
+      toast({ status: 'success', title: 'Holiday deleted successfully' });
+      loadHolidays();
+    } catch (error) {
+      toast({ status: 'error', title: 'Failed to delete holiday' });
+    }
+  };
 
   const { data: reportsData, isLoading, error } = useGetReports(staffInfo?.id || '', {
     grade: selectedGrade || undefined,
@@ -285,6 +393,49 @@ const Reports: FC = () => {
     enabled: !!staffInfo?.id,
   });
 
+  const sf2Enabled = selectedReportType === 'sf2' && !!staffInfo?.id && !!selectedGrade && !!selectedSection;
+  const {
+    data: sf2ReportData,
+    isFetching: sf2Loading,
+    refetch: refetchSF2,
+    error: sf2Error,
+  } = useGetSF2Report(
+    staffInfo?.id || '',
+    {
+      grade: selectedGrade || undefined,
+      section: selectedSection || undefined,
+      month: sf2Month,
+      year: sf2Year,
+      schoolId: sf2SchoolId || undefined,
+      schoolName: sf2SchoolName || undefined,
+      schoolYear: sf2SchoolYear || undefined,
+      schoolHeadName: sf2SchoolHeadName || undefined,
+      region: sf2Region || undefined,
+      division: sf2Division || undefined,
+      district: sf2District || undefined,
+    },
+    {
+      enabled: sf2Enabled,
+    }
+  );
+  const sf2Data = sf2ReportData?.data as SF2ReportData | undefined;
+  const sf2Days = sf2Data?.schoolDays || [];
+  const sf2Students = sf2Data?.students || [];
+  const sf2AveragePercent = sf2Data ? Math.round(sf2Data.averageDailyAttendance * 10000) / 100 : 0;
+  const sf2AttendancePercent = sf2Data?.percentageAttendance ?? 0;
+  const sf2ErrorMessage = (sf2Error as BaseError)?.response?.data?.message || (sf2Error as BaseError)?.message;
+  const formatSF2Attendance = (value?: string) => {
+    if (value === 'H') return 'H';
+    if (value === 'x') return 'A';
+    if (!value || value === '') return '✓';
+    return value;
+  };
+  const getSF2CellColor = (value?: string) => {
+    if (value === 'H') return 'orange.500';
+    return (value === 'x' ? 'red.500' : 'green.500');
+  };
+
+
 
 
 
@@ -311,10 +462,20 @@ const Reports: FC = () => {
     setGradePerformanceItemsPerPage(10);
     setSortConfig(null);
     setStudentSortConfig(null);
+    setSf2Month(DEFAULT_SF2_MONTH);
+    setSf2Year(DEFAULT_SF2_YEAR);
+    setSf2SchoolId('112444');
+    setSf2SchoolName('Bula South Central School');
+    setSf2SchoolYear(getDefaultSchoolYear(DEFAULT_SF2_YEAR));
+    setSf2SchoolHeadName('Jocelyn Hernandez');
+    setSf2Region('V');
+    setSf2Division('DepEd Region V (Bicol Region)');
+    setSf2District('Bula South District');
+    setSf2DownloadFormat(null);
   };
 
-  const sectionsForGrade = sectionsForGradeData?.sections || [];
-  const studentsForGradeAndSection = studentsForGradeAndSectionData?.students || [];
+  const sectionsForGrade = sectionsForGradeData?.data?.sections || [];
+  const studentsForGradeAndSection = studentsForGradeAndSectionData?.data?.students || [];
 
   // Use real data from API - ensure we have data
   const attendanceData = reportsData?.data?.reports || [];
@@ -323,7 +484,7 @@ const Reports: FC = () => {
   const reportsMeta = reportsData?.data?.meta;
   const studentReportsMeta = studentReportsData?.data?.meta;
   const availableGrades = ['1', '2', '3', '4', '5', '6'];
-  const availableSections = [...new Set(filtersData?.data?.sections || [])].sort();
+  const availableSections = [...new Set(((filtersData?.data || []) as Array<{ sections: string[] }>).flatMap(g => g.sections))].sort();
 
   // Filtered and searched data for different report types
   const filteredAttendanceData = useMemo(() => {
@@ -360,12 +521,14 @@ const Reports: FC = () => {
       if (existing) {
         existing.present += item.present;
         existing.absent += item.absent;
+        existing.late = (existing.late || 0) + (item.late || 0);
       } else {
         acc.push({
           ...item,
           session_type: selectedSession,
           present: item.present,
           absent: item.absent,
+          late: item.late || 0,
         });
       }
       return acc;
@@ -455,12 +618,11 @@ const Reports: FC = () => {
       const perfectAttendance = data.filter((item: any) => item.rate === 100).length;
       return { avgRate, totalStudents, lowAttendance, perfectAttendance };
     } else {
-      // Student-level stats
-      const totalStudents = enrolledStudents; // Use actual enrolled students count
-      const presentCount = data.filter((item: any) => item.status === 'present').length;
+      const totalStudents = enrolledStudents;
+      const presentCount = data.filter((item: any) => item.status === 'present' || item.status === 'late').length;
       const avgRate = data.length > 0 ? (presentCount / data.length) * 100 : 0;
-      const lowAttendance = 0; // No low attendance since only present is tracked
-      const perfectAttendance = data.filter((item: any) => item.status === 'present').length;
+      const lowAttendance = 0;
+      const perfectAttendance = data.filter((item: any) => item.status === 'present' || item.status === 'late').length;
       return { avgRate, totalStudents, lowAttendance, perfectAttendance };
     }
   }, [aggregatedAttendanceData, filteredStudentData, selectedReportType, studentsData]);
@@ -524,16 +686,7 @@ const Reports: FC = () => {
       return acc;
     }, {} as Record<string, any>);
 
-    // Ensure all grade-section combinations are represented, even if they have no data
-    const availableSections = [...new Set(filtersData?.data?.sections || [])].sort();
-    availableGrades.forEach(grade => {
-      availableSections.forEach(section => {
-        const key = `${grade} - ${section}`;
-        if (!groups[key]) {
-          groups[key] = { name: key, present: 0, absent: 0, grade, section };
-        }
-      });
-    });
+
 
     return Object.values(groups).map((item: any) => {
       const total = item.present + item.absent;
@@ -547,7 +700,7 @@ const Reports: FC = () => {
         color: gradeColors[item.grade] || '#38B2AC', // Default to teal if grade not found
       };
     }).sort((a: any, b: any) => a.name.localeCompare(b.name)); // Sort alphabetically
-  }, [filteredChartData, availableGrades, filtersData]);
+  }, [filteredChartData]);
 
   // Paginated grade-section data
   const paginatedGradeSectionData = useMemo(() => {
@@ -601,17 +754,60 @@ const Reports: FC = () => {
     return { avgRate, totalStudents, lowAttendance, perfectAttendance };
   }, [aggregatedAttendanceData, studentsData]);
 
+  const handleDownloadSF2 = async (format: 'excel' | 'pdf') => {
+    if (!sf2Enabled || !staffInfo?.id || !selectedGrade || !selectedSection) {
+      toast({ status: 'warning', title: 'Select grade and section first' });
+      return;
+    }
+    try {
+      setSf2DownloadFormat(format);
+      const queryParams = new URLSearchParams({
+        grade: selectedGrade,
+        section: selectedSection,
+        month: sf2Month.toString(),
+        year: sf2Year.toString(),
+      });
+      if (sf2SchoolId) queryParams.append('schoolId', sf2SchoolId);
+      if (sf2SchoolName) queryParams.append('schoolName', sf2SchoolName);
+      if (sf2SchoolYear) queryParams.append('schoolYear', sf2SchoolYear);
+      if (sf2SchoolHeadName) queryParams.append('schoolHeadName', sf2SchoolHeadName);
+      if (sf2Region) queryParams.append('region', sf2Region);
+      if (sf2Division) queryParams.append('division', sf2Division);
+      if (sf2District) queryParams.append('district', sf2District);
+      const endpoint = `/api/reports/${staffInfo.id}/sf2/export/${format}?${queryParams.toString()}`;
+      const response = await axiosClient.get(endpoint, { responseType: 'blob' });
+      const blob = new Blob([response.data], {
+        type: format === 'excel'
+          ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+          : 'application/pdf',
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `SF2_${selectedGrade}_${selectedSection}_${sf2Month}_${sf2Year}.${format === 'excel' ? 'xlsx' : 'pdf'}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast({ status: 'success', title: `SF2 ${format.toUpperCase()} downloaded` });
+    } catch (error) {
+      toast({ status: 'error', title: `Failed to download SF2 ${format.toUpperCase()}` });
+    } finally {
+      setSf2DownloadFormat(null);
+    }
+  };
+
   const exportToCSV = () => {
     const data = selectedReportType === 'daily-records' ? paginatedData : filteredStudentData;
     const headers = selectedReportType === 'daily-records'
-      ? ['Date', 'Grade', 'Section', 'Session', 'Present']
+      ? ['Date', 'Grade', 'Section', 'Session', 'Present', 'Absent', 'Late']
       : ['Student Name', 'ID No', 'Grade', 'Date', 'Status', 'Session', 'Section'];
 
     const csvContent = [
       headers.join(','),
       ...data.map((row: any) => {
         if (selectedReportType === 'daily-records') {
-        return [row.date, row.grade, row.section, row.session_type || 'N/A', row.present].join(',');
+        return [row.date, row.grade, row.section, row.session_type || 'N/A', row.present, row.absent, row.late ?? 0].join(',');
         } else {
           return [row.student_name, row.matric_no, row.grade, row.date, row.status, row.session_type || 'N/A', row.section].join(',');
         }
@@ -624,6 +820,8 @@ const Reports: FC = () => {
     link.setAttribute('href', url);
     link.setAttribute('download', `${selectedReportType}_report_${new Date().toISOString().split('T')[0]}.csv`);
     link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
     document.body.removeChild(link);
   };
 
@@ -747,13 +945,13 @@ const Reports: FC = () => {
     yPosition += 10;
     doc.setFontSize(10);
     const weeklyRate = report.summaries.weekly.total_days > 0 ? (report.summaries.weekly.present_days / report.summaries.weekly.total_days) * 100 : 0;
-    doc.text(`Weekly: ${report.summaries.weekly.present_days}/${report.summaries.weekly.total_days} days (${weeklyRate.toFixed(1)}%)`, 14, yPosition);
+    doc.text(`Weekly: ${report.summaries.weekly.present_days}/${report.summaries.weekly.total_days} days (${weeklyRate.toFixed(1)}%) | Late: ${report.summaries.weekly.late_days}`, 14, yPosition);
     yPosition += 6;
     const monthlyRate = report.summaries.monthly.total_days > 0 ? (report.summaries.monthly.present_days / report.summaries.monthly.total_days) * 100 : 0;
-    doc.text(`Monthly: ${report.summaries.monthly.present_days}/${report.summaries.monthly.total_days} days (${monthlyRate.toFixed(1)}%)`, 14, yPosition);
+    doc.text(`Monthly: ${report.summaries.monthly.present_days}/${report.summaries.monthly.total_days} days (${monthlyRate.toFixed(1)}%) | Late: ${report.summaries.monthly.late_days}`, 14, yPosition);
     yPosition += 6;
     const yearlyRate = report.summaries.yearly.total_days > 0 ? (report.summaries.yearly.present_days / report.summaries.yearly.total_days) * 100 : 0;
-    doc.text(`Yearly: ${report.summaries.yearly.present_days}/${report.summaries.yearly.total_days} days (${yearlyRate.toFixed(1)}%)`, 14, yPosition);
+    doc.text(`Yearly: ${report.summaries.yearly.present_days}/${report.summaries.yearly.total_days} days (${yearlyRate.toFixed(1)}%) | Late: ${report.summaries.yearly.late_days}`, 14, yPosition);
 
     // Prepare table data
     const tableColumns = ['Date', 'Status', 'Time Type', 'Section'];
@@ -792,7 +990,10 @@ const Reports: FC = () => {
   // Filter student data to show separate logs for IN and OUT records
   const filteredAndSearchedStudentData = useMemo(() => {
     let data = studentAttendanceData.filter((item: any) => {
-      const statusMatch = selectedStatus === 'all' || item.status === selectedStatus;
+      const statusMatch =
+        selectedStatus === 'all' ||
+        item.status === selectedStatus ||
+        (selectedStatus === 'present' && item.status === 'late');
       const sessionMatch = selectedSession === 'all' || item.session_type === selectedSession;
       const dateMatch = (() => {
         if (!startDate && !endDate) return true;
@@ -849,130 +1050,241 @@ const Reports: FC = () => {
         </Heading>
       </VStack>
 
-      {/* Unified Report Filters */}
-      <Card marginBottom="2rem" padding="1rem">
-        <VStack spacing={4} align="stretch">
-          <Text fontWeight="bold" fontSize="lg">Report Filters</Text>
-          <Grid templateColumns={{ base: '1fr', md: 'repeat(2, 1fr)', lg: 'repeat(4, 1fr)' }} gap={4} alignItems="end">
-            <GridItem>
-              <Text fontWeight="bold" marginBottom="0.5rem">Search</Text>
-              <InputGroup>
-                <InputLeftElement pointerEvents="none">
-                  <SearchIcon color="gray.300" />
-                </InputLeftElement>
-                <Input
-                  placeholder="Search records..."
-                  value={searchInput}
-                  onChange={(e) => setSearchInput(e.target.value)}
-                />
-                <Button
-                  colorScheme="blue"
-                  onClick={() => setSearchTerm(searchInput)}
-                  ml={2}
-                >
-                  Search
-                </Button>
-              </InputGroup>
-            </GridItem>
-            <GridItem>
-              <Text fontWeight="bold" marginBottom="0.5rem">Grade</Text>
-              <Select value={selectedGrade} onChange={(e) => setSelectedGrade(e.target.value)} placeholder="All Grades">
-                <option value="">All Grades</option>
-                {availableGrades.map(grade => (
-                  <option key={grade} value={grade}>{grade}</option>
-                ))}
-              </Select>
-            </GridItem>
-            <GridItem>
-              <Text fontWeight="bold" marginBottom="0.5rem">Section</Text>
-              <Select value={selectedSection} onChange={(e) => setSelectedSection(e.target.value)} placeholder="All Sections">
-                <option value="">All Sections</option>
-                {selectedGrade ? sectionsForGrade.map((section: string) => (
-                  <option key={section} value={section}>{section}</option>
-                )) : availableSections.map((section: string) => (
-                  <option key={section} value={section}>{section}</option>
-                ))}
-              </Select>
-            </GridItem>
-
-            <GridItem>
-              <Text fontWeight="bold" marginBottom="0.5rem">Session</Text>
-              <Select value={selectedSession} onChange={(e) => setSelectedSession(e.target.value)}>
-                <option value="all">All Sessions</option>
-                <option value="AM">AM Session</option>
-                <option value="PM">PM Session</option>
-              </Select>
-            </GridItem>
-            <GridItem>
-              <Text fontWeight="bold" marginBottom="0.5rem">Date Range</Text>
-              <Select value={selectedDateRange} onChange={(e) => setSelectedDateRange(e.target.value)}>
-                <option value="all">All Time</option>
-                <option value="365days">Last 365 days</option>
-                <option value="180days">Last 180 days</option>
-                <option value="90days">Last 90 days</option>
-                <option value="60days">Last 60 days</option>
-                <option value="30days">Last 30 days</option>
-                <option value="14days">Last 14 days</option>
-                <option value="7days">Last 7 days</option>
-              </Select>
-            </GridItem>
-          </Grid>
-
-          {/* Date Range Picker - only for Student Summary */}
-          {selectedReportType === 'student-summary' && (
-            <Grid templateColumns={{ base: '1fr', md: 'repeat(2, 1fr)' }} gap={4} alignItems="end">
+      {selectedReportType === 'sf2' ? (
+        <Card marginBottom="2rem" padding="1rem">
+          <VStack spacing={4} align="stretch">
+            <Text fontWeight="bold" fontSize="lg">DepEd SF2 Filters</Text>
+            <Grid templateColumns={{ base: '1fr', md: 'repeat(2, 1fr)', lg: 'repeat(4, 1fr)' }} gap={4} alignItems="end">
               <GridItem>
-                <Text fontWeight="bold" marginBottom="0.5rem">
-                  <CalendarIcon marginRight="0.5rem" />
-                  Start Date
-                </Text>
-                <DatePicker
-                  selected={startDate}
-                  onChange={(date) => setStartDate(date)}
-                  dateFormat="yyyy-MM-dd"
-                  placeholderText="Select start date"
-                  isClearable
-                  className="date-picker-input"
-                />
+                <Text fontWeight="bold" marginBottom="0.5rem">Grade</Text>
+                <Select value={selectedGrade} onChange={(e) => setSelectedGrade(e.target.value)} placeholder="Select Grade">
+                  <option value="">Select Grade</option>
+                  {availableGrades.map(grade => (
+                    <option key={grade} value={grade}>{grade}</option>
+                  ))}
+                </Select>
               </GridItem>
               <GridItem>
-                <Text fontWeight="bold" marginBottom="0.5rem">
-                  <CalendarIcon marginRight="0.5rem" />
-                  End Date
-                </Text>
-                <DatePicker
-                  selected={endDate}
-                  onChange={(date) => setEndDate(date)}
-                  dateFormat="yyyy-MM-dd"
-                  placeholderText="Select end date"
-                  isClearable
-                  className="date-picker-input"
+                <Text fontWeight="bold" marginBottom="0.5rem">Section</Text>
+                <Select value={selectedSection} onChange={(e) => setSelectedSection(e.target.value)} placeholder="Select Section">
+                  <option value="">Select Section</option>
+                  {selectedGrade ? sectionsForGrade.map((section: string) => (
+                    <option key={section} value={section}>{section}</option>
+                  )) : availableSections.map((section) => (
+                    <option key={section} value={section}>{section}</option>
+                  ))}
+                </Select>
+              </GridItem>
+              <GridItem>
+                <Text fontWeight="bold" marginBottom="0.5rem">Month</Text>
+                <Select value={sf2Month} onChange={(e) => setSf2Month(parseInt(e.target.value, 10))}>
+                  {MONTHS.map((month, index) => (
+                    <option key={month} value={index + 1}>{month}</option>
+                  ))}
+                </Select>
+              </GridItem>
+              <GridItem>
+                <Text fontWeight="bold" marginBottom="0.5rem">Year</Text>
+                <Input
+                  type="number"
+                  value={sf2Year}
+                  onChange={(e) => {
+                    const value = parseInt(e.target.value, 10);
+                    setSf2Year(Number.isNaN(value) ? DEFAULT_SF2_YEAR : value);
+                  }}
                 />
               </GridItem>
             </Grid>
+            <Grid templateColumns={{ base: '1fr', md: 'repeat(2, 1fr)', lg: 'repeat(4, 1fr)' }} gap={4} alignItems="end">
+               <GridItem>
+                 <Text fontWeight="bold" marginBottom="0.5rem">Region</Text>
+                 <Input value={sf2Region} onChange={(e) => setSf2Region(e.target.value)} />
+               </GridItem>
+               <GridItem>
+                 <Text fontWeight="bold" marginBottom="0.5rem">Division</Text>
+                 <Input value={sf2Division} onChange={(e) => setSf2Division(e.target.value)} />
+               </GridItem>
+               <GridItem>
+                 <Text fontWeight="bold" marginBottom="0.5rem">District</Text>
+                 <Input value={sf2District} onChange={(e) => setSf2District(e.target.value)} />
+               </GridItem>
+               <GridItem>
+                 <Text fontWeight="bold" marginBottom="0.5rem">School ID</Text>
+                 <Input value={sf2SchoolId} onChange={(e) => setSf2SchoolId(e.target.value)} />
+               </GridItem>
+               <GridItem>
+                 <Text fontWeight="bold" marginBottom="0.5rem">School Name</Text>
+                 <Input value={sf2SchoolName} onChange={(e) => setSf2SchoolName(e.target.value)} />
+               </GridItem>
+               <GridItem>
+                 <Text fontWeight="bold" marginBottom="0.5rem">School Year</Text>
+                 <Input value={sf2SchoolYear} onChange={(e) => setSf2SchoolYear(e.target.value)} />
+               </GridItem>
+               <GridItem>
+                 <Text fontWeight="bold" marginBottom="0.5rem">School Head</Text>
+                 <Input value={sf2SchoolHeadName} onChange={(e) => setSf2SchoolHeadName(e.target.value)} />
+               </GridItem>
+             </Grid>
+            <Flex justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={4}>
+              <Button variant="ghost" onClick={resetFilters}>Reset Filters</Button>
+              <HStack spacing={4} flexWrap="wrap">
+                <Button
+                  colorScheme="blue"
+                  onClick={() => refetchSF2()}
+                  isDisabled={!sf2Enabled}
+                  isLoading={sf2Loading}
+                >
+                  Generate SF2
+                </Button>
+                <Button
+                  colorScheme="green"
+                  leftIcon={<DownloadIcon />}
+                  onClick={() => handleDownloadSF2('excel')}
+                  isDisabled={!sf2Enabled || !sf2Data}
+                  isLoading={sf2DownloadFormat === 'excel'}
+                >
+                  Export Excel
+                </Button>
+                <Button
+                  colorScheme="purple"
+                  leftIcon={<DownloadIcon />}
+                  onClick={() => handleDownloadSF2('pdf')}
+                  isDisabled={!sf2Enabled || !sf2Data}
+                  isLoading={sf2DownloadFormat === 'pdf'}
+                >
+                  Export PDF
+                </Button>
+              </HStack>
+            </Flex>
+          </VStack>
+        </Card>
+      ) : (
+        <Card marginBottom="2rem" padding="1rem">
+          <VStack spacing={4} align="stretch">
+            <Text fontWeight="bold" fontSize="lg">Report Filters</Text>
+            <Grid templateColumns={{ base: '1fr', md: 'repeat(2, 1fr)', lg: 'repeat(4, 1fr)' }} gap={4} alignItems="end">
+              <GridItem>
+                <Text fontWeight="bold" marginBottom="0.5rem">Search</Text>
+                <InputGroup>
+                  <InputLeftElement pointerEvents="none">
+                    <SearchIcon color="gray.300" />
+                  </InputLeftElement>
+                  <Input
+                    placeholder="Search records..."
+                    value={searchInput}
+                    onChange={(e) => setSearchInput(e.target.value)}
+                  />
+                  <Button
+                    colorScheme="blue"
+                    onClick={() => setSearchTerm(searchInput)}
+                    ml={2}
+                  >
+                    Search
+                  </Button>
+                </InputGroup>
+              </GridItem>
+              <GridItem>
+                <Text fontWeight="bold" marginBottom="0.5rem">Grade</Text>
+                <Select value={selectedGrade} onChange={(e) => setSelectedGrade(e.target.value)} placeholder="All Grades">
+                  <option value="">All Grades</option>
+                  {availableGrades.map(grade => (
+                    <option key={grade} value={grade}>{grade}</option>
+                  ))}
+                </Select>
+              </GridItem>
+              <GridItem>
+                <Text fontWeight="bold" marginBottom="0.5rem">Section</Text>
+                <Select value={selectedSection} onChange={(e) => setSelectedSection(e.target.value)} placeholder="All Sections">
+                  <option value="">All Sections</option>
+                  {selectedGrade ? sectionsForGrade.map((section: string) => (
+                    <option key={section} value={section}>{section}</option>
+                  )) : availableSections.map((section) => (
+                    <option key={section} value={section}>{section}</option>
+                  ))}
+                </Select>
+              </GridItem>
+
+              <GridItem>
+                <Text fontWeight="bold" marginBottom="0.5rem">Session</Text>
+                <Select value={selectedSession} onChange={(e) => setSelectedSession(e.target.value)}>
+                  <option value="all">All Sessions</option>
+                  <option value="AM">AM Session</option>
+                  <option value="PM">PM Session</option>
+                </Select>
+              </GridItem>
+              <GridItem>
+                <Text fontWeight="bold" marginBottom="0.5rem">Date Range</Text>
+                <Select value={selectedDateRange} onChange={(e) => setSelectedDateRange(e.target.value)}>
+                  <option value="all">All Time</option>
+                  <option value="365days">Last 365 days</option>
+                  <option value="180days">Last 180 days</option>
+                  <option value="90days">Last 90 days</option>
+                  <option value="60days">Last 60 days</option>
+                  <option value="30days">Last 30 days</option>
+                  <option value="14days">Last 14 days</option>
+                  <option value="7days">Last 7 days</option>
+                </Select>
+              </GridItem>
+            </Grid>
+
+            {/* Date Range Picker - only for Student Summary */}
+            {selectedReportType === 'student-summary' && (
+              <VStack spacing={4} align="stretch">
+                <Grid templateColumns={{ base: '1fr', md: 'repeat(2, 1fr)' }} gap={4} alignItems="end">
+                <GridItem>
+                  <Text fontWeight="bold" marginBottom="0.5rem">
+                    <CalendarIcon marginRight="0.5rem" />
+                    Start Date
+                  </Text>
+                  <DatePicker
+                    selected={startDate}
+                    onChange={(date) => setStartDate(date)}
+                    dateFormat="yyyy-MM-dd"
+                    placeholderText="Select start date"
+                    isClearable
+                    className="date-picker-input"
+                  />
+                </GridItem>
+                <GridItem>
+                  <Text fontWeight="bold" marginBottom="0.5rem">
+                    <CalendarIcon marginRight="0.5rem" />
+                    End Date
+                  </Text>
+                  <DatePicker
+                    selected={endDate}
+                    onChange={(date) => setEndDate(date)}
+                    dateFormat="yyyy-MM-dd"
+                    placeholderText="Select end date"
+                    isClearable
+                    className="date-picker-input"
+                  />
+                </GridItem>
+              </Grid>
+            </VStack>
           )}
 
-          {/* Export Options */}
-          <Flex justifyContent="flex-end" gap={4}>
-            <Menu>
-              <MenuButton as={Button} rightIcon={<ChevronDownIcon />} colorScheme="blue">
-                Export Report
-              </MenuButton>
-              <MenuList>
-                <MenuItem onClick={exportToCSV}>Export as CSV</MenuItem>
-                <MenuItem onClick={exportToPDF}>Export as PDF</MenuItem>
-                <MenuItem onClick={() => {
-                  const data = selectedReportType === 'daily-records' ? paginatedData : filteredStudentData;
-                  const ws = XLSX.utils.json_to_sheet(data);
-                  const wb = XLSX.utils.book_new();
-                  XLSX.utils.book_append_sheet(wb, ws, `${REPORT_TYPES.find(t => t.value === selectedReportType)?.label} Report`);
-                  XLSX.writeFile(wb, `${selectedReportType}_report_${new Date().toISOString().split('T')[0]}.xlsx`);
-                }}>Export as Excel</MenuItem>
-              </MenuList>
-            </Menu>
-          </Flex>
-        </VStack>
-      </Card>
+            {/* Export Options */}
+            <Flex justifyContent="flex-end" gap={4}>
+              <Menu>
+                <MenuButton as={Button} rightIcon={<ChevronDownIcon />} colorScheme="blue">
+                  Export Report
+                </MenuButton>
+                <MenuList>
+                  <MenuItem onClick={exportToCSV}>Export as CSV</MenuItem>
+                  <MenuItem onClick={exportToPDF}>Export as PDF</MenuItem>
+                  <MenuItem onClick={() => {
+                    const data = selectedReportType === 'daily-records' ? paginatedData : filteredStudentData;
+                    const ws = XLSX.utils.json_to_sheet(data);
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, `${REPORT_TYPES.find(t => t.value === selectedReportType)?.label} Report`);
+                    XLSX.writeFile(wb, `${selectedReportType}_report_${new Date().toISOString().split('T')[0]}.xlsx`);
+                  }}>Export as Excel</MenuItem>
+                </MenuList>
+              </Menu>
+            </Flex>
+          </VStack>
+        </Card>
+      )}
 
       <Tabs variant="enclosed" colorScheme="blue" index={REPORT_TYPES.findIndex(rt => rt.value === selectedReportType)} onChange={(index) => setSelectedReportType(REPORT_TYPES[index].value)}>
         <TabList>
@@ -982,6 +1294,168 @@ const Reports: FC = () => {
         </TabList>
 
         <TabPanels>
+          <TabPanel>
+            <VStack spacing={4} align="stretch">
+              {!selectedGrade || !selectedSection ? (
+                <Alert status="info">
+                  <AlertIcon />
+                  <AlertTitle>Select grade and section to generate SF2 data.</AlertTitle>
+                </Alert>
+              ) : sf2Loading ? (
+                <Center>
+                  <Spinner size="lg" />
+                </Center>
+              ) : sf2Error ? (
+                <Alert status="error">
+                  <AlertIcon />
+                  <AlertTitle>Unable to load SF2 data</AlertTitle>
+                  {sf2ErrorMessage && (
+                    <AlertDescription>{sf2ErrorMessage}</AlertDescription>
+                  )}
+                </Alert>
+              ) : !sf2Data ? (
+                <Alert status="info">
+                  <AlertIcon />
+                  <AlertTitle>Use the filters above to generate SF2 data.</AlertTitle>
+                </Alert>
+              ) : (
+                <>
+                  <Card>
+                    <Box padding="1rem">
+                      <Heading size="md" marginBottom="1rem">SF2 Overview</Heading>
+                      <Grid templateColumns={{ base: '1fr', md: 'repeat(2, 1fr)' }} gap={4}>
+                        <GridItem>
+                          <Text fontSize="sm" color="gray.500">School</Text>
+                          <Text fontWeight="semibold">{sf2Data.schoolName} ({sf2Data.schoolId})</Text>
+                        </GridItem>
+                        <GridItem>
+                          <Text fontSize="sm" color="gray.500">Adviser</Text>
+                          <Text fontWeight="semibold">{sf2Data.staffName}</Text>
+                        </GridItem>
+                        <GridItem>
+                          <Text fontSize="sm" color="gray.500">Grade & Section</Text>
+                          <Text fontWeight="semibold">{sf2Data.grade}-{sf2Data.section}</Text>
+                        </GridItem>
+                        <GridItem>
+                          <Text fontSize="sm" color="gray.500">Month & School Year</Text>
+                          <Text fontWeight="semibold">{sf2Data.month} • {sf2Data.schoolYear}</Text>
+                        </GridItem>
+                      </Grid>
+                    </Box>
+                  </Card>
+                  <Grid templateColumns={{ base: 'repeat(1, 1fr)', md: 'repeat(2, 1fr)', lg: 'repeat(4, 1fr)' }} gap={4}>
+                    <Card>
+                      <Box padding="1rem">
+                        <Stat>
+                          <StatLabel>Registered Learners</StatLabel>
+                          <StatNumber>{sf2Data.registeredLearners}</StatNumber>
+                        </Stat>
+                      </Box>
+                    </Card>
+                    <Card>
+                      <Box padding="1rem">
+                        <Stat>
+                          <StatLabel>Average Daily Attendance</StatLabel>
+                          <StatNumber>{sf2AveragePercent.toFixed(2)}%</StatNumber>
+                          <StatHelpText>Attendance %: {sf2AttendancePercent.toFixed(2)}%</StatHelpText>
+                        </Stat>
+                      </Box>
+                    </Card>
+                    <Card>
+                      <Box padding="1rem">
+                        <Stat>
+                          <StatLabel>Consecutive Absences</StatLabel>
+                          <StatNumber>{sf2Data.consecutiveAbsent5Days}</StatNumber>
+                        </Stat>
+                      </Box>
+                    </Card>
+                    <Card>
+                      <Box padding="1rem">
+                        <Stat>
+                          <StatLabel>Total Late Arrivals</StatLabel>
+                          <StatNumber color="yellow.600">
+                            {sf2Students.reduce((sum, student) => sum + (student.lateCount || 0), 0)}
+                          </StatNumber>
+                          <StatHelpText>
+                            {(() => {
+                              const totalLates = sf2Students.reduce((sum, student) => sum + (student.lateCount || 0), 0);
+                              const totalPossibleSessions = sf2Students.length * sf2Days.length * 2; // AM + PM per day
+                              return totalPossibleSessions > 0 ? ((totalLates / totalPossibleSessions) * 100).toFixed(1) : '0.0';
+                            })()}% of all sessions
+                          </StatHelpText>
+                        </Stat>
+                      </Box>
+                    </Card>
+                  </Grid>
+                  <Card>
+                    <Box padding="1rem">
+                      <Heading size="md" marginBottom="1rem">Daily Attendance Matrix</Heading>
+                      {sf2Students.length === 0 ? (
+                        <Alert status="info">
+                          <AlertIcon />
+                          <AlertTitle>No attendance records found for the selected month.</AlertTitle>
+                        </Alert>
+                      ) : (
+                        <TableContainer>
+                          <Table size="sm" variant="simple">
+                            <Thead>
+                              <Tr>
+                                <Th>#</Th>
+                                <Th>Student Name</Th>
+                                <Th>ID/LRN</Th>
+                                {sf2Days.map(day => {
+                                  const dayType = sf2Data?.dayTypes?.[day] || 'weekday';
+                                  const bgColor = dayType === 'holiday' ? 'red.50' : 'white';
+                                  return (
+                                    <Fragment key={day}>
+                                      <Th bg={bgColor}>{dayjs(day).format('MMM D')} AM</Th>
+                                      <Th bg={bgColor}>{dayjs(day).format('MMM D')} PM</Th>
+                                    </Fragment>
+                                  );
+                                })}
+                                <Th>Total Absences</Th>
+                                <Th>Late Count</Th>
+                                <Th>Remarks</Th>
+                              </Tr>
+                            </Thead>
+                            <Tbody>
+                              {sf2Students.map((student, index) => (
+                                <Tr key={student.id || `${student.name}-${index}`}>
+                                  <Td>{index + 1}</Td>
+                                  <Td>{student.name}</Td>
+                                  <Td>{student.matric_no}</Td>
+                                  {sf2Days.map(day => {
+                                    const attendance = student.dailyAttendance[day] || { am: 'x', pm: 'x' };
+                                    return (
+                                      <Fragment key={`${student.id}-${day}`}>
+                                        <Td color={getSF2CellColor(attendance.am)} fontWeight="semibold">
+                                          {formatSF2Attendance(attendance.am)}
+                                        </Td>
+                                        <Td color={getSF2CellColor(attendance.pm)} fontWeight="semibold">
+                                          {formatSF2Attendance(attendance.pm)}
+                                        </Td>
+                                      </Fragment>
+                                    );
+                                  })}
+                                <Td fontWeight="bold">{student.absentCount}</Td>
+                                <Td fontWeight="bold" color="yellow.600">{student.lateCount || 0}</Td>
+                                <Td>{student.remarks || '-'}</Td>
+                                </Tr>
+                              ))}
+                            </Tbody>
+                          </Table>
+                        </TableContainer>
+                      )}
+                      <Text fontSize="sm" color="gray.600" marginTop="1rem">
+                        <Badge colorScheme="red" marginRight="0.5rem">Red headers</Badge> indicate holidays.
+                        <Badge colorScheme="orange" marginLeft="0.5rem" marginRight="0.5rem">Orange cells</Badge> show 'H' for holidays with no attendance.
+                      </Text>
+                    </Box>
+                  </Card>
+                </>
+              )}
+            </VStack>
+          </TabPanel>
           {/* Daily Records Tab */}
           <TabPanel>
 
@@ -1045,7 +1519,7 @@ const Reports: FC = () => {
                           <BarChart data={paginatedAttendancePercentageData}>
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis dataKey="name" />
-                            <YAxis domain={[0, 50]} ticks={[50, 40, 30, 20, 10, 0]} tickFormatter={(value) => Math.round(value).toString()} />
+                            <YAxis tickFormatter={(value) => Math.round(value).toString()} />
                             <Tooltip
                               formatter={(value: any, name: string) => {
                                 if (name === 'Present') {
@@ -1120,6 +1594,12 @@ const Reports: FC = () => {
                         >
                           Absent {sortConfig?.key === 'absent' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                         </Th>
+                        <Th
+                          cursor="pointer"
+                          onClick={() => setSortConfig(sortConfig?.key === 'late' && sortConfig.direction === 'asc' ? { key: 'late', direction: 'desc' } : { key: 'late', direction: 'asc' })}
+                        >
+                          Late {sortConfig?.key === 'late' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                        </Th>
                       </Tr>
                     </Thead>
                     <Tbody>
@@ -1151,7 +1631,6 @@ const Reports: FC = () => {
                             cursor="pointer"
                             _hover={{ textDecoration: 'underline' }}
                             onClick={() => {
-                              // row.date should already be in YYYY-MM-DD format from the API
                               const modalDate = row.date;
                               setListModalDate(modalDate);
                               setListModalGrade(row.grade);
@@ -1161,6 +1640,21 @@ const Reports: FC = () => {
                             }}
                           >
                             {row.absent}
+                          </Td>
+                          <Td
+                            color="yellow.600"
+                            fontWeight="semibold"
+                            cursor="pointer"
+                            _hover={{ textDecoration: 'underline' }}
+                            onClick={() => {
+                              setListModalDate(row.date);
+                              setListModalGrade(row.grade);
+                              setListModalSection(row.section);
+                              setListModalStatus('late');
+                              setIsListModalOpen(true);
+                            }}
+                          >
+                            {row.late ?? 0}
                           </Td>
                         </Tr>
                       ))}
@@ -1206,8 +1700,6 @@ const Reports: FC = () => {
             <VStack spacing={4} align="stretch">
               <Heading size="md">Student Attendance Summary</Heading>
 
-
-
               {/* Student Attendance Table */}
               <Card>
                 <Box padding="1rem">
@@ -1235,7 +1727,7 @@ const Reports: FC = () => {
                           <Td>{new Date(row.date).toLocaleDateString()}</Td>
                           <Td>{row.created_at ? dayjs(row.created_at).format('hh:mm A') : '-'}</Td>
                           <Td>
-                            <Badge colorScheme={row.status === 'present' ? 'green' : row.status === 'departure' ? 'blue' : 'red'}>
+                            <Badge colorScheme={row.status === 'present' ? 'green' : row.status === 'late' ? 'yellow' : row.status === 'departure' ? 'blue' : 'red'}>
                               {row.status}
                             </Badge>
                           </Td>
@@ -1281,7 +1773,12 @@ const Reports: FC = () => {
             </VStack>
           </TabPanel>
 
-
+          {/* Monthly Attendance Summary Tab */}
+          <TabPanel>
+            <VStack spacing={4} align="stretch">
+              <MonthlyAttendanceSummary />
+            </VStack>
+          </TabPanel>
 
           {/* Attendance Trends Tab */}
           <TabPanel>
@@ -1480,7 +1977,7 @@ const Reports: FC = () => {
                         <BarChart data={paginatedGradePerformanceData}>
                           <CartesianGrid strokeDasharray="3 3" />
                           <XAxis dataKey="name" />
-                          <YAxis domain={[0, 800]} ticks={[0, 50, 100, 200, 300, 400, 500, 600, 700, 800]} tickFormatter={(value) => Math.round(value).toString()} />
+                          <YAxis domain={[0, 50]} ticks={[50, 40, 30, 20, 10, 0]} tickFormatter={(value) => Math.round(value).toString()} />
                           <Tooltip formatter={(value: any) => [`${Math.round(value)}`, 'Present']} />
                           <Legend />
                           <Bar dataKey="present" name="Present">
@@ -1498,63 +1995,112 @@ const Reports: FC = () => {
                 </Box>
               </Card>
 
-              {/* Check-in Time Distribution */}
-              <Card>
-                <Box padding="1rem">
-                  <Heading size="md" marginBottom="1rem">Check-in Time Distribution</Heading>
-                  <Text fontSize="sm" color="gray.600" marginBottom="1rem">
-                    Visual timeline showing peak scanning periods during the morning (6 AM - 12 PM)
-                  </Text>
-
-                  {checkInTimeAnalysisLoading ? (
-                    <Center>
-                      <Spinner size="lg" />
-                    </Center>
-                  ) : !checkInTimeAnalysisData?.data?.data || checkInTimeAnalysisData.data.data.length === 0 ? (
-                    <Alert status="info">
-                      <AlertIcon />
-                      <AlertTitle>No check-in data available</AlertTitle>
-                      <AlertDescription>
-                        No check-in time data found for the selected filters. Try adjusting your date range or filters.
-                      </AlertDescription>
-                    </Alert>
-                  ) : (
-                    <ResponsiveContainer width="100%" height={300}>
-                      <BarChart data={checkInTimeAnalysisData.data.data}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis
-                          dataKey="timeRange"
-                          angle={-45}
-                          textAnchor="end"
-                          height={80}
-                          interval={0}
-                        />
-                        <YAxis domain={[0, 50]} ticks={[50, 40, 30, 20, 10, 0]} tickFormatter={(value) => Math.round(value).toString()} />
-                        <Tooltip
-                          formatter={(value: any) => [`${Math.round(value)} check-ins`, 'Count']}
-                          labelFormatter={(label) => `Time: ${label}`}
-                        />
-                        <Legend />
-                        <Bar dataKey="count" fill="#3BB4C1" name="Check-ins" />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  )}
-
-                  {/* Debug info for troubleshooting - hidden in production */}
-                  {/* <Text fontSize="xs" color="gray.500" marginTop="1rem">
-                    Debug: Data length: {checkInTimeAnalysisData?.data?.data?.length || 0}, Loading: {checkInTimeAnalysisLoading ? 'true' : 'false'}, Data: {JSON.stringify(checkInTimeAnalysisData?.data?.data)}
-                  </Text> */}
-
-                  <Text fontSize="sm" color="gray.600" marginTop="0.5rem">
-                    This chart displays when students typically check in during the morning hours (6 AM - 12 PM). Higher bars indicate peak check-in times, helping identify the busiest periods for attendance monitoring.
-                  </Text>
-                </Box>
-              </Card>
             </VStack>
           </TabPanel>
 
 
+          {/* Holiday Management Tab */}
+          <TabPanel>
+            <VStack spacing={4} align="stretch">
+              <Heading size="md">Holiday Management</Heading>
 
+              {/* Add Holiday Form */}
+              <Card>
+                <Box padding="1rem">
+                  <Heading size="md" marginBottom="1rem">Add New Holiday</Heading>
+                  <Grid templateColumns={{ base: '1fr', md: 'repeat(3, 1fr)' }} gap={4} alignItems="end">
+                    <GridItem>
+                      <Text fontWeight="bold" marginBottom="0.5rem">Date</Text>
+                      <DatePicker
+                        selected={selectedHolidayDate}
+                        onChange={(date) => setSelectedHolidayDate(date)}
+                        dateFormat="yyyy-MM-dd"
+                        placeholderText="Select holiday date"
+                        className="date-picker-input"
+                      />
+                    </GridItem>
+                    <GridItem>
+                      <Text fontWeight="bold" marginBottom="0.5rem">Holiday Name</Text>
+                      <Input
+                        value={holidayName}
+                        onChange={(e) => setHolidayName(e.target.value)}
+                        placeholder="Enter holiday name"
+                      />
+                    </GridItem>
+                    <GridItem>
+                      <Text fontWeight="bold" marginBottom="0.5rem">Type</Text>
+                      <Select value={holidayType} onChange={(e) => setHolidayType(e.target.value)}>
+                        <option value="regular">Regular Holiday</option>
+                        <option value="special">Special Holiday</option>
+                      </Select>
+                    </GridItem>
+                  </Grid>
+                  <Flex justifyContent="flex-end" marginTop="1rem">
+                    <Button
+                      colorScheme="blue"
+                      onClick={handleAddHoliday}
+                      isLoading={isAddingHoliday}
+                      isDisabled={!selectedHolidayDate || !holidayName.trim()}
+                    >
+                      Add Holiday
+                    </Button>
+                  </Flex>
+                </Box>
+              </Card>
+
+              {/* Holidays List */}
+              <Card>
+                <Box padding="1rem">
+                  <Heading size="md" marginBottom="1rem">Current Holidays</Heading>
+                  {holidays.length === 0 ? (
+                    <Alert status="info">
+                      <AlertIcon />
+                      <AlertTitle>No holidays configured</AlertTitle>
+                      <AlertDescription>
+                        Add holidays using the form above to mark them in the SF2 reports.
+                      </AlertDescription>
+                    </Alert>
+                  ) : (
+                    <TableContainer>
+                      <Table variant="simple">
+                        <Thead>
+                          <Tr>
+                            <Th>Date</Th>
+                            <Th>Holiday Name</Th>
+                            <Th>Type</Th>
+                            <Th>Actions</Th>
+                          </Tr>
+                        </Thead>
+                        <Tbody>
+                          {holidays.map((holiday: any) => (
+                            <Tr key={holiday.id}>
+                              <Td>{new Date(holiday.date).toLocaleDateString()}</Td>
+                              <Td>{holiday.name}</Td>
+                              <Td>
+                                <Badge colorScheme={holiday.type === 'special' ? 'purple' : 'blue'}>
+                                  {holiday.type === 'special' ? 'Special' : 'Regular'}
+                                </Badge>
+                              </Td>
+                              <Td>
+                                <Button
+                                  size="sm"
+                                  colorScheme="red"
+                                  variant="outline"
+                                  onClick={() => handleDeleteHoliday(holiday.id)}
+                                >
+                                  Delete
+                                </Button>
+                              </Td>
+                            </Tr>
+                          ))}
+                        </Tbody>
+                      </Table>
+                    </TableContainer>
+                  )}
+                </Box>
+              </Card>
+            </VStack>
+          </TabPanel>
 
         </TabPanels>
       </Tabs>
@@ -1576,3 +2122,4 @@ const Reports: FC = () => {
 };
 
 export default Reports;
+

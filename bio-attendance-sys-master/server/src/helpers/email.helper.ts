@@ -95,6 +95,81 @@ export const sendPasswordChangeNotification = async (email: string, name: string
 /**
  * Send corruption alert email for fingerprint data integrity issues
  */
+export const sendTeacherWelcomeEmail = async (email: string, teacherName: string) => {
+  const mailOptions = {
+    from: envConfig.EMAIL_USER,
+    to: email,
+    subject: 'Welcome to the Fingerprint-Based Attendance Monitoring System',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background-color: #007bff; color: white; padding: 20px; border-radius: 5px 5px 0 0; text-align: center;">
+          <h1 style="margin: 0;">Welcome to Our System!</h1>
+        </div>
+        <div style="border: 1px solid #dee2e6; border-top: none; padding: 20px; border-radius: 0 0 5px 5px;">
+          <h2 style="color: #333;">Hello ${teacherName},</h2>
+          <p>Welcome to the Fingerprint-Based Attendance Monitoring System! We're excited to have you join our educational community.</p>
+
+          <h3 style="color: #007bff;">System Overview</h3>
+          <p>Our system provides a comprehensive solution for managing student attendance using advanced fingerprint technology. As a teacher, you'll have access to powerful tools to:</p>
+          <ul>
+            <li>Manage your student roster</li>
+            <li>Mark attendance efficiently</li>
+            <li>Generate detailed reports</li>
+            <li>Monitor attendance patterns</li>
+            <li>Communicate with administrators</li>
+          </ul>
+
+          <h3 style="color: #007bff;">Quick Start Guide</h3>
+          <ol>
+            <li><strong>Login:</strong> Use your email and password to access the teacher portal</li>
+            <li><strong>Student Management:</strong> Add and manage your students' information</li>
+            <li><strong>Attendance Marking:</strong> Use the kiosk to record attendance</li>
+            <li><strong>Reports:</strong> View attendance summaries and generate reports</li>
+            <li><strong>Settings:</strong> Customize your preferences and system settings</li>
+          </ol>
+
+          <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0;">
+            <p style="margin: 0; color: #495057;"><strong>Important Notes:</strong></p>
+            <ul style="margin: 10px 0 0 0; color: #495057;">
+              <li>Keep your login credentials secure</li>
+              <li>Ensure student fingerprint data is enrolled accurately</li>
+              <li>Regular attendance monitoring helps improve student engagement</li>
+              <li>Contact support if you encounter any issues</li>
+            </ul>
+          </div>
+
+          <p>If you have any questions or need assistance, please don't hesitate to reach out to our support team.</p>
+
+          <p>Best regards,<br>The Attendance System Team</p>
+
+          <hr>
+          <p style="color: #666; font-size: 12px;">Fingerprint-Based Attendance Monitoring System - Professional Educational Tools</p>
+        </div>
+      </div>
+    `,
+  };
+
+  // Always log the email details to console for debugging/fallback
+  console.log('=== TEACHER WELCOME EMAIL ===');
+  console.log('To:', email);
+  console.log('Teacher Name:', teacherName);
+  console.log('Subject:', mailOptions.subject);
+  console.log('=============================');
+
+  // Attempt to send email if Gmail credentials are configured
+  if (envConfig.EMAIL_USER && envConfig.EMAIL_PASS) {
+    try {
+      await transporter.sendMail(mailOptions);
+      console.log('✅ Teacher welcome email sent successfully via Gmail');
+    } catch (error) {
+      console.error('❌ Failed to send teacher welcome email via Gmail:', error instanceof Error ? error.message : String(error));
+      console.log('📝 Email details logged to console as fallback');
+    }
+  } else {
+    console.log('📧 Gmail credentials not configured - email details logged to console only');
+  }
+};
+
 export const sendFingerprintCorruptionAlert = async (
   recipientEmail: string,
   corruptionDetails: {

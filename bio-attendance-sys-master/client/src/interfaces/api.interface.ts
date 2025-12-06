@@ -1,3 +1,15 @@
+export interface PaginationMeta {
+  total_items: number;
+  total_pages: number;
+  page: number;
+  per_page: number;
+}
+
+export interface ApiResponse<T = any> {
+  data: T;
+  meta?: PaginationMeta;
+}
+
 export interface MarkAttendanceInput {
   student_id: string;
   attendance_id: string;
@@ -48,6 +60,7 @@ export interface AttendanceReportData {
   session_type?: 'AM' | 'PM';
   present: number;
   absent: number;
+  late: number;
   rate: number;
 }
 
@@ -57,24 +70,28 @@ export interface StudentAttendanceReportData {
   matric_no: string;
   grade: string;
   date: string;
-  status: 'present' | 'absent';
+  status: 'present' | 'absent' | 'late' | 'departure';
   section: string;
   session_type?: 'AM' | 'PM';
+  isLate?: boolean;
 }
 
 export interface StudentAttendanceSummary {
   weekly: {
     present_days: number;
+    late_days: number;
     total_days: number;
     absent_days: number;
   };
   monthly: {
     present_days: number;
+    late_days: number;
     total_days: number;
     absent_days: number;
   };
   yearly: {
     present_days: number;
+    late_days: number;
     total_days: number;
     absent_days: number;
   };
@@ -90,11 +107,14 @@ export interface StudentDetailedReport {
   summaries: StudentAttendanceSummary;
   attendanceRecords: {
     date: string;
-    status: 'present' | 'absent';
+    status: 'present' | 'absent' | 'late' | 'departure';
     time_type: 'IN' | 'OUT' | null;
     session_type: 'AM' | 'PM' | null;
     section: string;
-    created_at: string;
+    created_at: string | null;
+    checkin_time?: string | null;
+    checkout_time?: string | null;
+    isLate?: boolean;
   }[];
 }
 
@@ -160,6 +180,7 @@ export interface GetAttendanceListResult {
       section: string;
       status: 'present' | 'absent';
       created_at: string;
+      isLate?: boolean;
     }[];
     meta: {
       total_items: number;
@@ -173,8 +194,20 @@ export interface GetAttendanceListResult {
 export interface GetReportsResult {
   data: {
     reports: AttendanceReportData[];
-    summary: any;
-    previousPeriodSummary: any;
+    summary: {
+      totalStudents: number;
+      averageRate: number;
+      lowAttendanceCount: number;
+      perfectAttendanceCount: number;
+      lateCount: number;
+    };
+    previousPeriodSummary: {
+      totalStudents: number;
+      averageRate: number;
+      lowAttendanceCount: number;
+      perfectAttendanceCount: number;
+      lateCount: number;
+    };
     meta: {
       total_items: number;
       total_pages: number;
@@ -184,11 +217,61 @@ export interface GetReportsResult {
   };
 }
 
+export interface SF2DailyAttendanceEntry {
+  am: string;
+  pm: string;
+}
+
+export interface SF2StudentRecord {
+  id: string;
+  name: string;
+  matric_no: string;
+  dailyAttendance: Record<string, SF2DailyAttendanceEntry>;
+  absentCount: number;
+  tardyCount: number;
+  lateCount: number;
+  remarks: string;
+}
+
+export interface SF2ReportData {
+  region?: string;
+  division?: string;
+  district?: string;
+  schoolId: string;
+  schoolName: string;
+  schoolYear: string;
+  month: string;
+  grade: string;
+  section: string;
+  students: SF2StudentRecord[];
+  enrollmentFirstFriday: number;
+  lateEnrollmentCount: number;
+  registeredLearners: number;
+  percentageEnrollment: number;
+  averageDailyAttendance: number;
+  percentageAttendance: number;
+  consecutiveAbsent5Days: number;
+  dropoutMale: number;
+  dropoutFemale: number;
+  transferOutMale: number;
+  transferOutFemale: number;
+  transferInMale: number;
+  transferInFemale: number;
+  schoolDays: string[];
+  dayTypes: Record<string, 'weekday' | 'weekend' | 'holiday'>;
+  staffName: string;
+  schoolHeadName: string;
+}
+
+export interface GetSF2ReportResult {
+  data: SF2ReportData;
+}
+
 export interface GetGradesAndSectionsResult {
-  data: {
-    grades: string[];
+  data: Array<{
+    grade: string;
     sections: string[];
-  };
+  }>;
 }
 
 export interface GetStudentReportsResult {
@@ -268,6 +351,16 @@ export interface AddStudentInput {
 
 export interface AddStudentResult {
   student: Student;
+}
+
+export interface ImportStudentsResult {
+  imported: number;
+  errors: number;
+  errorDetails: {
+    row: number;
+    data: Record<string, any>;
+    error: string;
+  }[];
 }
 
 export interface GetStudentsResult {
@@ -390,6 +483,7 @@ export interface LoginStaffResult {
       email: string;
       created_at: string;
       profilePicture?: string;
+      role: string; // New field for role information
     };
   };
 }
@@ -398,12 +492,16 @@ export interface StaffSettings {
   grace_period_minutes: number;
   school_start_time: string;
   late_threshold_hours: number;
+  pm_late_cutoff_enabled: boolean;
+  pm_late_cutoff_time: string | null;
 }
 
 export interface UpdateStaffSettingsInput {
   grace_period_minutes?: number;
   school_start_time?: string;
   late_threshold_hours?: number;
+  pm_late_cutoff_enabled?: boolean;
+  pm_late_cutoff_time?: string | null;
 }
 
 export interface UpdateStaffSettingsResult {
@@ -440,5 +538,123 @@ export interface UpdateStaffProfileResult {
     email: string;
     created_at: string;
     profilePicture?: string;
+    role: string; // New field for role information
+  };
+}
+
+// Teacher management interfaces
+export interface Teacher {
+  id: string;
+  firstName: string;
+  lastName: string;
+  name: string;
+  email: string;
+  role: string;
+  created_at: string;
+  profilePicture?: string;
+  section?: string;
+  grade?: string;
+  matric_no?: string;
+}
+
+export interface AddTeacherInput {
+  firstName: string;
+  lastName: string;
+  email: string;
+  password: string;
+  role: string;
+  section?: string;
+  grade?: string;
+  matric_no?: string;
+}
+
+export interface AddTeacherResult {
+  teacher: Teacher;
+}
+
+export interface GetTeachersResult {
+  data: {
+    teachers: Teacher[];
+    meta: {
+      total_items: number;
+      total_pages: number;
+      page: number;
+      per_page: number;
+    };
+  };
+}
+
+export interface UpdateTeacherInput {
+  id: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  role?: string;
+  password?: string;
+  section?: string;
+  grade?: string;
+  matric_no?: string;
+}
+
+export interface UpdateTeacherResult {
+  teacher: Teacher;
+}
+
+export interface DeleteTeacherResult {
+  deleted: boolean;
+}
+
+export interface ImportTeachersInput {
+  csvFile: File;
+}
+
+export interface ImportTeachersResult {
+  message: string;
+  imported: number;
+  errors: string[];
+}
+
+// Holiday management interfaces
+export interface Holiday {
+  id: string;
+  date: string;
+  name: string;
+  type: string;
+  created_at: string;
+}
+
+export interface AddHolidayInput {
+  date: string;
+  name: string;
+  type?: string;
+}
+
+export interface UpdateHolidayInput {
+  date?: string;
+  name?: string;
+  type?: string;
+}
+
+export interface GetHolidaysResult {
+  data: {
+    holidays: Holiday[];
+  };
+}
+
+export interface AddHolidayResult {
+  data: {
+    holiday: Holiday;
+  };
+}
+
+export interface UpdateHolidayResult {
+  data: {
+    holiday: Holiday;
+  };
+}
+
+export interface DeleteHolidayResult {
+  data: {
+    deleted: boolean;
   };
 }

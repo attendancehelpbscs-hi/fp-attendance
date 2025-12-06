@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { loginStaff, logoutStaff, refreshStaffToken, forgotPassword, resetPassword, fingerprintLogin } from '../controllers/auth.controller';
+import { loginStaff, logoutStaff, refreshStaffToken, forgotPassword, resetPassword, fingerprintLogin, loginTeacher, registerTeacher } from '../controllers/auth.controller';
 import joiValidate from '../middlewares/joi.middleware';
-import { loginStaffSchema, logoutStaffSchema, refreshStaffTokenSchema, forgotPasswordSchema, resetPasswordSchema } from '../joi/auth.joi';
+import { loginStaffSchema, logoutStaffSchema, refreshStaffTokenSchema, forgotPasswordSchema, resetPasswordSchema, registerTeacherSchema } from '../joi/auth.joi';
 
 const authRoute = Router();
 
@@ -11,6 +11,13 @@ const authRoute = Router();
 @access 		Public
 */
 authRoute.post('/auth/staff/login', joiValidate(loginStaffSchema), loginStaff);
+
+/*
+@route 			POST /api/teachers/login (login teacher)
+@description 	authenticate teacher.
+@access 		Public
+*/
+authRoute.post('/teachers/login', joiValidate(loginStaffSchema), loginTeacher);
 
 /*
 @route 			POST /api/auth/login (logout staff)
@@ -46,5 +53,12 @@ authRoute.post('/auth/staff/reset-password', joiValidate(resetPasswordSchema), r
 @access 		Public
 */
 authRoute.post('/auth/staff/fingerprint-login', fingerprintLogin);
+
+/*
+@route 			POST /api/teachers/register (register teacher)
+@description 	register a new teacher account
+@access 		Public
+*/
+authRoute.post('/teachers/register', joiValidate(registerTeacherSchema), registerTeacher);
 
 export default authRoute;

@@ -1,30 +1,23 @@
-import createError from 'http-errors';
+import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { Response, NextFunction } from 'express';
+import createError from 'http-errors';
 import constants from '../config/constants.config';
-import { AuthReq } from '../interfaces/middleware.interface';
+import { JwtPayload } from '../@types/jwt';
 
-const auth = (req: AuthReq, _: Response, next: NextFunction): void => {
-  // get the token from the request header
-  const bearerToken = req.header('Authorization');
-
-  // check if token is available
-  if (!bearerToken) return next(createError(401, 'No token, authorisation denied.'));
-
-  const bearer = bearerToken.split(' ')[0];
-  const token = bearerToken.split(' ')[1];
-
-  if (bearer.trim() !== 'Bearer' || !token) return next();
-
+const auth = (req: Request, res: Response, next: NextFunction) => {
   try {
-    //if there is a token, then verify
-    const decoded = jwt.verify(token, constants.accessTokenSecret);
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return next(createError(401, 'No token provided'));
+    }
 
-    //add the user from payload
+    const token = authHeader.substring(7);
+    const decoded = jwt.verify(token, constants.accessTokenSecret) as JwtPayload;
+
     req.user = decoded;
     next();
-  } catch (e) {
-    return next(createError(401, 'Token is not valid'));
+  } catch (error) {
+    return next(createError(401, 'Invalid token'));
   }
 };
 

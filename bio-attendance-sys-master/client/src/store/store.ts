@@ -21,29 +21,48 @@ const useStoreBase = create<State>()(
         decrement: () => set((state) => ({ count: state.count - 1 })),
         loginStaff: ({ accessToken, refreshToken, staff }) => {
           console.log('🔍 loginStaff called with:', { accessToken, refreshToken, staff });
-          set(() => ({
+          
+          const newState = {
             staffInfo: staff,
             tokens: { accessToken, refreshToken },
             isAuthenticated: true
-          }));
-          console.log('🔍 State after set:', {
-            isAuthenticated: useStoreBase.getState().isAuthenticated,
-            tokens: useStoreBase.getState().tokens,
-          });
+          };
+          
+          set(newState);
+          
+          // Force persist to localStorage immediately
+          setTimeout(() => {
+            const persisted = localStorage.getItem('bas-persist');
+            console.log('🔍 Persisted state after login:', persisted);
+          }, 100);
         },
         updateStaffProfile: (profileData: Partial<StaffInfo>) => {
           set((state) => ({
             staffInfo: state.staffInfo ? { ...state.staffInfo, ...profileData } : null
           }));
         },
-        logoutStaff: () => set({ isAuthenticated: false, tokens: null, staffInfo: null, staffSettings: null }),
-        logout: () => set({ isAuthenticated: false, tokens: null, staffInfo: null, staffSettings: null }),
+        logoutStaff: () => {
+           set({ isAuthenticated: false, tokens: null, staffInfo: null });
+         },
+         logout: () => {
+           set({ isAuthenticated: false, tokens: null, staffInfo: null });
+         },
         setStaffSettings: (settings) => set({ staffSettings: settings }),
       }),
       {
         name: 'bas-persist',
         partialize: (state) =>
-          Object.fromEntries(Object.entries(state).filter(([key]: Array<keyof State>) => whiteList.includes(key))),
+          Object.fromEntries(
+            Object.entries(state).filter(([key]) => whiteList.includes(key as keyof State))
+          ),
+        // Add this to debug persistence
+        onRehydrateStorage: () => (state, error) => {
+          if (error) {
+            console.error('🔴 Failed to rehydrate storage:', error);
+          } else {
+            console.log('✅ Rehydrated state:', state);
+          }
+        },
       },
     ),
   ),

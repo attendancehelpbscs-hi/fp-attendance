@@ -1,4 +1,20 @@
-import type { Request, Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from 'express';
+
+// Extend Express Request type
+declare module 'express-serve-static-core' {
+  interface Request {
+    user?: {
+      id: string;
+      email: string;
+      role: string;
+    };
+    staff?: {
+      id?: string;
+      [key: string]: any;
+    };
+  }
+}
+
 import createError from 'http-errors';
 import { getAuditLogs, createAuditLog } from '../services/audit.service';
 import { createSuccess } from '../helpers/http.helper';

@@ -2,15 +2,20 @@ import type { FC } from 'react';
 import { Card, CardHeader, Heading, Flex, Button, Grid, GridItem, Stat, StatLabel, StatNumber, StatHelpText, StatArrow, Alert, AlertIcon, AlertTitle, AlertDescription, Box, Text, Badge, List, ListItem, ListIcon, CircularProgress, CircularProgressLabel, Icon, Modal, ModalOverlay, ModalContent, ModalHeader, ModalFooter, ModalBody, ModalCloseButton, Table, Thead, Tbody, Tr, Th, Td, TableContainer, HStack, Select } from '@chakra-ui/react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useState, useEffect, useMemo } from 'react';
+import type { ElementType } from 'react';
 import { fingerprintControl } from '../lib/fingerprint';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { FaUsers, FaCheck } from 'react-icons/fa6';
 import { FaHistory } from 'react-icons/fa';
 import { MdCancel } from 'react-icons/md';
-
 import { useGetDashboardStats, useGetReports } from '../api/atttendance.api';
 import { getAuditLogs } from '../api/audit.api';
 import useStore from '../store/store';
+
+const FaUsersIcon = FaUsers as ElementType;
+const FaCheckIcon = FaCheck as ElementType;
+const MdCancelIcon = MdCancel as ElementType;
+const FaHistoryIcon = FaHistory as ElementType;
 
 const Home: FC = () => {
   const navigate = useNavigate();
@@ -86,11 +91,17 @@ const Home: FC = () => {
         dateGroups[key].absent += report.absent;
       });
 
-      // Get last 7 days, filtered by selected session
-      const last7Days = [];
-      for (let i = 6; i >= 0; i--) {
-        const date = new Date();
-        date.setDate(date.getDate() - i);
+      // Get current week (Monday to Sunday), filtered by selected session
+      const today = new Date();
+      const currentDay = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
+      const mondayOffset = currentDay === 0 ? -6 : 1 - currentDay; // Adjust to get Monday
+      const monday = new Date(today);
+      monday.setDate(today.getDate() + mondayOffset);
+
+      const weekDays = [];
+      for (let i = 0; i < 7; i++) {
+        const date = new Date(monday);
+        date.setDate(monday.getDate() + i);
         const dateKey = date.toISOString().split('T')[0];
         const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
 
@@ -114,30 +125,38 @@ const Home: FC = () => {
           absent = group ? group.absent : 0;
         }
 
-        last7Days.push({
+        weekDays.push({
           day: dayName,
+          date: dateKey,
           Present: present,
           Absent: absent,
         });
       }
 
-      // Sort by weekday order: Mon, Tue, Wed, Thu, Fri, Sat, Sun
-      const dayOrder = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-      last7Days.sort((a, b) => dayOrder.indexOf(a.day) - dayOrder.indexOf(b.day));
-
-      return last7Days;
+      return weekDays;
     }
 
     // Fallback to mock data
-    return [
-      { day: 'Mon', Present: 210, Absent: 44 },
-      { day: 'Tue', Present: 205, Absent: 49 },
-      { day: 'Wed', Present: 220, Absent: 34 },
-      { day: 'Thu', Present: 215, Absent: 39 },
-      { day: 'Fri', Present: 200, Absent: 54 },
-      { day: 'Sat', Present: 180, Absent: 74 },
-      { day: 'Sun', Present: 150, Absent: 104 },
-    ];
+    const today = new Date();
+    const currentDay = today.getDay();
+    const mondayOffset = currentDay === 0 ? -6 : 1 - currentDay;
+    const monday = new Date(today);
+    monday.setDate(today.getDate() + mondayOffset);
+
+    const mockData = [];
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(monday);
+      date.setDate(monday.getDate() + i);
+      const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
+      const dateKey = date.toISOString().split('T')[0];
+      mockData.push({
+        day: dayName,
+        date: dateKey,
+        Present: Math.floor(Math.random() * 50) + 150,
+        Absent: Math.floor(Math.random() * 50) + 20,
+      });
+    }
+    return mockData;
   }, [reportsData, selectedSession]);
 
 
@@ -269,7 +288,7 @@ const Home: FC = () => {
               <Card bg="gray.50" p={4} borderRadius="md" boxShadow="md">
                 <Stat>
                   <StatLabel display="flex" alignItems="center">
-                    <Icon as={FaUsers} mr={2} color="gray.600" />
+                    <Icon as={FaUsersIcon} mr={2} color="gray.600" />
                     Total Students
                   </StatLabel>
                   <StatNumber fontSize="3xl" color="gray.800">{stats.totalStudents}</StatNumber>
@@ -278,7 +297,7 @@ const Home: FC = () => {
               <Card bg="blue.50" p={4} borderRadius="md" boxShadow="md">
                 <Stat>
                   <StatLabel display="flex" alignItems="center">
-                    <Icon as={FaCheck} mr={2} color="blue.500" />
+                    <Icon as={FaCheckIcon} mr={2} color="blue.500" />
                     Present Today
                   </StatLabel>
                   <StatNumber fontSize="3xl" color="blue.600">{stats.presentToday}</StatNumber>
@@ -287,7 +306,7 @@ const Home: FC = () => {
               <Card bg="red.50" p={4} borderRadius="md" boxShadow="md">
                 <Stat>
                   <StatLabel display="flex" alignItems="center">
-                    <Icon as={MdCancel} mr={2} color="red.500" />
+                    <Icon as={MdCancelIcon} mr={2} color="red.500" />
                     Absent Today
                   </StatLabel>
                   <StatNumber fontSize="3xl" color="red.600">{absentToday}</StatNumber>
@@ -357,7 +376,7 @@ const Home: FC = () => {
                           p={3}
                           backdropFilter="blur(10px)"
                         >
-                          <Icon as={FaUsers} color="white" boxSize={6} />
+                          <Icon as={FaUsersIcon} color="white" boxSize={6} />
                         </Box>
                         <Box textAlign="center" mt="60px">
                           <Text fontSize="lg" fontWeight="bold" color="white" mb={1}>
@@ -383,15 +402,20 @@ const Home: FC = () => {
               <Box>
                 <Text fontWeight="bold" marginBottom="1rem" textAlign="center">Daily Present vs. Absent Trend (Last 7 Days)</Text>
                 <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={dailyTrendData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="day" />
-                      <YAxis domain={[0, 50]} ticks={[50, 40, 30, 20, 10, 0]} tickFormatter={(value) => Math.round(value).toString()} />
-                    <Tooltip />
-                    <Bar dataKey="Present" fill="#3182CE" />
-                    <Bar dataKey="Absent" fill="#E53E3E" />
-                  </BarChart>
-                </ResponsiveContainer>
+                   <BarChart data={dailyTrendData}>
+                     <CartesianGrid strokeDasharray="3 3" />
+                     <XAxis dataKey="day" angle={-45} textAnchor="end" height={60} />
+                       <YAxis domain={[0, 50]} ticks={[50, 40, 30, 20, 10, 0]} tickFormatter={(value) => Math.round(value).toString()} />
+                     <Tooltip labelFormatter={(label, payload) => {
+                       if (payload && payload[0]) {
+                         return payload[0].payload.date;
+                       }
+                       return label;
+                     }} />
+                     <Bar dataKey="Present" fill="#3182CE" />
+                     <Bar dataKey="Absent" fill="#E53E3E" />
+                   </BarChart>
+                 </ResponsiveContainer>
               </Box>
 
               {/* Today's Attendance Rate Gauge */}
@@ -418,7 +442,7 @@ const Home: FC = () => {
         </CardHeader>
         <Flex flexDirection={{ base: 'column', md: 'row' }} gap="1rem" padding="1rem" justifyContent="center" flexWrap="wrap">
           <Button bg="var(--bg-primary)" color="white" _hover={{ background: 'var(--bg-primary-light)' }} minW="160px">
-            <Link to="/staff/manage/attendance" className="login-link">
+            <Link to="/staff/manage/attendance/kiosk" className="login-link">
               Mark Attendance
             </Link>
           </Button>
@@ -437,7 +461,7 @@ const Home: FC = () => {
               bg="var(--bg-primary)"
               color="white"
               _hover={{ background: 'var(--bg-primary-light)' }}
-              leftIcon={<FaHistory />}
+              leftIcon={<Icon as={FaHistoryIcon} color="white" />}
               minW="160px"
               onClick={() => {
                 setIsActivityLogsOpen(true);
@@ -447,11 +471,6 @@ const Home: FC = () => {
               Activity Logs
             </Button>
           )}
-          <Button bg="var(--bg-primary)" color="white" _hover={{ background: 'var(--bg-primary-light)' }} minW="160px">
-            <Link to="/staff/login" className="login-link">
-              Staff Login
-            </Link>
-          </Button>
         </Flex>
       </Card>
 

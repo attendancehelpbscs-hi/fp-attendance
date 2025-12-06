@@ -14,8 +14,9 @@ export interface RegisterReturn {
     id: string;
     firstName: string;
     lastName: string;
-    name: string; // Keep for backward compatibility
+    name: string;
     email: string;
+    role: string;
     created_at: Date;
     profilePicture?: string;
   };

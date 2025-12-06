@@ -1,12 +1,25 @@
 import { Request, Response, NextFunction } from 'express';
+
+// Extend Express Request type
+declare module 'express-serve-static-core' {
+  interface Request {
+    user?: {
+      id: string;
+      email: string;
+      role: string;
+    };
+  }
+}
+
 import createError from 'http-errors';
 import { addStaffToDb, updateStaffSettings, getStaffSettings, backupData, updateStaffProfile } from '../services/staff.service';
 import { clearAuditLogs } from '../services/audit.service';
 import { createSuccess } from '../helpers/http.helper';
-import type { JwtPayload } from 'jsonwebtoken';
+import { JwtPayload } from '../@types/jwt';
 import * as path from 'path';
 import { prisma } from '../db/prisma-client';
 import { handleFingerprintData } from '../helpers/fingerprint-security.helper';
+
 
 // Helper function to clean and validate base64 fingerprint data
 function cleanAndValidateFingerprint(fingerprint: string): string | null {
@@ -60,7 +73,7 @@ function cleanAndValidateFingerprint(fingerprint: string): string | null {
 }
 
 export const updateSettings = async (req: Request, res: Response, next: NextFunction) => {
-  const { grace_period_minutes, school_start_time, late_threshold_hours } = req.body;
+  const { grace_period_minutes, school_start_time, late_threshold_hours, pm_late_cutoff_enabled, pm_late_cutoff_time } = req.body;
   const user_id = (req.user as JwtPayload).id;
 
   try {
@@ -68,12 +81,16 @@ export const updateSettings = async (req: Request, res: Response, next: NextFunc
       grace_period_minutes,
       school_start_time,
       late_threshold_hours,
+      pm_late_cutoff_enabled,
+      pm_late_cutoff_time,
     });
     return createSuccess(res, 200, 'Settings updated successfully', {
       settings: {
         grace_period_minutes: updatedStaff.grace_period_minutes,
         school_start_time: updatedStaff.school_start_time,
         late_threshold_hours: updatedStaff.late_threshold_hours,
+        pm_late_cutoff_enabled: updatedStaff.pm_late_cutoff_enabled,
+        pm_late_cutoff_time: updatedStaff.pm_late_cutoff_time,
       },
     });
   } catch (err) {

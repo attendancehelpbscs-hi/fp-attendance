@@ -36,7 +36,7 @@ export const addStaffToDb = async (newStaff: NewStaff): Promise<RegisterReturn |
       const savedStaff = await prisma.staff.create({
         data: newStaff,
       });
-      const { id, firstName, lastName, name, email, created_at, profilePicture } = savedStaff;
+      const { id, firstName, lastName, name, email, role, created_at, profilePicture } = savedStaff;
 
       const accessToken = await signAccessToken({ id });
       const refreshToken = await signRefreshToken({ id });
@@ -51,6 +51,7 @@ export const addStaffToDb = async (newStaff: NewStaff): Promise<RegisterReturn |
             lastName,
             name,
             email,
+            role,
             created_at,
           profilePicture: profilePicture || undefined,
           },
@@ -62,7 +63,7 @@ export const addStaffToDb = async (newStaff: NewStaff): Promise<RegisterReturn |
   }
 };
 
-export const updateStaffSettings = (staffId: string, settings: Partial<Pick<Staff, 'grace_period_minutes' | 'school_start_time' | 'late_threshold_hours'>>): Promise<Staff> => {
+export const updateStaffSettings = (staffId: string, settings: Partial<Pick<Staff, 'grace_period_minutes' | 'school_start_time' | 'late_threshold_hours' | 'pm_late_cutoff_enabled' | 'pm_late_cutoff_time'>>): Promise<Staff> => {
   return new Promise<Staff>(async (resolve, reject) => {
     try {
       const updatedStaff = await prisma.staff.update({
@@ -78,8 +79,8 @@ export const updateStaffSettings = (staffId: string, settings: Partial<Pick<Staf
   });
 };
 
-export const getStaffSettings = (staffId: string): Promise<Pick<Staff, 'grace_period_minutes' | 'school_start_time' | 'late_threshold_hours'>> => {
-  return new Promise<Pick<Staff, 'grace_period_minutes' | 'school_start_time' | 'late_threshold_hours'>>(async (resolve, reject) => {
+export const getStaffSettings = (staffId: string): Promise<Pick<Staff, 'grace_period_minutes' | 'school_start_time' | 'late_threshold_hours' | 'pm_late_cutoff_enabled' | 'pm_late_cutoff_time'>> => {
+  return new Promise<Pick<Staff, 'grace_period_minutes' | 'school_start_time' | 'late_threshold_hours' | 'pm_late_cutoff_enabled' | 'pm_late_cutoff_time'>>(async (resolve, reject) => {
     try {
       const staff = await prisma.staff.findUnique({
         where: {
@@ -89,6 +90,8 @@ export const getStaffSettings = (staffId: string): Promise<Pick<Staff, 'grace_pe
           grace_period_minutes: true,
           school_start_time: true,
           late_threshold_hours: true,
+          pm_late_cutoff_enabled: true,
+          pm_late_cutoff_time: true,
         },
       });
       if (!staff) throw new createError.NotFound('Staff not found');

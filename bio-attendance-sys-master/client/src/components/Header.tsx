@@ -17,6 +17,9 @@ const Header = () => {
   // Don't show navigation on login/register pages
   const hideNav = ['/staff/login', '/staff/register'].includes(location.pathname);
 
+  // Hide the header logo on login page
+  const hideLogo = location.pathname === '/staff/login';
+
   const handleLogout = async () => {
     try {
       // Call the logout API to log the event
@@ -57,7 +60,7 @@ const Header = () => {
           </Link>
           <div className="logo-section">
             <h1>Fingerprint-Based Attendance Monitoring System</h1>
-            <p>Bula South Central Elementary School</p>
+            <p>Bula South Central School</p>
           </div>
         </div>
         {isAuthenticated && !hideNav && (
@@ -84,15 +87,21 @@ const Header = () => {
               </Link>
             </li>
             <li className="nav-item">
-              <Menu>
-                <MenuButton as={Button} bg="transparent" color="gray.400" _hover={{ background: 'rgba(255, 255, 255, 0.1)' }} p={2} rightIcon={<ChevronDown />} className={`nav-link ${location.pathname.startsWith('/staff/manage/students') || location.pathname.startsWith('/staff/manage/courses') ? 'active' : ''}`}>
+              {staffInfo?.role === 'ADMIN' ? (
+                <Menu>
+                  <MenuButton as={Button} bg="transparent" color="gray.400" _hover={{ background: 'rgba(255, 255, 255, 0.1)' }} p={2} rightIcon={<ChevronDown />} className={`nav-link ${location.pathname.startsWith('/staff/manage/students') || location.pathname.startsWith('/staff/manage/teachers') ? 'active' : ''}`}>
+                    <Users className="nav-icon" /> Management
+                  </MenuButton>
+                  <MenuList>
+                    <MenuItem as={Link} to="/staff/manage/students" color="black" py={3}>Students List</MenuItem>
+                    <MenuItem as={Link} to="/staff/manage/teachers" color="black" py={3}>Teachers Management</MenuItem>
+                  </MenuList>
+                </Menu>
+              ) : (
+                <Link to="/staff/manage/students" className={`nav-link ${location.pathname.startsWith('/staff/manage/students') ? 'active' : ''}`}>
                   <Users className="nav-icon" /> Management
-                </MenuButton>
-                <MenuList>
-                  <MenuItem as={Link} to="/staff/manage/courses" color="black" py={3}>Section Management</MenuItem>
-                  <MenuItem as={Link} to="/staff/manage/students" color="black" py={3}>Students List</MenuItem>
-                </MenuList>
-              </Menu>
+                </Link>
+              )}
             </li>
             <li className="nav-item">
               <Link to="/staff/fingerprint-enrollment" className={`nav-link ${location.pathname === '/staff/fingerprint-enrollment' ? 'active' : ''}`}>

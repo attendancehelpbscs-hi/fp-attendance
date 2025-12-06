@@ -110,12 +110,18 @@ const ManageCourses: FC = () => {
     onBulkDeleteClose();
   };
 
-  // Filter courses based on search term
-  const filteredCourses = data?.data?.courses?.filter((course: Course) =>
-    course.course_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    course.course_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (course.matric_no && course.matric_no.toLowerCase().includes(searchTerm.toLowerCase()))
-  ) || [];
+  // Filter courses based on search term and user role
+  const filteredCourses = data?.data?.courses?.filter((course: Course) => {
+    // For teachers, only show their own courses
+    if (staffInfo?.role === 'TEACHER' && course.staff_id !== staffInfo.id) {
+      return false;
+    }
+
+    // Apply search filter
+    return course.course_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+           course.course_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+           (course.matric_no && course.matric_no.toLowerCase().includes(searchTerm.toLowerCase()));
+  }) || [];
 
   return (
     <WithStaffLayout>
@@ -124,7 +130,7 @@ const ManageCourses: FC = () => {
           Manage Section
         </Heading>
         <Flex gap={4}>
-          {selectedCourses.length > 0 && (
+          {selectedCourses.length > 0 && staffInfo?.role !== 'TEACHER' && (
             <Button
               bg="red.500"
               color="white"
@@ -134,15 +140,17 @@ const ManageCourses: FC = () => {
               Delete Selected ({selectedCourses.length})
             </Button>
           )}
-          <Button
-            bg="var(--bg-primary)"
-            color="white"
-            _hover={{ background: 'var(--bg-primary-light)' }}
-            leftIcon={<ListPlus />}
-            onClick={() => setDrawerOpen(true)}
-          >
-            Add New Section
-          </Button>
+          {staffInfo?.role !== 'TEACHER' && (
+            <Button
+              bg="var(--bg-primary)"
+              color="white"
+              _hover={{ background: 'var(--bg-primary-light)' }}
+              leftIcon={<ListPlus />}
+              onClick={() => setDrawerOpen(true)}
+            >
+              Add New Section
+            </Button>
+          )}
         </Flex>
       </Flex>
 
@@ -174,13 +182,15 @@ const ManageCourses: FC = () => {
             <TableCaption>All Courses</TableCaption>
             <Thead>
               <Tr>
-                <Th>
-                  <Checkbox
-                    isChecked={selectedCourses.length === filteredCourses.length && filteredCourses.length > 0}
-                    isIndeterminate={selectedCourses.length > 0 && selectedCourses.length < filteredCourses.length}
-                    onChange={(e) => handleSelectAll(e.target.checked)}
-                  />
-                </Th>
+                {staffInfo?.role !== 'TEACHER' && (
+                  <Th>
+                    <Checkbox
+                      isChecked={selectedCourses.length === filteredCourses.length && filteredCourses.length > 0}
+                      isIndeterminate={selectedCourses.length > 0 && selectedCourses.length < filteredCourses.length}
+                      onChange={(e) => handleSelectAll(e.target.checked)}
+                    />
+                  </Th>
+                )}
                 <Th>Teacher Name</Th>
                 <Th>Teacher ID</Th>
                 <Th>Section</Th>
@@ -190,12 +200,14 @@ const ManageCourses: FC = () => {
             <Tbody>
               {filteredCourses.map((course: Course, idx: number) => (
                 <Tr key={idx}>
-                  <Td>
-                    <Checkbox
-                      isChecked={selectedCourses.includes(course.id)}
-                      onChange={(e) => handleSelectCourse(course.id, e.target.checked)}
-                    />
-                  </Td>
+                  {staffInfo?.role !== 'TEACHER' && (
+                    <Td>
+                      <Checkbox
+                        isChecked={selectedCourses.includes(course.id)}
+                        onChange={(e) => handleSelectCourse(course.id, e.target.checked)}
+                      />
+                    </Td>
+                  )}
                   <Td>{course.course_name}</Td>
                   <Td>{course.matric_no || 'N/A'}</Td>
                   <Td>{course.course_code}</Td>
@@ -212,25 +224,29 @@ const ManageCourses: FC = () => {
                         }}
                         icon={<List size={20} />}
                       />
-                      <IconButton
-                        bg="transparent"
-                        _hover={{ color: 'white', background: 'var(--bg-primary)' }}
-                        color="var(--bg-primary)"
-                        aria-label="Edit course"
-                        onClick={() => setActiveCourse(course)}
-                        icon={<EditIcon />}
-                      />
-                      <IconButton
-                        bg="white"
-                        color="#d10d0d"
-                        _hover={{ color: 'white', background: '#d10d0d' }}
-                        aria-label="Delete course"
-                        onClick={() => {
-                          setCourseToDelete(course);
-                          onOpen();
-                        }}
-                        icon={<DeleteIcon />}
-                      />
+                      {staffInfo?.role !== 'TEACHER' && (
+                        <IconButton
+                          bg="transparent"
+                          _hover={{ color: 'white', background: 'var(--bg-primary)' }}
+                          color="var(--bg-primary)"
+                          aria-label="Edit course"
+                          onClick={() => setActiveCourse(course)}
+                          icon={<EditIcon />}
+                        />
+                      )}
+                      {staffInfo?.role !== 'TEACHER' && (
+                        <IconButton
+                          bg="white"
+                          color="#d10d0d"
+                          _hover={{ color: 'white', background: '#d10d0d' }}
+                          aria-label="Delete course"
+                          onClick={() => {
+                            setCourseToDelete(course);
+                            onOpen();
+                          }}
+                          icon={<DeleteIcon />}
+                        />
+                      )}
                     </Flex>
                   </Td>
                 </Tr>

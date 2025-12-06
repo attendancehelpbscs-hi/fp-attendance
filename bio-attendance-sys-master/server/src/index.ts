@@ -1,4 +1,3 @@
-/// <reference path="./types/express.d.ts" />
 import { createServer } from 'http';
 import express from 'express';
 import type { Application, Request, Response /*, NextFunction */ } from 'express';
@@ -14,6 +13,7 @@ import appCors from './config/cors.config';
 import { prisma } from './db/prisma-client';
 import constants from './config/constants.config';
 import errorHandler from './middlewares/error.middleware';
+import { markDailyAbsentsForAllStaff, markAbsentForUnmarkedDays } from './services/attendance.service';
 // import auth from './middlewares/auth.middleware';
 // Routes import
 import authRoute from './routes/auth.route';
@@ -24,6 +24,9 @@ import attendanceRoute from './routes/attendance.route';
 import auditRoute from './routes/audit.route';
 import reportsRoute from './routes/reports.route';
 import healthRoute from './routes/health.route';
+import teacherRoute from './routes/teacher.route';
+import importRoute from './routes/import.route';
+import holidayRoute from './routes/holiday.route';
 import cron from 'node-cron';
 
 config();
@@ -99,8 +102,11 @@ config();
   app.use(constants.apiBase, studentRoute);
   app.use(constants.apiBase, attendanceRoute);
   app.use(constants.apiBase, auditRoute);
+  app.use(constants.apiBase, teacherRoute);
+  app.use(constants.apiBase, importRoute);
   app.use(`${constants.apiBase}/reports`, reportsRoute);
   app.use(`${constants.apiBase}/health`, healthRoute);
+  app.use(`${constants.apiBase}/holidays`, holidayRoute);
 
   const httpServer = createServer(app);
 
@@ -129,5 +135,38 @@ config();
   await new Promise<void>((resolve) => httpServer.listen({ port: envConfig.port }, resolve));
   console.log(`🚀 HTTP Server ready at http://localhost:${envConfig.port}`);
 
-  // Daily absent marking cron job removed - now handled on student enrollment
+  // Run absent marking for yesterday and today on server start
+  (async () => {
+    try {
+      console.log('Running initial absent marking for yesterday...');
+      await markDailyAbsentsForAllStaff();
+
+      // Also mark absents for today
+      console.log('Running initial absent marking for today...');
+      const today = new Date().toISOString().split('T')[0];
+      const staffMembers = await prisma.staff.findMany({ select: { id: true } });
+      for (const staff of staffMembers) {
+        try {
+          await markAbsentForUnmarkedDays(staff.id, today);
+        } catch (error) {
+          console.error(`Error marking absents for today for staff ${staff.id}:`, error);
+        }
+      }
+
+      console.log('Initial absent marking completed successfully');
+    } catch (error) {
+      console.error('Error in initial absent marking:', error);
+    }
+  })();
+
+  // Daily absent marking cron job - runs every day at midnight
+  cron.schedule('0 0 * * *', async () => {
+    console.log('Running daily absent marking job...');
+    try {
+      await markDailyAbsentsForAllStaff();
+      console.log('Daily absent marking completed successfully');
+    } catch (error) {
+      console.error('Error in daily absent marking job:', error);
+    }
+  });
 })();

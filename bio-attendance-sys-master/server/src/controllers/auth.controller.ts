@@ -4,6 +4,8 @@ import { delRefreshToken, getNewTokens, getStaffFromDb } from '../services/auth.
 import { createSuccess } from '../helpers/http.helper';
 import { sendPasswordResetEmail, sendPasswordChangeNotification } from '../helpers/email.helper';
 import { signAccessToken, signRefreshToken } from '../helpers/jwt.helper';
+import { hashPassword } from '../helpers/password.helper';
+import { sendTeacherWelcomeEmail } from '../helpers/email.helper';
 import jwt from 'jsonwebtoken';
 import { envConfig } from '../config/environment.config';
 import constants from '../config/constants.config';
@@ -150,6 +152,130 @@ function cleanBase64(base64String: string): string | null {
   }
 }
 
+export const loginTeacher = async (req: Request, res: Response, next: NextFunction) => {
+  const { email, password } = req.body;
+
+  //check if all input fields have value
+  if (!email || !password) {
+    return next(createError(400, 'Please, enter all fields'));
+  }
+
+  try {
+    const loggedInTeacher = await getStaffFromDb(email, password);
+    if (loggedInTeacher && loggedInTeacher.staff.role === 'TEACHER') {
+      return createSuccess(res, 200, 'Teacher logged in successfully', loggedInTeacher);
+    } else if (loggedInTeacher) {
+      return next(createError(403, 'Access denied. Not a teacher account.'));
+    }
+  } catch (err) {
+    return next(err);
+  }
+};
+
+export const registerTeacher = async (req: Request, res: Response, next: NextFunction) => {
+  const { firstName, lastName, email, password, section, employeeId, grade } = req.body;
+
+  // Validate input
+  if (!firstName || !lastName || !email || !password) {
+    return next(createError(400, 'All fields are required'));
+  }
+
+  try {
+    // Check if teacher already exists
+    const existingTeacher = await prisma.staff.findUnique({
+      where: { email }
+    });
+
+    if (existingTeacher) {
+      return next(createError(409, 'A user with this email already exists'));
+    }
+
+    // Check if employeeId (Teacher ID) already exists
+    if (employeeId) {
+      const existingMatric = await prisma.course.findFirst({
+        where: { matric_no: employeeId }
+      });
+
+      if (existingMatric) {
+        return next(createError(409, 'Teacher ID already exists'));
+      }
+    }
+
+    // Check if section already exists
+    if (section) {
+      const existingSection = await prisma.course.findFirst({
+        where: { course_code: section }
+      });
+
+      if (existingSection) {
+        return next(createError(409, 'Section already exists'));
+      }
+    }
+
+    // Hash the password
+    const hashedPassword = await hashPassword(password);
+
+    // Create the teacher
+    const teacherName = `${firstName} ${lastName}`;
+    const newTeacher = await prisma.staff.create({
+      data: {
+        firstName,
+        lastName,
+        name: teacherName,
+        email,
+        password: hashedPassword,
+        role: 'TEACHER',
+        created_at: new Date()
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        name: true,
+        email: true,
+        role: true,
+        created_at: true
+      }
+    });
+
+    // If section details are provided, create a course for the teacher
+    let course = null;
+    if (section && grade) {
+      try {
+        course = await prisma.course.create({
+          data: {
+            staff_id: newTeacher.id,
+            course_name: teacherName,
+            course_code: section,
+            grade: grade,
+            matric_no: employeeId || null,
+            created_at: new Date()
+          },
+          select: {
+            id: true,
+            course_name: true,
+            course_code: true,
+            grade: true,
+            matric_no: true
+          }
+        });
+      } catch (courseErr) {
+        // If course creation fails, log but don't fail the teacher creation
+        console.error('Failed to create course for teacher:', courseErr);
+      }
+    }
+
+    // Send welcome email (don't await to not delay response)
+    sendTeacherWelcomeEmail(email, teacherName).catch(err => {
+      console.error('Failed to send welcome email:', err);
+    });
+
+    return createSuccess(res, 201, 'Teacher account created successfully', { teacher: newTeacher, course });
+  } catch (err) {
+    return next(err);
+  }
+};
+
 export const fingerprintLogin = async (req: Request, res: Response, next: NextFunction) => {
   const { fingerprint } = req.body;
 
@@ -288,18 +414,45 @@ export const fingerprintLogin = async (req: Request, res: Response, next: NextFu
 
     console.log('Audit log created, sending success response');
 
+    // Get staff with courses for grade/section info
+    const staffWithCourses = await prisma.staff.findUnique({
+      where: { id: staff.id },
+      include: {
+        courses: {
+          select: {
+            course_code: true,
+            grade: true,
+            matric_no: true
+          },
+          take: 1,
+          orderBy: {
+            created_at: 'desc'
+          }
+        }
+      }
+    });
+
+    const staffResponse: any = {
+      id: staff.id,
+      firstName: staff.firstName,
+      lastName: staff.lastName,
+      name: staff.name,
+      email: staff.email,
+      role: staff.role,
+      created_at: staff.created_at,
+      profilePicture: staff.profilePicture,
+    };
+
+    if (staff.role === 'TEACHER' && staffWithCourses?.courses && staffWithCourses.courses.length > 0) {
+      staffResponse.grade = staffWithCourses.courses[0].grade;
+      staffResponse.section = staffWithCourses.courses[0].course_code;
+      staffResponse.matric_no = staffWithCourses.courses[0].matric_no;
+    }
+
     return createSuccess(res, 200, 'Fingerprint login successful', {
       accessToken,
       refreshToken,
-      staff: {
-        id: staff.id,
-        firstName: staff.firstName,
-        lastName: staff.lastName,
-        name: staff.name,
-        email: staff.email,
-        created_at: staff.created_at,
-        profilePicture: staff.profilePicture,
-      },
+      staff: staffResponse,
     });
   } catch (err) {
     console.error('Fingerprint login error:', err);

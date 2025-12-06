@@ -40,9 +40,10 @@ import {
   Checkbox,
 } from '@chakra-ui/react';
 import AddStudent from '../../components/AddStudent';
+import ImportStudentsModal from '../../components/ImportStudentsModal';
 import useStore from '../../store/store';
 import { EditIcon, DeleteIcon, SearchIcon } from '@chakra-ui/icons';
-import { UserPlus, Eye } from 'lucide-react';
+import { UserPlus, Eye, UploadCloud } from 'lucide-react';
 import { useGetStudents, useDeleteStudent } from '../../api/student.api';
 import { useGetStudentReports } from '../../api/atttendance.api';
 import { toast } from 'react-hot-toast';
@@ -60,6 +61,7 @@ const ManageStudents: FC = () => {
   const [gradeFilter, setGradeFilter] = useState<string>('');
   const [sortBy, setSortBy] = useState<string>('name');
   const { isOpen, onOpen, onClose } = useDisclosure();
+  const { isOpen: isImportOpen, onOpen: onImportOpen, onClose: onImportClose } = useDisclosure();
   const [selectedStudentForHistory, setSelectedStudentForHistory] = useState<Student | null>(null);
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
   const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
@@ -98,7 +100,7 @@ const ManageStudents: FC = () => {
       toast.dismiss(toastRef.current);
       toast.success('Student deleted successfully');
     },
-    onError: (err) => {
+    onError: (err: any) => {
       toast.dismiss(toastRef.current);
       toast.error((err.response?.data?.message as string) ?? 'An error occured');
     },
@@ -162,33 +164,54 @@ const ManageStudents: FC = () => {
     onBulkDeleteClose();
   };
 
+  const isAdmin = staffInfo?.role === 'ADMIN';
+
   return (
     <WithStaffLayout>
       <Flex justifyContent="space-between" alignItems="center" marginTop="2rem">
-        <Heading fontSize={25} fontWeight={600}>
-          Manage Students
-        </Heading>
-        <Flex gap={4}>
-          {selectedStudents.length > 0 && (
-            <Button
-              bg="red.500"
-              color="white"
-              _hover={{ background: 'red.600' }}
-              onClick={onBulkDeleteOpen}
-            >
-              Delete Selected ({selectedStudents.length})
-            </Button>
+        <Flex flexDirection="column" gap={2}>
+          <Heading fontSize={25} fontWeight={600}>
+            Manage Students
+          </Heading>
+          {isAdmin && (
+            <Badge colorScheme="blue" fontSize="sm">
+              View Only (Admin Access)
+            </Badge>
           )}
-          <Button
-            bg="var(--bg-primary)"
-            color="white"
-            _hover={{ background: 'var(--bg-primary-light)' }}
-            leftIcon={<UserPlus />}
-            onClick={() => setDrawerOpen(true)}
-          >
-            Add New Student
-          </Button>
         </Flex>
+        {!isAdmin && (
+          <Flex gap={4}>
+            {selectedStudents.length > 0 && (
+              <Button
+                bg="red.500"
+                color="white"
+                _hover={{ background: 'red.600' }}
+                onClick={onBulkDeleteOpen}
+              >
+                Delete Selected ({selectedStudents.length})
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              borderColor="var(--bg-primary)"
+              color="var(--bg-primary)"
+              _hover={{ background: 'var(--bg-primary)', color: 'white' }}
+              leftIcon={<UploadCloud size={16} />}
+              onClick={onImportOpen}
+            >
+              Import Students
+            </Button>
+            <Button
+              bg="var(--bg-primary)"
+              color="white"
+              _hover={{ background: 'var(--bg-primary-light)' }}
+              leftIcon={<UserPlus />}
+              onClick={() => setDrawerOpen(true)}
+            >
+              Add New Student
+            </Button>
+          </Flex>
+        )}
       </Flex>
 
       {/* Filters and Search */}
@@ -231,7 +254,7 @@ const ManageStudents: FC = () => {
         </Box>
       ) : isError ? (
         <Box marginTop="4rem" display="flex" justifyContent="center">
-          <Text>Error: {error?.response?.data?.message}</Text>
+          <Text>Error: {(error as any)?.response?.data?.message}</Text>
         </Box>
       ) : (
         <TableContainer marginTop={10}>
@@ -239,13 +262,15 @@ const ManageStudents: FC = () => {
             <TableCaption>All Students</TableCaption>
             <Thead>
               <Tr>
-                <Th>
-                  <Checkbox
-                    isChecked={selectedStudents.length === filteredStudents.length && filteredStudents.length > 0}
-                    isIndeterminate={selectedStudents.length > 0 && selectedStudents.length < filteredStudents.length}
-                    onChange={(e) => handleSelectAll(e.target.checked)}
-                  />
-                </Th>
+                {!isAdmin && (
+                  <Th>
+                    <Checkbox
+                      isChecked={selectedStudents.length === filteredStudents.length && filteredStudents.length > 0}
+                      isIndeterminate={selectedStudents.length > 0 && selectedStudents.length < filteredStudents.length}
+                      onChange={(e) => handleSelectAll(e.target.checked)}
+                    />
+                  </Th>
+                )}
                 <Th>Name</Th>
                 <Th>ID Number</Th>
                 <Th>Grade</Th>
@@ -256,12 +281,14 @@ const ManageStudents: FC = () => {
             <Tbody>
               {filteredStudents.map((student: StudentType, idx: number) => (
                 <Tr key={idx}>
-                  <Td>
-                    <Checkbox
-                      isChecked={selectedStudents.includes(student.id)}
-                      onChange={(e) => handleSelectStudent(student.id, e.target.checked)}
-                    />
-                  </Td>
+                  {!isAdmin && (
+                    <Td>
+                      <Checkbox
+                        isChecked={selectedStudents.includes(student.id)}
+                        onChange={(e) => handleSelectStudent(student.id, e.target.checked)}
+                      />
+                    </Td>
+                  )}
                   <Td>{student.name}</Td>
                   <Td>{student.matric_no}</Td>
                   <Td>{student.grade}</Td>
@@ -286,27 +313,31 @@ const ManageStudents: FC = () => {
                         }}
                         icon={<Eye size={16} />}
                       />
-                      <IconButton
-                        size="sm"
-                        bg="transparent"
-                        _hover={{ color: 'white', background: 'var(--bg-primary)' }}
-                        color="var(--bg-primary)"
-                        aria-label="Edit student"
-                        onClick={() => setActiveStudent(student)}
-                        icon={<EditIcon />}
-                      />
-                      <IconButton
-                        size="sm"
-                        bg="white"
-                        color="#d10d0d"
-                        _hover={{ color: 'white', background: '#d10d0d' }}
-                        aria-label="Delete student"
-                        onClick={() => {
-                          setStudentToDelete(student);
-                          onDeleteOpen();
-                        }}
-                        icon={<DeleteIcon />}
-                      />
+                      {!isAdmin && (
+                        <>
+                          <IconButton
+                            size="sm"
+                            bg="transparent"
+                            _hover={{ color: 'white', background: 'var(--bg-primary)' }}
+                            color="var(--bg-primary)"
+                            aria-label="Edit student"
+                            onClick={() => setActiveStudent(student)}
+                            icon={<EditIcon />}
+                          />
+                          <IconButton
+                            size="sm"
+                            bg="white"
+                            color="#d10d0d"
+                            _hover={{ color: 'white', background: '#d10d0d' }}
+                            aria-label="Delete student"
+                            onClick={() => {
+                              setStudentToDelete(student);
+                              onDeleteOpen();
+                            }}
+                            icon={<DeleteIcon />}
+                          />
+                        </>
+                      )}
                     </Flex>
                   </Td>
                 </Tr>
@@ -355,6 +386,8 @@ const ManageStudents: FC = () => {
         setActiveStudent={(student) => setActiveStudent(student)}
       />
 
+      <ImportStudentsModal isOpen={isImportOpen} onClose={onImportClose} />
+
       {/* Attendance History Modal */}
       <Modal isOpen={isOpen} onClose={onClose} size="6xl">
         <ModalOverlay />
@@ -395,7 +428,7 @@ const ManageStudents: FC = () => {
                         <Card minW="200px">
                           <CardBody>
                             <Text fontSize="sm" color="gray.600">Present Days</Text>
-                            <Text fontSize="2xl" fontWeight="bold">{studentReportData.data?.reports?.filter(r => r.status === 'present').length ?? 0}</Text>
+                            <Text fontSize="2xl" fontWeight="bold">{studentReportData.data?.reports?.filter(r => r.status === 'present' || r.status === 'late').length ?? 0}</Text>
                           </CardBody>
                         </Card>
                       </Flex>

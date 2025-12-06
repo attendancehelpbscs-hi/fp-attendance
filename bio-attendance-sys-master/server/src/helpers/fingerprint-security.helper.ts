@@ -1,7 +1,11 @@
 import crypto from 'crypto';
 
 // Environment-based encryption key - should be set in production
-const ENCRYPTION_KEY = crypto.scryptSync(process.env.FINGERPRINT_ENCRYPTION_KEY || 'default-dev-key-change-in-production', 'salt', 32);
+const ENCRYPTION_KEY = crypto.scryptSync(
+  process.env.FINGERPRINT_ENCRYPTION_KEY || 'default-dev-key-change-in-production',
+  'salt',
+  32
+);
 const ALGORITHM = 'aes-256-gcm';
 
 /**
@@ -25,8 +29,12 @@ export const encryptFingerprint = (fingerprintData: string): EncryptedFingerprin
     const iv = crypto.randomBytes(16);
 
     // Create cipher using modern API
-    const cipher = crypto.createCipheriv(ALGORITHM, ENCRYPTION_KEY as crypto.CipherKey, iv as crypto.BinaryLike);
-    cipher.setAAD(new Uint8Array(Buffer.from('fingerprint'))); // Additional authenticated data
+    const cipher = crypto.createCipheriv(
+      ALGORITHM,
+      ENCRYPTION_KEY as crypto.CipherKey,
+      iv as crypto.BinaryLike
+    );
+    (cipher as any).setAAD(Buffer.from('fingerprint')); // Additional authenticated data
 
     // Encrypt the data
     let encrypted = cipher.update(fingerprintData, 'utf8', 'base64');
@@ -42,7 +50,7 @@ export const encryptFingerprint = (fingerprintData: string): EncryptedFingerprin
       encryptedData: encrypted,
       iv: iv.toString('base64'),
       tag: tag.toString('base64'),
-      hash
+      hash,
     };
   } catch (error) {
     throw new Error(`Fingerprint encryption failed: ${(error as Error).message}`);
@@ -59,9 +67,13 @@ export const decryptFingerprint = (encryptedFingerprint: EncryptedFingerprint): 
     const { encryptedData, iv, tag, hash } = encryptedFingerprint;
 
     // Create decipher using modern API
-    const decipher = crypto.createDecipheriv(ALGORITHM, ENCRYPTION_KEY as crypto.CipherKey, Buffer.from(iv, 'base64') as crypto.BinaryLike);
-    decipher.setAAD(new Uint8Array(Buffer.from('fingerprint')));
-    decipher.setAuthTag(new Uint8Array(Buffer.from(tag, 'base64')));
+    const decipher = crypto.createDecipheriv(
+      ALGORITHM,
+      ENCRYPTION_KEY as crypto.CipherKey,
+      Buffer.from(iv, 'base64') as crypto.BinaryLike
+    );
+    (decipher as any).setAAD(Buffer.from('fingerprint'));
+    (decipher as any).setAuthTag(Buffer.from(tag, 'base64'));
 
     // Decrypt the data
     let decrypted = decipher.update(encryptedData, 'base64', 'utf8');
@@ -94,7 +106,10 @@ export const generateFingerprintHash = (fingerprintData: string): string => {
  * @param storedHash - Previously stored SHA-256 hash
  * @returns Boolean indicating if data is intact
  */
-export const verifyFingerprintIntegrity = (fingerprintData: string, storedHash: string): boolean => {
+export const verifyFingerprintIntegrity = (
+  fingerprintData: string,
+  storedHash: string
+): boolean => {
   const computedHash = generateFingerprintHash(fingerprintData);
   return computedHash === storedHash;
 };
@@ -106,24 +121,45 @@ export const verifyFingerprintIntegrity = (fingerprintData: string, storedHash: 
  */
 export const detectFingerprintCorruption = (fingerprintData: string): boolean => {
   try {
-    // Check if it's valid base64
-    Buffer.from(fingerprintData, 'base64');
+    // Remove data URL prefix if present
+    const cleanData = fingerprintData.replace(/^data:image\/\w+;base64,/, '');
 
-    // Check if decoded data looks like PNG (basic header check)
-    const decoded = Buffer.from(fingerprintData, 'base64');
+    // Check if it's valid base64
+    const decoded = Buffer.from(cleanData, 'base64');
+
     if (decoded.length < 8) return true;
 
     // PNG header check
-    const pngHeader = Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
-    if (new Uint8Array(decoded.subarray(0, 8)).every((val, idx) => val === pngHeader[idx])) {
-      return false; // Looks like valid PNG
-    }
+    const pngHeader = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    const decodedHeader = decoded.slice(0, 8);
+    const headerMatch = decodedHeader.equals(pngHeader);
 
-    // Additional checks can be added here for other formats
-    return false; // Assume valid if basic checks pass
+    return !headerMatch; // If header doesn't match, it's corrupted
   } catch (error) {
     return true; // Invalid base64 or other issues indicate corruption
   }
+};
+
+/**
+ * Clean base64 fingerprint data (remove data URL prefix, validate format)
+ * @param fingerprintData - Raw base64 or data URL
+ * @returns Cleaned base64 string
+ */
+export const cleanFingerprintData = (fingerprintData: string): string => {
+  // Remove data URL prefix if present
+  let cleaned = fingerprintData.replace(/^data:image\/\w+;base64,/, '');
+
+  // Remove whitespace and newlines
+  cleaned = cleaned.replace(/\s/g, '');
+
+  // Validate it's proper base64
+  try {
+    Buffer.from(cleaned, 'base64');
+  } catch (error) {
+    throw new Error('Invalid base64 fingerprint data');
+  }
+
+  return cleaned;
 };
 
 /**
@@ -133,39 +169,83 @@ export const detectFingerprintCorruption = (fingerprintData: string): boolean =>
  * @param fingerprintHash - Optional hash from database
  * @returns Object with decrypted data and corruption status
  */
-export const handleFingerprintData = (fingerprintData?: string, encryptedFingerprint?: string, fingerprintHash?: string) => {
+export const handleFingerprintData = (
+  fingerprintData?: string,
+  encryptedFingerprint?: string,
+  fingerprintHash?: string
+) => {
   let decryptedData: string | null = null;
   let isCorrupted = false;
   let needsMigration = false;
 
   try {
-    if (encryptedFingerprint) {
-      // New encrypted format
-      const encryptedObj: EncryptedFingerprint = JSON.parse(encryptedFingerprint);
-      decryptedData = decryptFingerprint(encryptedObj);
+    // Priority 1: Try legacy unencrypted format first (since encrypted often fails)
+    if (fingerprintData) {
+      console.log('Trying legacy fingerprint field (plain base64) first');
 
-      // Verify integrity
-      if (fingerprintHash && !verifyFingerprintIntegrity(decryptedData, fingerprintHash)) {
+      try {
+        // Clean the data
+        decryptedData = cleanFingerprintData(fingerprintData);
+        needsMigration = true;
+
+        // Check for corruption in legacy data
+        if (detectFingerprintCorruption(decryptedData)) {
+          console.warn('Corruption detected in legacy fingerprint data');
+          isCorrupted = true;
+        } else {
+          console.log('✓ Successfully loaded legacy fingerprint data');
+          return {
+            data: decryptedData,
+            isCorrupted,
+            needsMigration,
+          };
+        }
+      } catch (cleanError) {
+        console.error('Failed to clean legacy fingerprint data:', cleanError);
         isCorrupted = true;
       }
-    } else if (fingerprintData) {
-      // Legacy unencrypted format
-      decryptedData = fingerprintData;
-      needsMigration = true;
+    }
 
-      // Check for corruption in legacy data
-      if (detectFingerprintCorruption(fingerprintData)) {
+    // Priority 2: Try encrypted format as fallback
+    if (!decryptedData && encryptedFingerprint) {
+      console.log('Falling back to encrypted fingerprint format');
+
+      try {
+        // Try parsing as JSON (new encrypted format)
+        const encryptedObj: EncryptedFingerprint = JSON.parse(encryptedFingerprint);
+        decryptedData = decryptFingerprint(encryptedObj);
+
+        // Verify integrity
+        if (fingerprintHash && !verifyFingerprintIntegrity(decryptedData, fingerprintHash)) {
+          console.warn('Fingerprint integrity check failed');
+          isCorrupted = true;
+        } else {
+          console.log('✓ Successfully decrypted encrypted fingerprint data');
+        }
+      } catch (parseError) {
+        // If JSON parse fails, it might be legacy encrypted format or plain data
+        console.warn('Failed to parse encrypted fingerprint as JSON:', parseError);
         isCorrupted = true;
       }
     }
   } catch (error) {
-    isCorrupted = true;
     console.error('Error handling fingerprint data:', error);
+    isCorrupted = true;
+
+    // Last resort: try returning raw fingerprintData if available
+    if (fingerprintData && !decryptedData) {
+      try {
+        decryptedData = cleanFingerprintData(fingerprintData);
+        console.log('Using raw fingerprint data as last resort');
+      } catch (lastResortError) {
+        console.error('All fingerprint processing attempts failed');
+      }
+    }
   }
 
   return {
     data: decryptedData,
     isCorrupted,
-    needsMigration
+    needsMigration,
   };
 };

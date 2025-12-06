@@ -1,7 +1,13 @@
-import type { FC } from 'react';
+import type { FC, ElementType } from 'react';
 import { Box, Heading, Text, VStack, Divider, List, ListItem, ListIcon, Icon, Button } from '@chakra-ui/react';
 import { FaShieldAlt, FaUserLock, FaDatabase, FaCookieBite, FaGavel } from 'react-icons/fa';
 import { Link } from 'react-router-dom';
+
+const FaShieldAltIcon = FaShieldAlt as ElementType;
+const FaUserLockIcon = FaUserLock as ElementType;
+const FaDatabaseIcon = FaDatabase as ElementType;
+const FaCookieBiteIcon = FaCookieBite as ElementType;
+const FaGavelIcon = FaGavel as ElementType;
 
 const PrivacyPolicy: FC = () => {
   return (
@@ -19,7 +25,7 @@ const PrivacyPolicy: FC = () => {
 
         <Box>
           <Heading as="h2" size="lg" mb={4} display="flex" alignItems="center">
-            <Icon as={FaShieldAlt as any} mr={2} />
+            <Icon as={FaShieldAltIcon} mr={2} />
             Introduction
           </Heading>
           <Text>
@@ -31,33 +37,33 @@ const PrivacyPolicy: FC = () => {
 
         <Box>
           <Heading as="h2" size="lg" mb={4} display="flex" alignItems="center">
-            <Icon as={FaUserLock as any} mr={2} />
+            <Icon as={FaUserLockIcon} mr={2} />
             Information We Collect
           </Heading>
           <List spacing={3}>
             <ListItem display="flex" alignItems="flex-start">
-              <ListIcon as={FaDatabase as any} color="blue.500" mt={1} />
+              <ListIcon as={FaDatabaseIcon} color="blue.500" mt={1} />
               <Box>
                 <Text fontWeight="bold">Biometric Data:</Text>
                 <Text>Fingerprint scans and templates used for attendance verification.</Text>
               </Box>
             </ListItem>
             <ListItem display="flex" alignItems="flex-start">
-              <ListIcon as={FaUserLock} color="blue.500" mt={1} />
+              <ListIcon as={FaUserLockIcon} color="blue.500" mt={1} />
               <Box>
                 <Text fontWeight="bold">Personal Information:</Text>
                 <Text>Student names, IDs, contact details, and academic information.</Text>
               </Box>
             </ListItem>
             <ListItem display="flex" alignItems="flex-start">
-              <ListIcon as={FaDatabase as any} color="blue.500" mt={1} />
+              <ListIcon as={FaDatabaseIcon} color="blue.500" mt={1} />
               <Box>
                 <Text fontWeight="bold">Attendance Records:</Text>
                 <Text>Timestamps and attendance status for attendance tracking.</Text>
               </Box>
             </ListItem>
             <ListItem display="flex" alignItems="flex-start">
-              <ListIcon as={FaCookieBite as any} color="blue.500" mt={1} />
+              <ListIcon as={FaCookieBiteIcon} color="blue.500" mt={1} />
               <Box>
                 <Text fontWeight="bold">Technical Data:</Text>
                 <Text>IP addresses, browser information, and system logs for security and troubleshooting.</Text>
@@ -70,7 +76,7 @@ const PrivacyPolicy: FC = () => {
 
         <Box>
           <Heading as="h2" size="lg" mb={4} display="flex" alignItems="center">
-            <Icon as={FaDatabase as any} mr={2} />
+            <Icon as={FaDatabaseIcon} mr={2} />
             How We Use Your Information
           </Heading>
           <List spacing={3}>
@@ -86,7 +92,7 @@ const PrivacyPolicy: FC = () => {
 
         <Box>
           <Heading as="h2" size="lg" mb={4} display="flex" alignItems="center">
-            <Icon as={FaShieldAlt as any} mr={2} />
+            <Icon as={FaShieldAltIcon} mr={2} />
             Data Security Measures
           </Heading>
           <Text mb={3}>
@@ -105,7 +111,7 @@ const PrivacyPolicy: FC = () => {
 
         <Box>
           <Heading as="h2" size="lg" mb={4} display="flex" alignItems="center">
-            <Icon as={FaGavel as any} mr={2} />
+            <Icon as={FaGavelIcon} mr={2} />
             Your Rights and Choices
           </Heading>
           <Text mb={3}>

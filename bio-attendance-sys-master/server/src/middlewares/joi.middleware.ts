@@ -6,7 +6,7 @@ import createError from 'http-errors';
 const joiValidate = (schema: ObjectSchema, type: 'body' | 'query' = 'body') => {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { error } = await schema.validateAsync(req[type]);
+      const { error } = await schema.validateAsync(req[type], { allowUnknown: true });
       if (!error) {
         next();
       } else {

@@ -16,26 +16,42 @@ import {
 import { prisma } from '../db/prisma-client';
 import type { Attendance, StudentAttendance } from '@prisma/client';
 import type { PaginationMeta } from '../interfaces/helper.interface';
+import { isLateArrival } from '../helpers/general.helper';
 
 export const getAttendances = async (req: Request, res: Response, next: NextFunction) => {
   // get attendances that belongs to single staff
   const { staff_id } = req.params;
   const { per_page, page } = req.query;
-  const user_id = (req.user as JwtPayload).id;
+  const user_id = (req.user as JwtPayload)?.id;
   if (!staff_id) return next(new createError.BadRequest('Staff ID is required'));
-  if (staff_id !== user_id) return next(new createError.Forbidden('Access denied'));
+  if (!user_id) return next(new createError.Unauthorized('User not authenticated'));
+
+  // Get the current user's role
+  const currentUser = await prisma.staff.findUnique({
+    where: { id: user_id },
+    select: { role: true }
+  });
+
+  if (!currentUser) {
+    return next(new createError.Unauthorized('User not found'));
+  }
+
+  // Check if the user is an admin or the owner of the resource
+  if (currentUser.role !== 'ADMIN' && staff_id !== user_id) {
+    return next(new createError.Forbidden('Access denied'));
+  }
+
   if (!page) return next(new createError.BadRequest('Page is required'));
   try {
+    // For admin users, fetch all attendances; for teachers, only their own
+    const whereClause = currentUser.role === 'ADMIN' ? {} : { staff_id };
+
     const attendanceCount = await prisma.attendance.count({
-      where: {
-        staff_id,
-      },
+      where: whereClause,
     });
     const perPage = Number(per_page) || 10;
     const attendances = await prisma.attendance.findMany({
-      where: {
-        staff_id,
-      },
+      where: whereClause,
       skip: (Number(page) - 1) * perPage,
       take: perPage,
       orderBy: {
@@ -62,13 +78,36 @@ export const getAttendanceList = async (req: Request, res: Response, next: NextF
   if (!attendance_id) return next(new createError.BadRequest('Attendance ID is required'));
   if (!page) return next(new createError.BadRequest('Page is required'));
   try {
+    const attendanceSession = await prisma.attendance.findUnique({ where: { id: attendance_id }, select: { staff_id: true } });
+    if (!attendanceSession) return next(new createError.NotFound('Attendance not found'));
+    const staffSettings = await prisma.staff.findUnique({
+      where: { id: attendanceSession.staff_id },
+      select: {
+        school_start_time: true,
+        grace_period_minutes: true,
+        pm_late_cutoff_enabled: true,
+        pm_late_cutoff_time: true
+      }
+    });
+    const lateOptions = {
+      lateTime: staffSettings?.school_start_time,
+      gracePeriodMinutes: staffSettings?.grace_period_minutes,
+      pmSettings: {
+        enabled: staffSettings?.pm_late_cutoff_enabled ?? false,
+        time: staffSettings?.pm_late_cutoff_time ?? null
+      }
+    };
     const attendanceList = await fetchAttendanceStudents(attendance_id);
-    const totalItems = attendanceList.length;
+    const annotatedList = attendanceList.map(record => ({
+      ...record,
+      isLate: isLateArrival(record.created_at, record.session_type, record.time_type, lateOptions),
+    }));
+    const totalItems = annotatedList.length;
     const perPage = Number(per_page) || 10;
     const totalPages = Math.ceil(totalItems / perPage) || 1;
     const startIndex = (Number(page) - 1) * perPage;
     const endIndex = startIndex + perPage;
-    const paginatedList = attendanceList.slice(startIndex, endIndex);
+    const paginatedList = annotatedList.slice(startIndex, endIndex);
 
     const meta = {
       total_items: totalItems,
@@ -98,24 +137,13 @@ export const getSingleAttendance = async (req: Request, res: Response, next: Nex
 export const addStudentToAttendance = async (req: Request, res: Response, next: NextFunction) => {
   // create attendance
   const { attendance_id, student_id, time_type, section, status, session_type } = req.body as { attendance_id: string; student_id: string; time_type: 'IN' | 'OUT'; section: string; status?: 'present' | 'absent'; session_type?: 'AM' | 'PM' };
-  const user_id = (req.user as JwtPayload).id;
+  const user_id = (req.user as JwtPayload)?.id;
+
+  if (!user_id) return next(new createError.Unauthorized('User not authenticated'));
 
   if (!attendance_id || !student_id || !time_type || !section) return next(new createError.BadRequest('Attendance ID, student ID, time type, and section are required'));
 
   try {
-    // For check-out (Departure), check if student is already marked present for the day
-    if (time_type === 'OUT') {
-      const { checkIfStudentIsPresent } = await import('../services/attendance.service');
-      const isAlreadyPresent = await checkIfStudentIsPresent(attendance_id, student_id);
-      if (isAlreadyPresent) {
-        // Student is already present, no need to create additional record
-        return createSuccess(res, 200, 'Student already marked present for the day', {
-          marked: false,
-          status: 'present',
-        });
-      }
-    }
-
     // Use provided status or default to present
     const finalStatus = status || 'present';
 
@@ -131,7 +159,9 @@ export const addStudentToAttendance = async (req: Request, res: Response, next: 
 
 export const manualMarkAttendance = async (req: Request, res: Response, next: NextFunction) => {
   const { student_ids, attendance_id, dates, section } = req.body as { student_ids: string[]; attendance_id: string; dates: string[]; section?: string };
-  const user_id = (req.user as JwtPayload).id;
+  const user_id = (req.user as JwtPayload)?.id;
+
+  if (!user_id) return next(new createError.Unauthorized('User not authenticated'));
   const status: 'present' = 'present'; // Always present in simplified system
 
   if (!student_ids || !attendance_id || !dates) return next(new createError.BadRequest('Student IDs, attendance ID, and dates are required'));
@@ -156,9 +186,22 @@ export const manualMarkAttendance = async (req: Request, res: Response, next: Ne
 export const createAttendance = async (req: Request, res: Response, next: NextFunction) => {
   // create attendance
   const { name, date, staff_id } = req.body as Pick<Attendance, 'name' | 'date' | 'staff_id'>;
-  const user_id = (req.user as JwtPayload).id;
+  const user_id = (req.user as JwtPayload)?.id;
 
-  if (staff_id !== user_id) {
+  if (!user_id) return next(new createError.Unauthorized('User not authenticated'));
+
+  // Get the current user's role
+  const currentUser = await prisma.staff.findUnique({
+    where: { id: user_id },
+    select: { role: true }
+  });
+
+  if (!currentUser) {
+    return next(new createError.Unauthorized('User not found'));
+  }
+
+  // Allow admin to create attendance for any staff, teachers only for themselves
+  if (currentUser.role !== 'ADMIN' && staff_id !== user_id) {
     return next(createError(403, 'Access denied'));
   }
 
@@ -204,8 +247,9 @@ export const deleteAttendance = async (req: Request, res: Response, next: NextFu
 
 export const markAbsentForUnmarkedDays = async (req: Request, res: Response, next: NextFunction) => {
   const { date } = req.body;
-  const user_id = (req.user as JwtPayload).id;
+  const user_id = (req.user as JwtPayload)?.id;
 
+  if (!user_id) return next(new createError.Unauthorized('User not authenticated'));
   if (!date) return next(new createError.BadRequest('Date is required'));
 
   try {
