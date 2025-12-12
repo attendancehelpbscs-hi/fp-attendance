@@ -97,12 +97,21 @@ config();
   });
 
   app.use(constants.apiBase, staffRoute);
+
+  // ✅ ADD THIS DEBUG MIDDLEWARE
+  app.use('/api/teachers*', (req, res, next) => {
+    console.log('🔍 Teachers route hit:', req.method, req.url);
+    next();
+  });
+
+  app.use(`${constants.apiBase}/teachers`, teacherRoute);
   app.use(constants.apiBase, authRoute);
   app.use(constants.apiBase, courseRoute);
   app.use(constants.apiBase, studentRoute);
   app.use(constants.apiBase, attendanceRoute);
   app.use(constants.apiBase, auditRoute);
-  app.use(constants.apiBase, teacherRoute);
+  console.log('✅ Teacher routes registered successfully');
+  console.log('✅ Available teacher routes:', teacherRoute.stack?.map((r: any) => r.route?.path));
   app.use(constants.apiBase, importRoute);
   app.use(`${constants.apiBase}/reports`, reportsRoute);
   app.use(`${constants.apiBase}/health`, healthRoute);

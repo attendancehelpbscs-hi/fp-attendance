@@ -45,8 +45,9 @@ import AddTeacher from '../../components/AddTeacher';
 import EnrolledStudentsModal from '../../components/EnrolledStudentsModal';
 import useStore from '../../store/store';
 import { EditIcon, DeleteIcon, SearchIcon } from '@chakra-ui/icons';
-import { UserPlus, Eye, List } from 'lucide-react';
-import { useGetTeachers, useDeleteTeacher } from '../../api/staff.api';
+import { UserPlus, Eye, List, Mail } from 'lucide-react';
+import { useGetTeachers, useDeleteTeacher, useGetPendingTeachers, useApproveTeacher, useSendWelcomeEmail } from '../../api/staff.api';
+import { Tabs, TabList, TabPanels, Tab, TabPanel } from '@chakra-ui/react';
 import { toast } from 'react-hot-toast';
 import { queryClient } from '../../lib/query-client';
 import { Teacher } from '../../interfaces/api.interface';
@@ -58,7 +59,6 @@ const ManageTeachers: FC = () => {
   const [per_page] = useState<number>(10);
   const [activeTeacher, setActiveTeacher] = useState<Teacher | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>('');
-  const [roleFilter, setRoleFilter] = useState<string>('');
   const [sortBy, setSortBy] = useState<string>('name');
   
   // Teacher details modal
@@ -70,6 +70,8 @@ const ManageTeachers: FC = () => {
   // Delete single teacher
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
   const [teacherToDelete, setTeacherToDelete] = useState<Teacher | null>(null);
+  const [deletePassword, setDeletePassword] = useState<string>('');
+  const [deletePasswordError, setDeletePasswordError] = useState<string>('');
   const cancelRef = useRef<HTMLButtonElement>(null);
   
   // Bulk delete
@@ -77,7 +79,18 @@ const ManageTeachers: FC = () => {
   const { isOpen: isBulkDeleteOpen, onOpen: onBulkDeleteOpen, onClose: onBulkDeleteClose } = useDisclosure();
   const bulkCancelRef = useRef<HTMLButtonElement>(null);
 
+  // Approve/Reject confirmation dialogs
+  const { isOpen: isApproveOpen, onOpen: onApproveOpen, onClose: onApproveClose } = useDisclosure();
+  const { isOpen: isRejectOpen, onOpen: onRejectOpen, onClose: onRejectClose } = useDisclosure();
+  const [teacherToApprove, setTeacherToApprove] = useState<Teacher | null>(null);
+  const [teacherToReject, setTeacherToReject] = useState<Teacher | null>(null);
+  const [rejectionReason, setRejectionReason] = useState<string>('');
+
   const { data, error, isLoading, isError } = useGetTeachers(page, per_page, {
+    keepPreviousData: true,
+  });
+
+  const { data: pendingData, isLoading: isPendingLoading, error: pendingError } = useGetPendingTeachers({
     keepPreviousData: true,
   });
 
@@ -91,6 +104,26 @@ const ManageTeachers: FC = () => {
     onError: (err) => {
       toast.dismiss(toastRef.current);
       toast.error((err.response?.data?.message as string) ?? 'An error occurred');
+    },
+  });
+
+  const { mutate: approveTeacher } = useApproveTeacher({
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries(['teachers']);
+      queryClient.invalidateQueries(['pending_teachers']);
+      toast.success(`Teacher ${variables.action}d successfully`);
+    },
+    onError: (err) => {
+      toast.error((err.response?.data?.message as string) ?? 'An error occurred');
+    },
+  });
+
+  const { mutate: sendWelcomeEmail } = useSendWelcomeEmail({
+    onSuccess: () => {
+      toast.success('Welcome email sent successfully');
+    },
+    onError: (err) => {
+      toast.error((err.response?.data?.message as string) ?? 'Failed to send welcome email');
     },
   });
 
@@ -110,8 +143,7 @@ const ManageTeachers: FC = () => {
                           (teacher.matric_no && teacher.matric_no.toLowerCase().includes(searchTerm.toLowerCase())) ||
                           (teacher.section && teacher.section.toLowerCase().includes(searchTerm.toLowerCase())) ||
                           (teacher.grade && teacher.grade.toString().includes(searchTerm));
-    const matchesRole = !roleFilter || teacher.role.toLowerCase() === roleFilter.toLowerCase();
-    return matchesSearch && matchesRole;
+    return matchesSearch;
   }).sort((a: Teacher, b: Teacher) => {
     if (sortBy === 'name-asc') return a.name.localeCompare(b.name);
     if (sortBy === 'name-desc') return b.name.localeCompare(a.name);
@@ -175,6 +207,15 @@ const ManageTeachers: FC = () => {
         </Flex>
       </Flex>
 
+      <Tabs variant="enclosed" colorScheme="blue" marginTop="1rem">
+        <TabList>
+          <Tab>All Teachers</Tab>
+          <Tab>Pending Approvals</Tab>
+        </TabList>
+
+        <TabPanels>
+          <TabPanel>
+
       {/* Filters and Search */}
       <Card marginTop="1rem" marginBottom="1rem">
         <CardBody>
@@ -189,10 +230,7 @@ const ManageTeachers: FC = () => {
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </InputGroup>
-            <Select placeholder="Filter by Role" value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
-              <option value="admin">Admin</option>
-              <option value="teacher">Teacher</option>
-            </Select>
+
             <Select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
               <option value="name-asc">Sort by Name (A-Z)</option>
               <option value="name-desc">Sort by Name (Z-A)</option>
@@ -212,26 +250,27 @@ const ManageTeachers: FC = () => {
           <Text>Error: {error?.response?.data?.message}</Text>
         </Box>
       ) : (
-        <TableContainer marginTop={10} overflowX="auto">
-          <Table variant="simple" size="sm">
+        <TableContainer marginTop={10} width="100%" overflowX="auto">
+          <Table variant="simple" size="sm" width="100%">
             <TableCaption>All Teachers</TableCaption>
             <Thead>
               <Tr>
-                <Th minW="50px">
+                <Th width="30px">
                   <Checkbox
                     isChecked={selectedTeachers.length === filteredTeachers.length && filteredTeachers.length > 0}
                     isIndeterminate={selectedTeachers.length > 0 && selectedTeachers.length < filteredTeachers.length}
                     onChange={(e) => handleSelectAll(e.target.checked)}
                   />
                 </Th>
-                <Th minW="120px">Name</Th>
-                <Th minW="150px">Email</Th>
-                <Th minW="100px">Teacher ID</Th>
-                <Th minW="80px">Section</Th>
-                <Th minW="70px">Grade</Th>
-                <Th minW="70px">Role</Th>
-                <Th minW="100px">Created At</Th>
-                <Th minW="100px">Action</Th>
+                <Th width="120px">Name</Th>
+                <Th width="150px">Email</Th>
+                <Th width="100px">Teacher ID</Th>
+                <Th width="80px">Section</Th>
+                <Th width="70px">Grade</Th>
+                <Th width="90px">Status</Th>
+                <Th width="80px">Role</Th>
+                <Th width="110px">Created At</Th>
+                <Th width="120px">Action</Th>
               </Tr>
             </Thead>
             <Tbody>
@@ -243,11 +282,22 @@ const ManageTeachers: FC = () => {
                       onChange={(e) => handleSelectTeacher(teacher.id, e.target.checked)}
                     />
                   </Td>
-                  <Td>{teacher.name}</Td>
+                  <Td><strong>{teacher.name}</strong></Td>
                   <Td>{teacher.email}</Td>
                   <Td>{teacher.matric_no || 'N/A'}</Td>
                   <Td>{teacher.section || 'N/A'}</Td>
                   <Td>{teacher.grade ? `Grade ${teacher.grade}` : 'N/A'}</Td>
+                  <Td>
+                    <Badge
+                      colorScheme={
+                        (teacher as any).approval_status === 'APPROVED' ? 'green' :
+                        (teacher as any).approval_status === 'PENDING' ? 'yellow' :
+                        (teacher as any).approval_status === 'REJECTED' ? 'red' : 'gray'
+                      }
+                    >
+                      {(teacher as any).approval_status || 'APPROVED'}
+                    </Badge>
+                  </Td>
                   <Td>
                     <Badge colorScheme={teacher.role === 'admin' ? 'red' : 'blue'}>
                       {teacher.role}
@@ -282,6 +332,15 @@ const ManageTeachers: FC = () => {
                           icon={<List size={16} />}
                         />
                       )}
+                      <IconButton
+                        size="sm"
+                        bg="transparent"
+                        _hover={{ color: 'white', background: 'var(--bg-primary)' }}
+                        color="var(--bg-primary)"
+                        aria-label="Send welcome email"
+                        onClick={() => sendWelcomeEmail({ teacherId: teacher.id, url: `/${teacher.id}/send-welcome-email` })}
+                        icon={<Mail size={16} />}
+                      />
                       <IconButton
                         size="sm"
                         bg="transparent"
@@ -335,6 +394,85 @@ const ManageTeachers: FC = () => {
           </Flex>
         </TableContainer>
       )}
+          </TabPanel>
+
+          <TabPanel>
+            <Text fontSize="lg" fontWeight="bold" mb={4}>Pending Teacher Approvals</Text>
+            <Text mb={6}>Review and approve teacher registration requests.</Text>
+
+            {isPendingLoading ? (
+              <Box marginTop="4rem" display="flex" justifyContent="center">
+                <Spinner color="var(--bg-primary)" />
+              </Box>
+            ) : pendingError ? (
+              <Box marginTop="4rem" display="flex" justifyContent="center">
+                <Text>Error: {pendingError?.response?.data?.message}</Text>
+              </Box>
+            ) : (
+              <TableContainer marginTop={4} width="100%" overflowX="auto">
+                <Table variant="simple" size="sm" width="100%">
+                  <TableCaption>Teachers awaiting approval</TableCaption>
+                  <Thead>
+                    <Tr>
+                      <Th width="150px">Name</Th>
+                      <Th width="180px">Email</Th>
+                      <Th width="100px">Teacher ID</Th>
+                      <Th width="80px">Section</Th>
+                      <Th width="70px">Grade</Th>
+                      <Th width="110px">Registered</Th>
+                      <Th width="120px">Actions</Th>
+                    </Tr>
+                  </Thead>
+                  <Tbody>
+                    {pendingData?.data?.teachers?.map((teacher: any, idx: number) => (
+                      <Tr key={idx}>
+                        <Td><strong>{teacher.name}</strong></Td>
+                        <Td>{teacher.email}</Td>
+                        <Td>{teacher.matric_no || 'N/A'}</Td>
+                        <Td>{teacher.section || 'N/A'}</Td>
+                        <Td>{teacher.grade ? `Grade ${teacher.grade}` : 'N/A'}</Td>
+                        <Td>{new Date(teacher.created_at).toLocaleDateString()}</Td>
+                        <Td>
+                          <Flex gap={2}>
+                            <Button
+                              size="sm"
+                              colorScheme="green"
+                              onClick={() => {
+                                setTeacherToApprove(teacher);
+                                onApproveOpen();
+                              }}
+                            >
+                              Approve
+                            </Button>
+                            <Button
+                              size="sm"
+                              colorScheme="red"
+                              variant="outline"
+                              onClick={() => {
+                                setTeacherToReject(teacher);
+                                onRejectOpen();
+                              }}
+                            >
+                              Reject
+                            </Button>
+                          </Flex>
+                        </Td>
+                      </Tr>
+                    ))}
+                  </Tbody>
+                </Table>
+                {(!pendingData?.teachers || pendingData.teachers.length === 0) && (
+                  <Box textAlign="center" py={8}>
+                    <Text fontSize="lg" color="gray.500">
+                      No pending teacher approvals at this time.
+                    </Text>
+                  </Box>
+                )}
+              </TableContainer>
+            )}
+          </TabPanel>
+        </TabPanels>
+      </Tabs>
 
       <AddTeacher
         isOpen={drawerOpen}
@@ -358,7 +496,7 @@ const ManageTeachers: FC = () => {
       )}
 
       {/* Teacher Details Modal */}
-      <Modal isOpen={isOpen} onClose={onClose} size="lg">
+      <Modal isOpen={isOpen} onClose={onClose} size="lg" closeOnOverlayClick={false}>
         <ModalOverlay />
         <ModalContent>
           <ModalHeader>Teacher Details</ModalHeader>
@@ -416,11 +554,12 @@ const ManageTeachers: FC = () => {
         isOpen={isDeleteOpen}
         leastDestructiveRef={cancelRef}
         onClose={onDeleteClose}
+        closeOnOverlayClick={false}
       >
         <AlertDialogOverlay>
           <AlertDialogContent>
             <AlertDialogHeader fontSize="lg" fontWeight="bold">
-              Delete Teacher
+              Delete Teacher - Password Confirmation Required
             </AlertDialogHeader>
 
             <AlertDialogBody>
@@ -430,28 +569,61 @@ const ManageTeachers: FC = () => {
               <Text fontSize="sm" color="red.600" fontWeight="bold" mb={2}>
                 ⚠️ Warning: This will permanently delete the teacher and ALL associated data including:
               </Text>
-              <Text fontSize="sm" color="gray.700">
+              <Text fontSize="sm" color="gray.700" mb={3}>
                 • All students enrolled by this teacher<br/>
                 • All attendance records<br/>
                 • All audit logs and activity history<br/>
                 • All authentication tokens
               </Text>
-              <Text fontSize="sm" color="red.600" mt={2}>
+              <Text fontSize="sm" color="red.600" mb={4}>
                 This action cannot be undone.
               </Text>
+
+              <Text fontWeight="bold" mb={2}>
+                To confirm deletion, please enter the teacher's password:
+              </Text>
+              <Input
+                type="password"
+                placeholder="Enter teacher's password"
+                value={deletePassword}
+                onChange={(e) => {
+                  setDeletePassword(e.target.value);
+                  setDeletePasswordError('');
+                }}
+                mb={2}
+              />
+              {deletePasswordError && (
+                <Text fontSize="sm" color="red.500" mb={2}>
+                  {deletePasswordError}
+                </Text>
+              )}
             </AlertDialogBody>
 
             <AlertDialogFooter>
-              <Button ref={cancelRef} onClick={onDeleteClose}>
+              <Button ref={cancelRef} onClick={() => {
+                onDeleteClose();
+                setDeletePassword('');
+                setDeletePasswordError('');
+                setTeacherToDelete(null);
+              }}>
                 Cancel
               </Button>
               <Button
                 colorScheme="red"
                 onClick={() => {
                   if (teacherToDelete) {
+                    if (!deletePassword.trim()) {
+                      setDeletePasswordError('Password is required to confirm deletion');
+                      return;
+                    }
                     toastRef.current = toast.loading('Deleting teacher...');
-                    deleteTeacher({ url: `/${teacherToDelete.id}` });
+                    deleteTeacher({
+                      url: `/${teacherToDelete.id}`,
+                      password: deletePassword
+                    });
                     setTeacherToDelete(null);
+                    setDeletePassword('');
+                    setDeletePasswordError('');
                     onDeleteClose();
                   }
                 }}
@@ -469,6 +641,7 @@ const ManageTeachers: FC = () => {
         isOpen={isBulkDeleteOpen}
         leastDestructiveRef={bulkCancelRef}
         onClose={onBulkDeleteClose}
+        closeOnOverlayClick={false}
       >
         <AlertDialogOverlay>
           <AlertDialogContent>
@@ -505,6 +678,88 @@ const ManageTeachers: FC = () => {
                 ml={3}
               >
                 Delete All
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
+
+      {/* Approve Confirmation Dialog */}
+      <AlertDialog
+        isOpen={isApproveOpen}
+        leastDestructiveRef={cancelRef}
+        onClose={onApproveClose}
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent>
+            <AlertDialogHeader fontSize="lg" fontWeight="bold">
+              Approve Teacher Registration
+            </AlertDialogHeader>
+            <AlertDialogBody>
+              Are you sure you want to approve {teacherToApprove?.name}'s registration? This will allow them to access the system.
+            </AlertDialogBody>
+            <AlertDialogFooter>
+              <Button ref={cancelRef} onClick={onApproveClose}>
+                Cancel
+              </Button>
+              <Button colorScheme="green" onClick={() => {
+                if (teacherToApprove) {
+                  approveTeacher({
+                    teacherId: teacherToApprove.id,
+                    action: 'approve',
+                    url: `/${teacherToApprove.id}/approve`
+                  });
+                }
+                onApproveClose();
+              }}>
+                Approve
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
+
+      {/* Reject Confirmation Dialog */}
+      <AlertDialog
+        isOpen={isRejectOpen}
+        leastDestructiveRef={cancelRef}
+        onClose={onRejectClose}
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent>
+            <AlertDialogHeader fontSize="lg" fontWeight="bold">
+              Reject Teacher Registration
+            </AlertDialogHeader>
+            <AlertDialogBody>
+              <Box mb={4}>
+                Are you sure you want to reject {teacherToReject?.name}'s registration?
+              </Box>
+              <Box mb={4}>
+                <Text fontWeight="medium" mb={2}>Reason for rejection (optional):</Text>
+                <Input
+                  value={rejectionReason}
+                  onChange={(e) => setRejectionReason(e.target.value)}
+                  placeholder="Enter reason for rejection"
+                />
+              </Box>
+            </AlertDialogBody>
+            <AlertDialogFooter>
+              <Button ref={cancelRef} onClick={onRejectClose}>
+                Cancel
+              </Button>
+              <Button colorScheme="red" onClick={() => {
+                if (teacherToReject) {
+                  approveTeacher({
+                    teacherId: teacherToReject.id,
+                    action: 'reject',
+                    reason: rejectionReason || 'Registration rejected by administrator',
+                    url: `/${teacherToReject.id}/approve`
+                  });
+                  setRejectionReason('');
+                }
+                onRejectClose();
+              }}>
+                Reject
               </Button>
             </AlertDialogFooter>
           </AlertDialogContent>

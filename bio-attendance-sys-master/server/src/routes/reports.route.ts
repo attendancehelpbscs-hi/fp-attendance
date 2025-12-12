@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { getReports, getGradesAndSections, getStudentReports, getSectionsForGradeController, getStudentsForGradeAndSectionController, getStudentDetailedReportController, getDashboardStatsController, getCheckInTimeAnalysisController, getStudentsByStatusController, markStudentAttendanceController, exportSF2ExcelController, exportSF2PDFController, getSF2ReportController, getMonthlyAttendanceSummaryController, getCheckInTimeDistributionController } from '../controllers/reports.controller';
+import { getReports, getGradesAndSections, getStudentReports, getSectionsForGradeController, getStudentsForGradeAndSectionController, getStudentDetailedReportController, getDashboardStatsController, getCheckInTimeAnalysisController, getStudentsByStatusController, markStudentAttendanceController, exportSF2ExcelController, exportSF2PDFController, getSF2ReportController, getMonthlyAttendanceSummaryController, getCheckInTimeDistributionController, exportMonthlySummaryExcel, exportMonthlySummaryPDF } from '../controllers/reports.controller';
 import joiValidate from '../middlewares/joi.middleware';
 import { getReportsSchema, getStudentReportsSchema, getDashboardStatsSchema, getSF2ReportSchema, getMonthlyAttendanceSummarySchema } from '../joi/reports.joi';
 import Joi from 'joi';
@@ -47,6 +47,10 @@ router.get('/:staff_id/check-in-analysis', auth as any, getCheckInTimeAnalysisCo
 router.get('/:staff_id/check-in-distribution', auth as any, getCheckInTimeDistributionController);
 // GET /api/reports/:staff_id/monthly-summary - Get monthly attendance summary
 router.get('/:staff_id/monthly-summary', auth as any, joiValidate(getMonthlyAttendanceSummarySchema, 'query'), getMonthlyAttendanceSummaryController);
+// GET /api/reports/:staff_id/monthly-summary/export/excel - Export monthly attendance summary as Excel
+router.get('/:staff_id/monthly-summary/export/excel', auth as any, exportMonthlySummaryExcel);
+// GET /api/reports/:staff_id/monthly-summary/export/pdf - Export monthly attendance summary as PDF
+router.get('/:staff_id/monthly-summary/export/pdf', auth as any, exportMonthlySummaryPDF);
 
 // Test endpoint
 router.get('/test', (req: Request, res: Response) => {

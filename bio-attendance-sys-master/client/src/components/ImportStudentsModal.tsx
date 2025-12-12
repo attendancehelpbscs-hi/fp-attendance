@@ -100,7 +100,7 @@ const ImportStudentsModal: FC<ImportStudentsModalProps> = ({ isOpen, onClose }) 
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={handleClose} size="4xl">
+    <Modal isOpen={isOpen} onClose={handleClose} size="4xl" closeOnOverlayClick={false}>
       <ModalOverlay />
       <ModalContent>
         <ModalHeader>Import Students</ModalHeader>

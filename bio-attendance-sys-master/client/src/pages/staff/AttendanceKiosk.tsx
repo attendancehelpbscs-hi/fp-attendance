@@ -24,6 +24,14 @@ import {
   VStack,
   Image,
   Select,
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalCloseButton,
+  ModalBody,
+  ModalFooter,
+  Button,
 } from '@chakra-ui/react';
 import { InfoIcon } from '@chakra-ui/icons';
 import { fingerprintControl } from '../../lib/fingerprint';
@@ -55,9 +63,28 @@ const AttendanceKiosk: FC = () => {
   const [recentScans, setRecentScans] = useState<Array<{ name: string; time: string; status: 'success' | 'error' }>>([]);
   const [attendanceId, setAttendanceId] = useState<string>('');
   const [timeType, setTimeType] = useState<'IN' | 'OUT'>('IN');
-  const [sessionType, setSessionType] = useState<'AM' | 'PM'>('AM');
+  const [sessionType, setSessionType] = useState<'AM' | 'PM'>(new Date().getHours() < 12 ? 'AM' : 'PM');
+  const [showSessionWarning, setShowSessionWarning] = useState(false);
 
   const isAdmin = staffInfo?.role === 'ADMIN';
+
+  // Restrict kiosk access to teachers only
+  if (isAdmin) {
+    return (
+      <Box minH="100vh" bg="gray.50" p={8} display="flex" alignItems="center" justifyContent="center">
+        <Card maxW="md" w="full">
+          <CardBody textAlign="center">
+            <InfoIcon boxSize={12} color="orange.500" mb={4} />
+            <Heading size="md" mb={2}>Access Restricted</Heading>
+            <Text color="gray.600">
+              The attendance kiosk is only available for teachers to mark attendance for their students.
+              Admins should use the management dashboard for administrative tasks.
+            </Text>
+          </CardBody>
+        </Card>
+      </Box>
+    );
+  }
 
   const studentFingerprintsData = useGetStudentsFingerprints(staffInfo?.id as string, 1, 1000, {
     queryKey: ['studentsfingerprints', staffInfo?.id],
@@ -191,8 +218,13 @@ const AttendanceKiosk: FC = () => {
     fingerprintControl.onDeviceConnectedCallback = handleDeviceConnected;
     fingerprintControl.onDeviceDisconnectedCallback = handleDeviceDisconnected;
 
-    const checkInitialConnection = () => {
+    const initializeFingerprintReader = async () => {
       try {
+        console.log('Initializing fingerprint reader for kiosk...');
+        await fingerprintControl.init();
+        console.log('Fingerprint reader initialized successfully');
+
+        // Check initial connection after init
         if (fingerprintControl.isDeviceConnected) {
           console.log('Device was already connected, updating kiosk UI state');
           setScannerConnected(true);
@@ -213,16 +245,16 @@ const AttendanceKiosk: FC = () => {
           }, 3000);
         }
       } catch (error) {
-        console.warn('Error checking initial connection:', error);
+        console.warn('Error initializing fingerprint reader:', error);
         setScannerStatus('Error');
       }
     };
 
-    checkInitialConnection();
+    initializeFingerprintReader();
 
     return () => {
-      fingerprintControl.onDeviceConnectedCallback = undefined;
-      fingerprintControl.onDeviceDisconnectedCallback = undefined;
+      fingerprintControl.onDeviceConnectedCallback = null as any;
+      fingerprintControl.onDeviceDisconnectedCallback = null as any;
     };
   }, []);
 
@@ -370,6 +402,11 @@ const AttendanceKiosk: FC = () => {
     fingerprintControl.onSampleAcquiredCallback = handleSampleAcquired;
   }, [attendanceId]);
 
+  useEffect(() => {
+    const newSessionType = currentTime.getHours() < 12 ? 'AM' : 'PM';
+    setSessionType(newSessionType);
+  }, [currentTime]);
+
 
   return (
     <Box minH="100vh" bg="gray.50" p={0} maxW="1400px" mx="auto" overflow="hidden">
@@ -417,7 +454,7 @@ const AttendanceKiosk: FC = () => {
           <VStack spacing={2} align="start">
             <Heading size="xs">Kiosk Instructions</Heading>
             <Text fontSize="xs" color="gray.600">
-              Scan your fingerprint to mark attendance. Select check-in or check-out, and use continuous mode for quick successive scans.
+              Scan your fingerprint to mark attendance. Session type is automatically detected based on current time. Select check-in or check-out for quick successive scans.
             </Text>
             <Text fontSize="xs" color="gray.600">
               Monitor real-time attendance logs and scanner status below.
@@ -439,10 +476,10 @@ const AttendanceKiosk: FC = () => {
                   <VStack spacing={2} align="start">
                     <Box w="100%">
                       <HStack justifyContent="space-between" alignItems="center" mb={1}>
-                        <Text fontWeight="bold" fontSize="xs">Time Type:</Text>
+                        <Text fontWeight="bold" fontSize="sm">Time Type:</Text>
                         <Select
-                          size="xs"
-                          w="120px"
+                          size="sm"
+                          w="140px"
                           value={timeType}
                           onChange={(e) => setTimeType(e.target.value as 'IN' | 'OUT')}
                         >
@@ -451,12 +488,16 @@ const AttendanceKiosk: FC = () => {
                         </Select>
                       </HStack>
                       <HStack justifyContent="space-between" alignItems="center">
-                        <Text fontWeight="bold" fontSize="xs">Session:</Text>
+                        <Text fontWeight="bold" fontSize="sm">Session:</Text>
                         <Select
-                          size="xs"
-                          w="120px"
+                          size="sm"
+                          w="140px"
                           value={sessionType}
-                          onChange={(e) => setSessionType(e.target.value as 'AM' | 'PM')}
+                          onChange={(e) => {
+                            const selected = e.target.value as 'AM' | 'PM';
+                            setSessionType(selected);
+                            setShowSessionWarning(true);
+                          }}
                         >
                           <option value="AM">AM (Morning)</option>
                           <option value="PM">PM (Afternoon)</option>
@@ -596,6 +637,28 @@ const AttendanceKiosk: FC = () => {
           </VStack>
         </Box>
       </Flex>
+
+      {/* Session Warning Modal */}
+      <Modal isOpen={showSessionWarning} onClose={() => setShowSessionWarning(false)} isCentered>
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>⚠️ Session Type Warning</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <Text>
+              Session type is automatically determined by the system based on the check-in time. Manual selection is for display only and does not affect how attendance is recorded.
+            </Text>
+            <Text mt={2} fontSize="sm" color="gray.600">
+              The system will always use the correct session type (AM/PM) based on when the student scans their fingerprint.
+            </Text>
+          </ModalBody>
+          <ModalFooter>
+            <Button colorScheme="blue" onClick={() => setShowSessionWarning(false)}>
+              I Understand
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </Box>
   );
 };

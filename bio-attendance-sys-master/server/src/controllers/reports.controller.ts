@@ -6,6 +6,8 @@ import { getAttendanceReports, getAttendanceSummary, getUniqueGradesAndSections,
 import { generateSF2Data } from '../services/sf2-export.service';
 import { generateSF2Excel } from '../services/sf2-excel.service';
 import { generateSF2PDF } from '../services/sf2-pdf.service';
+import { generateMonthlySummaryExcel } from '../services/monthly-summary-excel.service';
+import { generateMonthlySummaryPDF } from '../services/monthly-summary-pdf.service';
 import { prisma } from '../db/prisma-client';
 
 export const getReports = async (req: Request, res: Response, next: NextFunction) => {
@@ -384,15 +386,34 @@ export const getCheckInTimeDistributionController = async (req: Request, res: Re
 export const getStudentsByStatusController = async (req: Request, res: Response, next: NextFunction) => {
   const { staff_id } = req.params;
   const { date, grade, section, status, session } = req.query;
+  const user_id = (req.user as JwtPayload)?.id;
 
+  if (!user_id) return next(new createError.Unauthorized('User not authenticated'));
   if (!staff_id) return next(new createError.BadRequest('Staff ID is required'));
   if (!date) return next(new createError.BadRequest('Date is required'));
   if (!grade) return next(new createError.BadRequest('Grade is required'));
   if (!section) return next(new createError.BadRequest('Section is required'));
   if (!status || !['present', 'absent', 'late'].includes(status as string)) return next(new createError.BadRequest('Valid status (present, absent, or late) is required'));
 
+  // Get the current user's role
+  const currentUser = await prisma.staff.findUnique({
+    where: { id: user_id },
+    select: { role: true }
+  });
+
+  if (!currentUser) {
+    return next(new createError.Unauthorized('User not found'));
+  }
+
+  // Check if the user is an admin or the owner of the resource
+  if (currentUser.role !== 'ADMIN' && staff_id !== user_id) {
+    return next(new createError.Forbidden('Access denied'));
+  }
+
   try {
-    const students = await getStudentsByStatus(staff_id, date as string, grade as string, section as string, status as 'present' | 'absent' | 'late', session as string);
+    // For admin users, pass null to get students for all staff; for teachers, filter by their staff_id
+    const effectiveStaffId = currentUser.role === 'ADMIN' ? null : staff_id;
+    const students = await getStudentsByStatus(effectiveStaffId, date as string, grade as string, section as string, status as 'present' | 'absent' | 'late', session as string);
     return createSuccess(res, 200, 'Students fetched successfully', { students });
   } catch (err) {
     return next(err);
@@ -566,6 +587,103 @@ export const exportSF2PDFController = async (req: Request, res: Response, next: 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename=${fileName}`);
     return res.send(buffer);
+  } catch (err) {
+    return next(err);
+  }
+};
+
+export const exportMonthlySummaryExcel = async (req: Request, res: Response, next: NextFunction) => {
+  const { staff_id } = req.params;
+  const { grade, section, year, session } = req.query;
+  const user_id = (req.user as JwtPayload)?.id;
+
+  if (!user_id) return next(new createError.Unauthorized('User not authenticated'));
+  if (!staff_id || staff_id.trim() === '') {
+    return next(new createError.BadRequest('Staff ID is required for export'));
+  }
+
+  // Get the current user's role
+  const currentUser = await prisma.staff.findUnique({
+    where: { id: user_id },
+    select: { role: true }
+  });
+
+  if (!currentUser) {
+    return next(new createError.Unauthorized('User not found'));
+  }
+
+  // Check if the user is an admin or the owner of the resource
+  if (currentUser.role !== 'ADMIN' && staff_id !== user_id) {
+    return next(new createError.Forbidden('Access denied'));
+  }
+
+  try {
+    const filters = {
+      grade: grade as string,
+      section: section as string,
+      year: year ? parseInt(year as string, 10) : new Date().getFullYear(),
+      session: session as string,
+    };
+
+    // For admin users, pass null to get all attendance data; for teachers, filter by their staff_id
+    const effectiveStaffId = currentUser.role === 'ADMIN' ? null : staff_id;
+    const summaryData = await getMonthlyAttendanceSummary(effectiveStaffId, filters);
+
+    const buffer = await generateMonthlySummaryExcel(summaryData);
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename=monthly-attendance-summary-${year || new Date().getFullYear()}.xlsx`);
+
+    return res.status(200).send(buffer);
+  } catch (err) {
+    console.error('Error in exportMonthlySummaryExcel:', err);
+    return next(err);
+  }
+};
+
+export const exportMonthlySummaryPDF = async (req: Request, res: Response, next: NextFunction) => {
+  const { staff_id } = req.params;
+  const { grade, section, year, session } = req.query;
+  const user_id = (req.user as JwtPayload)?.id;
+
+  if (!user_id) return next(new createError.Unauthorized('User not authenticated'));
+  if (!staff_id || staff_id.trim() === '') {
+    return next(new createError.BadRequest('Staff ID is required for export'));
+  }
+
+  // Get the current user's role
+  const currentUser = await prisma.staff.findUnique({
+    where: { id: user_id },
+    select: { role: true }
+  });
+
+  if (!currentUser) {
+    return next(new createError.Unauthorized('User not found'));
+  }
+
+  // Check if the user is an admin or the owner of the resource
+  if (currentUser.role !== 'ADMIN' && staff_id !== user_id) {
+    return next(new createError.Forbidden('Access denied'));
+  }
+
+  try {
+    const filters = {
+      grade: grade as string,
+      section: section as string,
+      year: year ? parseInt(year as string, 10) : new Date().getFullYear(),
+      session: session as string,
+    };
+
+    // For admin users, pass null to get all attendance data; for teachers, filter by their staff_id
+    const effectiveStaffId = currentUser.role === 'ADMIN' ? null : staff_id;
+    const summaryData = await getMonthlyAttendanceSummary(effectiveStaffId, filters);
+
+    const buffer = await generateMonthlySummaryPDF(summaryData);
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=monthly-attendance-summary-${year || new Date().getFullYear()}.pdf`);
+
+    return res.status(200).send(buffer);
   } catch (err) {
     return next(err);
   }

@@ -7,114 +7,217 @@ export const generateSF2Excel = async (data: SF2Data): Promise<Buffer> => {
 
   worksheet.pageSetup = {
     orientation: 'landscape',
+    margins: {
+      left: 0.5,
+      right: 0.5,
+      top: 0.5,
+      bottom: 0.5,
+      header: 0.3,
+      footer: 0.3,
+    },
   };
 
+
+  // Title row
+  worksheet.insertRows(1, [
+    { title: 'School Form 2 (SF2) Daily Attendance Report of Learners' },
+  ]);
+
+  const titleRow = worksheet.getRow(1);
+  titleRow.font = { bold: true, size: 16 };
+  titleRow.alignment = { horizontal: 'center', vertical: 'middle' };
+  worksheet.mergeCells(`A1:${getColumnLetter(3 + data.schoolDays.length * 2 + 3)}1`);
+
+  // Form fields section - better aligned layout
+  worksheet.insertRows(2, ['']); // Empty row for spacing
+
+  // Row 3: School ID and School Year
+  worksheet.insertRows(3, ['']);
+  const schoolIdRow = worksheet.getRow(3);
+  schoolIdRow.getCell(1).value = 'School ID';
+  schoolIdRow.getCell(2).value = data.schoolId;
+  schoolIdRow.getCell(5).value = 'School Year';
+  schoolIdRow.getCell(6).value = data.schoolYear;
+  schoolIdRow.font = { size: 10 };
+  schoolIdRow.alignment = { horizontal: 'left', vertical: 'middle' };
+
+  // Add borders for School ID box
+  for (let col = 1; col <= 3; col++) {
+    const cell = schoolIdRow.getCell(col);
+    cell.border = {
+      top: { style: 'thin' },
+      left: { style: 'thin' },
+      bottom: { style: 'thin' },
+      right: { style: 'thin' },
+    };
+  }
+
+  // Add borders for School Year box
+  for (let col = 5; col <= 7; col++) {
+    const cell = schoolIdRow.getCell(col);
+    cell.border = {
+      top: { style: 'thin' },
+      left: { style: 'thin' },
+      bottom: { style: 'thin' },
+      right: { style: 'thin' },
+    };
+  }
+
+  // Row 4: Name of School and Report for the Month of
+  worksheet.insertRows(4, ['']);
+  const schoolNameRow = worksheet.getRow(4);
+  schoolNameRow.getCell(1).value = 'Name of School';
+  schoolNameRow.getCell(2).value = data.schoolName;
+  schoolNameRow.getCell(5).value = 'Report for the Month of';
+  schoolNameRow.getCell(6).value = data.month;
+  schoolNameRow.font = { size: 10 };
+  schoolNameRow.alignment = { horizontal: 'left', vertical: 'middle' };
+
+  // Add borders for Name of School box
+  for (let col = 1; col <= 3; col++) {
+    const cell = schoolNameRow.getCell(col);
+    cell.border = {
+      top: { style: 'thin' },
+      left: { style: 'thin' },
+      bottom: { style: 'thin' },
+      right: { style: 'thin' },
+    };
+  }
+
+  // Add borders for Month box
+  for (let col = 5; col <= 7; col++) {
+    const cell = schoolNameRow.getCell(col);
+    cell.border = {
+      top: { style: 'thin' },
+      left: { style: 'thin' },
+      bottom: { style: 'thin' },
+      right: { style: 'thin' },
+    };
+  }
+
+  // Row 5: Grade Level and Section
+  worksheet.insertRows(5, ['']);
+  const gradeSectionRow = worksheet.getRow(5);
+  gradeSectionRow.getCell(1).value = 'Grade Level';
+  gradeSectionRow.getCell(2).value = data.grade;
+  gradeSectionRow.getCell(5).value = 'Section';
+  gradeSectionRow.getCell(6).value = data.section;
+  gradeSectionRow.font = { size: 10 };
+  gradeSectionRow.alignment = { horizontal: 'left', vertical: 'middle' };
+
+  // Add borders for Grade Level box
+  for (let col = 1; col <= 3; col++) {
+    const cell = gradeSectionRow.getCell(col);
+    cell.border = {
+      top: { style: 'thin' },
+      left: { style: 'thin' },
+      bottom: { style: 'thin' },
+      right: { style: 'thin' },
+    };
+  }
+
+  // Add borders for Section box
+  for (let col = 5; col <= 7; col++) {
+    const cell = gradeSectionRow.getCell(col);
+    cell.border = {
+      top: { style: 'thin' },
+      left: { style: 'thin' },
+      bottom: { style: 'thin' },
+      right: { style: 'thin' },
+    };
+  }
+
+  // Define columns
   worksheet.columns = [
     { header: 'No.', key: 'no', width: 5 },
-    { header: 'NAME OF LEARNER', key: 'name', width: 25 },
+    { header: 'NAME OF LEARNER', key: 'name', width: 30 },
     { header: 'LRN', key: 'matric_no', width: 15 },
     ...data.schoolDays.flatMap(day => [
-      { header: `${formatDateForHeader(day)}\nAM`, key: `${day}_am`, width: 6 },
-      { header: `${formatDateForHeader(day)}\nPM`, key: `${day}_pm`, width: 6 },
+      { header: formatDateForHeader(day), key: `${day}_am`, width: 6 },
+      { header: '', key: `${day}_pm`, width: 6 },
     ]),
-    { header: 'Total Absences', key: 'absent', width: 10 },
+    { header: 'Total\nAbsences', key: 'absent', width: 8 },
+    { header: 'Total\nTardy/Late', key: 'tardy_late', width: 10 },
     { header: 'Remarks', key: 'remarks', width: 20 },
   ];
 
-  const headerRow = worksheet.getRow(1);
-  headerRow.font = { bold: true, size: 10 };
-  headerRow.fill = {
+  // Add some spacing
+  worksheet.insertRows(6, ['']);
+
+  let rowNum = 7;
+
+  // Main header row 1 (dates)
+  const dateHeaderRow = worksheet.getRow(rowNum);
+  const dateHeaderValues: Record<string, string> = {
+    no: '',
+    name: '',
+    matric_no: '',
+  };
+
+  data.schoolDays.forEach(day => {
+    dateHeaderValues[`${day}_am`] = formatDateForHeader(day);
+    dateHeaderValues[`${day}_pm`] = '';
+  });
+
+  dateHeaderValues.absent = '';
+  dateHeaderValues.remarks = '';
+
+  dateHeaderRow.values = dateHeaderValues;
+  dateHeaderRow.font = { bold: true, size: 10 };
+  dateHeaderRow.fill = {
     type: 'pattern',
     pattern: 'solid',
-    fgColor: { argb: 'FFD3D3D3' },
+    fgColor: { argb: 'FFD9D9D9' },
   };
-  headerRow.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+  dateHeaderRow.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
 
-  worksheet.insertRows(1, [
-    { date: 'DepEd School Form 2 - Daily Attendance Report of Learners' },
-  ], 'i');
+  // Merge date cells
+  let colIndex = 4; // Starting after No., Name, LRN
+  data.schoolDays.forEach(() => {
+    const startCol = getColumnLetter(colIndex);
+    const endCol = getColumnLetter(colIndex + 1);
+    worksheet.mergeCells(`${startCol}${rowNum}:${endCol}${rowNum}`);
+    colIndex += 2;
+  });
 
-  const titleRow = worksheet.getRow(1);
-  titleRow.font = { bold: true, size: 14 };
-  titleRow.alignment = { horizontal: 'center', vertical: 'middle' };
+  rowNum++;
 
-  worksheet.mergeCells(`A1:${getColumnLetter(3 + data.schoolDays.length * 2 + 2)}1`);
-
-  worksheet.insertRows(2, [
-    { date: `Region: ${data.region || 'NCR'}` },
-  ], 'i');
-
-  const regionRow = worksheet.getRow(2);
-  regionRow.font = { size: 11 };
-  regionRow.alignment = { horizontal: 'left' };
-
-  worksheet.insertRows(3, [
-    { date: `Division: ${data.division || 'Division Name'}` },
-  ], 'i');
-
-  const divisionRow = worksheet.getRow(3);
-  divisionRow.font = { size: 11 };
-  divisionRow.alignment = { horizontal: 'left' };
-
-  worksheet.insertRows(4, [
-    { date: `District: ${data.district || 'District Name'}` },
-  ], 'i');
-
-  const districtRow = worksheet.getRow(4);
-  districtRow.font = { size: 11 };
-  districtRow.alignment = { horizontal: 'left' };
-
-  worksheet.insertRows(5, [
-    { date: `School Year: ${data.schoolYear}` },
-  ], 'i');
-
-  const schoolYearRow = worksheet.getRow(5);
-  schoolYearRow.font = { size: 11 };
-  schoolYearRow.alignment = { horizontal: 'left' };
-
-  worksheet.insertRows(6, [
-    { date: `School: ${data.schoolName} (ID: ${data.schoolId})` },
-  ], 'i');
-
-  worksheet.insertRows(7, [
-    { date: `Month: ${data.month} | Grade: ${data.grade} | Section: ${data.section}` },
-  ], 'i');
-
-  let rowNum = 9;
-
-  const headerRow2 = worksheet.getRow(rowNum);
-  const headerValues: Record<string, string> = {
+  // Main header row 2 (AM/PM)
+  const sessionHeaderRow = worksheet.getRow(rowNum);
+  const sessionHeaderValues: Record<string, string> = {
     no: 'No.',
     name: 'NAME OF LEARNER',
     matric_no: 'LRN',
   };
-  
-  data.schoolDays.forEach(day => {
-    headerValues[`${day}_am`] = `${formatDateForHeader(day)} AM`;
-    headerValues[`${day}_pm`] = `${formatDateForHeader(day)} PM`;
-  });
-  
-  headerValues.absent = 'Total Absent';
-  headerValues.remarks = 'Remarks';
-  
-  headerRow2.values = headerValues;
 
-  headerRow2.font = { bold: true, size: 10 };
-  headerRow2.fill = {
+  data.schoolDays.forEach(day => {
+    sessionHeaderValues[`${day}_am`] = 'AM';
+    sessionHeaderValues[`${day}_pm`] = 'PM';
+  });
+
+  sessionHeaderValues.absent = 'Total\nAbsences';
+  sessionHeaderValues.tardy_late = 'Total\nTardy/Late';
+  sessionHeaderValues.remarks = 'Remarks';
+
+  sessionHeaderRow.values = sessionHeaderValues;
+  sessionHeaderRow.font = { bold: true, size: 9 };
+  sessionHeaderRow.fill = {
     type: 'pattern',
     pattern: 'solid',
     fgColor: { argb: 'FFB4C7E7' },
   };
-  headerRow2.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+  sessionHeaderRow.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
 
   rowNum++;
 
+  const startDataRow = rowNum;
   data.students.forEach((student, index) => {
     const rowData: any = {
       no: index + 1,
       name: student.name,
       matric_no: student.matric_no,
       absent: student.absentCount,
+      tardy_late: student.lateCount,
       remarks: student.remarks,
     };
 
@@ -129,68 +232,95 @@ export const generateSF2Excel = async (data: SF2Data): Promise<Buffer> => {
     const row = worksheet.getRow(rowNum);
     row.values = rowData;
     row.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    row.font = { size: 10 };
+
+    // Add thin borders to data rows
+    for (let col = 1; col <= 3 + data.schoolDays.length * 2 + 3; col++) {
+      const cell = row.getCell(col);
+      cell.border = {
+        top: { style: 'thin' },
+        left: { style: 'thin' },
+        bottom: { style: 'thin' },
+        right: { style: 'thin' },
+      };
+    }
+
     rowNum++;
   });
 
-  rowNum += 2;
+  const endDataRow = rowNum - 1;
 
-  const summaryRow1 = worksheet.getRow(rowNum);
-  summaryRow1.values = {
-    date: 'Summary Statistics',
-  };
-  summaryRow1.font = { bold: true, size: 11 };
+  // Add borders to header rows
+  for (let r = 7; r <= 8; r++) {
+    const headerRow = worksheet.getRow(r);
+    for (let col = 1; col <= 3 + data.schoolDays.length * 2 + 3; col++) {
+      const cell = headerRow.getCell(col);
+      cell.border = {
+        top: { style: 'thin' },
+        left: { style: 'thin' },
+        bottom: { style: 'thin' },
+        right: { style: 'thin' },
+      };
+    }
+  }
+
+  rowNum += 3;
+
+  const summaryTitleRow = worksheet.getRow(rowNum);
+  summaryTitleRow.getCell(1).value = 'SUMMARY';
+  summaryTitleRow.font = { bold: true, size: 12 };
+  summaryTitleRow.alignment = { horizontal: 'left' };
   rowNum++;
 
   const summaryData = [
     { label: 'Enrollment as of 1st Friday of June', value: data.enrollmentFirstFriday },
-    { label: 'Late Enrollment during the month', value: data.lateEnrollmentCount },
     { label: 'Registered Learners as of end of month', value: data.registeredLearners },
-    { label: 'Percentage of Enrollment (%)', value: data.percentageEnrollment },
-    { label: 'Average Daily Attendance', value: data.averageDailyAttendance.toFixed(2) },
-    { label: 'Percentage of Attendance for the Month (%)', value: data.percentageAttendance },
+    { label: 'Percentage of Enrollment (%)', value: `${data.percentageEnrollment}%` },
+    { label: 'Average Daily Attendance', value: `${data.averageDailyAttendance}%` },
+    { label: 'Percentage of Attendance for the Month (%)', value: `${data.percentageAttendance}%` },
     {
       label: 'Number of Students Absent for 5 Consecutive Days',
       value: data.consecutiveAbsent5Days,
     },
-    { label: 'Dropout (Male)', value: data.dropoutMale },
-    { label: 'Dropout (Female)', value: data.dropoutFemale },
-    { label: 'Transferred Out (Male)', value: data.transferOutMale },
-    { label: 'Transferred Out (Female)', value: data.transferOutFemale },
-    { label: 'Transferred In (Male)', value: data.transferInMale },
-    { label: 'Transferred In (Female)', value: data.transferInFemale },
   ];
 
   summaryData.forEach(item => {
     const row = worksheet.getRow(rowNum);
-    row.values = { date: item.label, name: item.value };
+    // Use first two columns for label and value
+    row.getCell(1).value = item.label;
+    row.getCell(2).value = item.value;
     row.font = { size: 10 };
+    row.alignment = { horizontal: 'left', vertical: 'middle' };
     rowNum++;
   });
 
+  rowNum += 3;
+
+  const signatureTitleRow = worksheet.getRow(rowNum);
+  signatureTitleRow.getCell(1).value = 'CERTIFICATION';
+  signatureTitleRow.font = { bold: true, size: 12 };
+  signatureTitleRow.alignment = { horizontal: 'left' };
   rowNum += 2;
 
   const signatureRow1 = worksheet.getRow(rowNum);
-  signatureRow1.values = {
-    date: 'Prepared by:',
-    name: 'Verified by:',
-  };
+  signatureRow1.getCell(1).value = 'Prepared by:';
+  signatureRow1.getCell(2).value = 'Verified by:';
   signatureRow1.font = { bold: true, size: 10 };
+  signatureRow1.alignment = { horizontal: 'left' };
   rowNum += 3;
 
   const signatureRow2 = worksheet.getRow(rowNum);
-  signatureRow2.values = {
-    date: data.staffName,
-    name: data.schoolHeadName,
-  };
+  signatureRow2.getCell(1).value = data.staffName;
+  signatureRow2.getCell(2).value = data.schoolHeadName;
   signatureRow2.font = { size: 10, underline: true };
+  signatureRow2.alignment = { horizontal: 'center' };
   rowNum++;
 
   const signatureRow3 = worksheet.getRow(rowNum);
-  signatureRow3.values = {
-    date: 'Teacher/Class Adviser',
-    name: 'Principal/School Head',
-  };
+  signatureRow3.getCell(1).value = 'Teacher/Class Adviser';
+  signatureRow3.getCell(2).value = 'Principal/School Head';
   signatureRow3.font = { size: 9, italic: true };
+  signatureRow3.alignment = { horizontal: 'center' };
 
   const buffer = await workbook.xlsx.writeBuffer();
   return Buffer.from(buffer);

@@ -21,9 +21,16 @@ import {
   Flex,
   Center,
   Spinner,
+  Menu,
+  MenuButton,
+  MenuList,
+  MenuItem,
+  IconButton,
 } from '@chakra-ui/react';
+import { DownloadIcon, ChevronDownIcon } from '@chakra-ui/icons';
 import { useGetMonthlyAttendanceSummary, useGetGradesAndSections } from '../api/atttendance.api';
 import useStore from '../store/store';
+import { axiosClient } from '../lib/axios-client';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
@@ -90,6 +97,43 @@ const MonthlyAttendanceSummary: React.FC = () => {
     setCurrentMonthPage(0);
   };
 
+  const handleExport = async (format: 'excel' | 'pdf') => {
+    if (!staffInfo?.id) {
+      console.error('Staff ID is required for export');
+      return;
+    }
+
+    try {
+      const params = new URLSearchParams({
+        year: selectedYear.toString(),
+        ...(selectedGrade && { grade: selectedGrade }),
+        ...(selectedSection && { section: selectedSection }),
+        ...(selectedSession !== 'all' && { session: selectedSession }),
+      });
+
+      const endpoint = `/api/reports/${staffInfo.id}/monthly-summary/export/${format}?${params.toString()}`;
+      const response = await axiosClient.get(endpoint, { responseType: 'blob' });
+
+      const blob = new Blob([response.data], {
+        type: format === 'excel'
+          ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+          : 'application/pdf'
+      });
+
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `monthly-attendance-summary-${selectedYear}.${format === 'excel' ? 'xlsx' : 'pdf'}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Export failed:', error);
+      // You might want to show a user-friendly error message here
+    }
+  };
+
   if (isLoading) {
     return (
       <Center py={8}>
@@ -100,7 +144,23 @@ const MonthlyAttendanceSummary: React.FC = () => {
 
   return (
     <VStack spacing={6} align="stretch">
-      <Heading size="md">Monthly Attendance Summary</Heading>
+      <Flex justifyContent="space-between" alignItems="center">
+        <Heading size="md">Monthly Attendance Summary</Heading>
+        <Menu>
+          <MenuButton as={Button} rightIcon={<ChevronDownIcon />} colorScheme="blue" size="sm">
+            <DownloadIcon mr={2} />
+            Export
+          </MenuButton>
+          <MenuList>
+            <MenuItem onClick={() => handleExport('excel')}>
+              Export as Excel (.xlsx)
+            </MenuItem>
+            <MenuItem onClick={() => handleExport('pdf')}>
+              Export as PDF (.pdf)
+            </MenuItem>
+          </MenuList>
+        </Menu>
+      </Flex>
 
       {/* Filters */}
       <Card p={4}>

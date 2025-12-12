@@ -21,8 +21,8 @@ export const createTeacherSchema = Joi.object({
     'string.min': 'Password must be at least 6 characters long',
     'string.max': 'Password must not exceed 20 characters',
   }),
-  role: Joi.string().valid('TEACHER', 'ADMIN').optional().messages({
-    'any.only': 'Role must be either TEACHER or ADMIN',
+  role: Joi.string().valid('TEACHER').optional().messages({
+    'any.only': 'Role must be TEACHER',
   }),
   section: Joi.string().min(2).max(50).optional().messages({
     'string.min': 'Section must be at least 2 characters long',
@@ -94,8 +94,8 @@ export const updateTeacherSchema = Joi.object({
     'string.min': 'Password must be at least 6 characters long',
     'string.max': 'Password must not exceed 20 characters',
   }),
-  role: Joi.string().valid('TEACHER', 'ADMIN').optional().messages({
-    'any.only': 'Role must be either TEACHER or ADMIN',
+  role: Joi.string().valid('TEACHER').optional().messages({
+    'any.only': 'Role must be TEACHER',
   }),
   section: Joi.string().min(2).max(50).optional().messages({
     'string.min': 'Section must be at least 2 characters long',

@@ -19,37 +19,53 @@ export const generateSF2PDF = async (data: SF2Data): Promise<Buffer> => {
       const pageWidth = doc.page.width - 60;
       const pageHeight = doc.page.height - 60;
 
+      // Title
       doc
-        .fontSize(14)
+        .fontSize(16)
         .font('Helvetica-Bold')
-        .text('DepEd School Form 2 (SF2)', { align: 'center' })
-        .fontSize(12)
-        .text('Daily Attendance Report of Learners', { align: 'center' });
-
-      doc
-        .fontSize(10)
-        .font('Helvetica')
-        .moveDown(0.5);
-
-      const schoolInfo = [
-        `School ID: ${data.schoolId}`,
-        `School Name: ${data.schoolName}`,
-        `School Year: ${data.schoolYear}`,
-        `Month: ${data.month}`,
-        `Grade: ${data.grade}`,
-        `Section: ${data.section}`,
-      ];
-
-      schoolInfo.forEach((info, idx) => {
-        if (idx % 2 === 0) {
-          doc.text(info, { continued: true });
-          if (idx < schoolInfo.length - 1) doc.text('  ');
-        } else {
-          doc.text(info);
-        }
-      });
+        .text('School Form 2 (SF2) Daily Attendance Report of Learners', { align: 'center' });
 
       doc.moveDown(0.5);
+
+      // Form fields layout
+      const leftMargin = 50;
+      const fieldWidth = 200;
+      const fieldHeight = 20;
+      const verticalSpacing = 25;
+
+      // School ID and School Year
+      doc.fontSize(10).font('Helvetica');
+      doc.rect(leftMargin, doc.y, fieldWidth, fieldHeight).stroke();
+      doc.text('School ID', leftMargin + 5, doc.y + 5);
+      doc.text(data.schoolId, leftMargin + 80, doc.y + 5);
+
+      doc.rect(leftMargin + 250, doc.y, fieldWidth, fieldHeight).stroke();
+      doc.text('School Year', leftMargin + 255, doc.y + 5);
+      doc.text(data.schoolYear, leftMargin + 330, doc.y + 5);
+
+      doc.y += verticalSpacing;
+
+      // Name of School and Report for the Month of
+      doc.rect(leftMargin, doc.y, fieldWidth, fieldHeight).stroke();
+      doc.text('Name of School', leftMargin + 5, doc.y + 5);
+      doc.text(data.schoolName, leftMargin + 80, doc.y + 5);
+
+      doc.rect(leftMargin + 250, doc.y, fieldWidth, fieldHeight).stroke();
+      doc.text('Report for the Month of', leftMargin + 255, doc.y + 5);
+      doc.text(data.month, leftMargin + 380, doc.y + 5);
+
+      doc.y += verticalSpacing;
+
+      // Grade Level and Section
+      doc.rect(leftMargin, doc.y, fieldWidth, fieldHeight).stroke();
+      doc.text('Grade Level', leftMargin + 5, doc.y + 5);
+      doc.text(data.grade, leftMargin + 80, doc.y + 5);
+
+      doc.rect(leftMargin + 250, doc.y, fieldWidth, fieldHeight).stroke();
+      doc.text('Section', leftMargin + 255, doc.y + 5);
+      doc.text(data.section, leftMargin + 330, doc.y + 5);
+
+      doc.y += verticalSpacing + 10;
 
       const tableTop = doc.y;
       const cellHeight = 20;
@@ -64,27 +80,49 @@ export const generateSF2PDF = async (data: SF2Data): Promise<Buffer> => {
       const drawTableHeader = (y: number, startDay: number = 0) => {
         doc.fontSize(8).font('Helvetica-Bold');
 
-        doc.rect(32, y, 65, cellHeight).stroke();
-        doc.text('Student Name', 35, y + 5, { width: 60, align: 'center' });
+        // No. column
+        doc.rect(32, y, 25, cellHeight).stroke();
+        doc.text('No.', 35, y + 5, { width: 20, align: 'center' });
 
-        doc.rect(100, y, 55, cellHeight).stroke();
-        doc.text('Matric No.', 103, y + 5, { width: 50, align: 'center' });
+        // Student Name column
+        doc.rect(57, y, 80, cellHeight).stroke();
+        doc.text('NAME OF LEARNER', 60, y + 2, { width: 75, align: 'center' });
 
-        let dayX = 160;
+        // LRN column
+        doc.rect(137, y, 45, cellHeight).stroke();
+        doc.text('LRN', 140, y + 5, { width: 40, align: 'center' });
+
+        let dayX = 182;
         const daysToShow = data.schoolDays.slice(startDay, startDay + maxDaysPerPage);
         daysToShow.forEach((day, idx) => {
           const date = new Date(day);
           const label = `${date.getDate()}`;
-          
-          doc.rect(dayX, y, dayColWidth, cellHeight).stroke();
-          doc.fontSize(7).text(`${label}A`, dayX, y + 6, { width: dayColWidth, align: 'center' });
+
+          // Date header (merged AM/PM)
+          doc.rect(dayX, y, dayColWidth * 2, cellHeight / 2).stroke();
+          doc.fontSize(7).text(label, dayX, y + 2, { width: dayColWidth * 2, align: 'center' });
+
+          // AM/PM subheaders
+          doc.rect(dayX, y + cellHeight / 2, dayColWidth, cellHeight / 2).stroke();
+          doc.text('AM', dayX, y + cellHeight / 2 + 2, { width: dayColWidth, align: 'center' });
           dayX += dayColWidth;
-          
-          doc.rect(dayX, y, dayColWidth, cellHeight).stroke();
-          doc.text(`${label}P`, dayX, y + 6, { width: dayColWidth, align: 'center' });
+
+          doc.rect(dayX, y + cellHeight / 2, dayColWidth, cellHeight / 2).stroke();
+          doc.text('PM', dayX, y + cellHeight / 2 + 2, { width: dayColWidth, align: 'center' });
           dayX += dayColWidth;
         });
 
+        // Total Absences column
+        doc.rect(dayX, y, 35, cellHeight).stroke();
+        doc.fontSize(7).text('Total\nAbsences', dayX + 2, y + 2, { width: 30, align: 'center' });
+        dayX += 35;
+
+        // Total Tardy/Late column
+        doc.rect(dayX, y, 40, cellHeight).stroke();
+        doc.text('Total\nTardy/Late', dayX + 2, y + 2, { width: 35, align: 'center' });
+        dayX += 40;
+
+        // Remarks column
         doc.rect(dayX, y, 50, cellHeight).stroke();
         doc.fontSize(8).text('Remarks', dayX + 5, y + 5, { width: 40, align: 'center' });
 
@@ -105,30 +143,47 @@ export const generateSF2PDF = async (data: SF2Data): Promise<Buffer> => {
 
         const y = tableY + currentRow * cellHeight;
 
-        doc.rect(32, y, 65, cellHeight).stroke();
-        doc.fontSize(8).text(student.name, 35, y + 5, { width: 60, height: cellHeight });
+        // No. column
+        doc.rect(32, y, 25, cellHeight).stroke();
+        doc.fontSize(8).text((idx + 1).toString(), 35, y + 6, { width: 20, align: 'center' });
 
-        doc.rect(100, y, 55, cellHeight).stroke();
-        doc.text(student.matric_no, 103, y + 5, { width: 50, align: 'center' });
+        // Student Name column
+        doc.rect(57, y, 80, cellHeight).stroke();
+        doc.fontSize(7).text(student.name, 60, y + 6, { width: 75, align: 'left' });
 
-        let dayX = 160;
+        // LRN column
+        doc.rect(137, y, 45, cellHeight).stroke();
+        doc.text(student.matric_no, 140, y + 6, { width: 40, align: 'center' });
+
+        let dayX = 182;
         const daysToShow = data.schoolDays.slice(0, maxDaysPerPage);
         daysToShow.forEach(day => {
           const dayStr = day.toString();
           const attendance = student.dailyAttendance[dayStr] || { am: 'x', pm: 'x' };
-          
-          const amValue = attendance.am === '' ? '✓' : attendance.am === 'x' ? 'A' : attendance.am;
-          const pmValue = attendance.pm === '' ? '✓' : attendance.pm === 'x' ? 'A' : attendance.pm;
+
+          const amValue = attendance.am === '' ? '/' : attendance.am === 'x' ? 'X' : attendance.am;
+          const pmValue = attendance.pm === '' ? '/' : attendance.pm === 'x' ? 'X' : attendance.pm;
 
           doc.rect(dayX, y, dayColWidth, cellHeight).stroke();
-          doc.fontSize(7).text(amValue, dayX, y + 6, { width: dayColWidth, align: 'center' });
+          doc.fontSize(8).text(amValue, dayX, y + 6, { width: dayColWidth, align: 'center' });
           dayX += dayColWidth;
-          
+
           doc.rect(dayX, y, dayColWidth, cellHeight).stroke();
           doc.text(pmValue, dayX, y + 6, { width: dayColWidth, align: 'center' });
           dayX += dayColWidth;
         });
 
+        // Total Absences column
+        doc.rect(dayX, y, 35, cellHeight).stroke();
+        doc.fontSize(8).text(student.absentCount.toString(), dayX + 2, y + 6, { width: 30, align: 'center' });
+        dayX += 35;
+
+        // Total Tardy/Late column
+        doc.rect(dayX, y, 40, cellHeight).stroke();
+        doc.text(student.lateCount.toString(), dayX + 2, y + 6, { width: 35, align: 'center' });
+        dayX += 40;
+
+        // Remarks column
         doc.rect(dayX, y, 50, cellHeight).stroke();
         doc.fontSize(7).text(student.remarks, dayX + 5, y + 5, { width: 40 });
 
@@ -136,37 +191,40 @@ export const generateSF2PDF = async (data: SF2Data): Promise<Buffer> => {
       });
 
       doc.addPage();
-      doc.fontSize(12).font('Helvetica-Bold').text('Summary Statistics');
+      doc.fontSize(14).font('Helvetica-Bold').text('SUMMARY', { align: 'left' });
       doc.moveDown(0.5);
 
       const summaryData = [
-        { label: 'Enrollment as of 1st Friday of June:', value: data.enrollmentFirstFriday },
-        { label: 'Late Enrollment during the month:', value: data.lateEnrollmentCount },
-        { label: 'Registered Learners as of end of month:', value: data.registeredLearners },
-        { label: 'Percentage of Enrollment (%):', value: data.percentageEnrollment },
-        { label: 'Average Daily Attendance:', value: data.averageDailyAttendance.toFixed(2) },
-        { label: 'Percentage of Attendance (%):', value: data.percentageAttendance },
-        { label: 'Students Absent for 5 Consecutive Days:', value: data.consecutiveAbsent5Days },
-        { label: 'Dropout (M/F):', value: `${data.dropoutMale}/${data.dropoutFemale}` },
-        { label: 'Transferred Out (M/F):', value: `${data.transferOutMale}/${data.transferOutFemale}` },
-        { label: 'Transferred In (M/F):', value: `${data.transferInMale}/${data.transferInFemale}` },
+        { label: 'Enrollment as of 1st Friday of June', value: data.enrollmentFirstFriday },
+        { label: 'Registered Learners as of end of month', value: data.registeredLearners },
+        { label: 'Percentage of Enrollment (%)', value: `${data.percentageEnrollment}%` },
+        { label: 'Average Daily Attendance', value: `${data.averageDailyAttendance}%` },
+        { label: 'Percentage of Attendance for the Month (%)', value: `${data.percentageAttendance}%` },
+        { label: 'Number of Students Absent for 5 Consecutive Days', value: data.consecutiveAbsent5Days },
       ];
 
       doc.fontSize(10).font('Helvetica');
       summaryData.forEach(item => {
-        doc.text(`${item.label} ${item.value}`);
+        doc.text(`${item.label}: ${item.value}`);
       });
 
       doc.moveDown(1);
 
+      doc.fontSize(12).font('Helvetica-Bold').text('CERTIFICATION', { align: 'left' });
+      doc.moveDown(0.5);
+
       doc.fontSize(10).font('Helvetica-Bold').text('Prepared by:', { continued: true });
-      doc.font('Helvetica').text(` ${data.staffName}`, { continued: true });
-      doc.text(' (Teacher/Class Adviser)');
+      doc.font('Helvetica').text(` ___________________________`, { underline: true });
+      doc.moveDown(0.3);
+      doc.font('Helvetica').text(` ${data.staffName}`, { align: 'center' });
+      doc.fontSize(9).font('Helvetica').text('Teacher/Class Adviser', { align: 'center' });
 
       doc.moveDown(0.5);
       doc.font('Helvetica-Bold').text('Verified by:', { continued: true });
-      doc.font('Helvetica').text(` ${data.schoolHeadName}`, { continued: true });
-      doc.text(' (Principal/School Head)');
+      doc.font('Helvetica').text(` ___________________________`, { underline: true });
+      doc.moveDown(0.3);
+      doc.font('Helvetica').text(` ${data.schoolHeadName}`, { align: 'center' });
+      doc.fontSize(9).font('Helvetica').text('Principal/School Head', { align: 'center' });
 
       doc.end();
     } catch (err) {

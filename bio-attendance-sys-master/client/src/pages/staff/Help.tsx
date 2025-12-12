@@ -106,56 +106,6 @@ const Help: FC = () => {
           <AccordionButton>
             <Box flex="1" textAlign="left">
               <InfoIcon marginRight="0.5rem" />
-              Managing Courses/Sections
-            </Box>
-            <AccordionIcon />
-          </AccordionButton>
-          <AccordionPanel pb={4}>
-            <List spacing={3}>
-              <ListItem>
-                <ListIcon as={CheckCircleIcon} color="green.500" />
-                Navigate to "Manage Courses" from the menu to view all course/section assignments with search and pagination controls
-              </ListItem>
-              <ListItem>
-                <ListIcon as={CheckCircleIcon} color="green.500" />
-                Add new sections using the "Add New Section" button - assign teachers, set section codes, and specify grade levels (admin access required)
-              </ListItem>
-              <ListItem>
-                <ListIcon as={CheckCircleIcon} color="green.500" />
-                Edit course details by clicking the edit icon, including updating teacher assignments and section information
-              </ListItem>
-              <ListItem>
-                <ListIcon as={CheckCircleIcon} color="green.500" />
-                View enrolled students for each course using the list icon to see which students are assigned to specific sections
-              </ListItem>
-              <ListItem>
-                <ListIcon as={CheckCircleIcon} color="green.500" />
-                Use search functionality to find courses by teacher name, section code, or teacher ID
-              </ListItem>
-              <ListItem>
-                <ListIcon as={CheckCircleIcon} color="green.500" />
-                Teachers can only view and manage their own assigned courses, while admins have access to all courses
-              </ListItem>
-              <ListItem>
-                <ListIcon as={CheckCircleIcon} color="green.500" />
-                Select multiple courses using checkboxes for bulk deletion operations (admin access required)
-              </ListItem>
-              <ListItem>
-                <ListIcon as={CheckCircleIcon} color="green.500" />
-                Delete individual courses or perform bulk deletions, which will remove all associated student enrollments
-              </ListItem>
-              <ListItem>
-                <ListIcon as={CheckCircleIcon} color="green.500" />
-                Course codes serve as unique identifiers for each section and are used in attendance tracking and reporting
-              </ListItem>
-            </List>
-          </AccordionPanel>
-        </AccordionItem>
-
-        <AccordionItem>
-          <AccordionButton>
-            <Box flex="1" textAlign="left">
-              <InfoIcon marginRight="0.5rem" />
               Managing Teachers
             </Box>
             <AccordionIcon />
@@ -218,7 +168,7 @@ const Help: FC = () => {
              <List spacing={3}>
                <ListItem>
                  <ListIcon as={CheckCircleIcon} color="green.500" />
-                 Navigate to "Manage Attendance" from the menu and click "Open Attendance Kiosk" to launch the attendance interface at /staff/manage/attendance/kiosk
+                 Navigate to "Manage Attendance" from the menu to launch the attendance interface
                </ListItem>
                <ListItem>
                  <ListIcon as={CheckCircleIcon} color="green.500" />

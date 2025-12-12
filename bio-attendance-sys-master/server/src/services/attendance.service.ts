@@ -217,7 +217,7 @@ export const markStudentAttendance = (studentAttendanceInfo: { attendance_id: st
   return new Promise<StudentAttendance>(async (resolve, reject) => {
     try {
       const currentTime = new Date();
-      const sessionType = studentAttendanceInfo.session_type || determineSessionType(currentTime);
+      const sessionType = determineSessionType(currentTime);
 
       // Verify check-in exists before allowing check-out
       if (studentAttendanceInfo.time_type === 'OUT') {

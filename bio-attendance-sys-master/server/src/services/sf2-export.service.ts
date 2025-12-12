@@ -154,7 +154,7 @@ export const generateSF2Data = async (
 
     const totalPossiblePoints = sf2Students.length * schoolDays.length; // Each school day = 1 point
     const averageDailyAttendance = totalPossiblePoints > 0
-      ? (totalAttendancePoints / totalPossiblePoints) * 100
+      ? Math.min((totalAttendancePoints / totalPossiblePoints) * 100, 100) // Cap at 100%
       : 0;
 
     const percentageAttendance = averageDailyAttendance;

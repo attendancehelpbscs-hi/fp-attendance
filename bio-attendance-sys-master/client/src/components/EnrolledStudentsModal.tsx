@@ -116,7 +116,7 @@ const EnrolledStudentsModal: FC<EnrolledStudentsModalProps> = (props) => {
   const emptyStateMessage = course ? 'No students enrolled in this course.' : 'No students found for this teacher.';
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} size="xl">
+    <Modal isOpen={isOpen} onClose={onClose} size="xl" closeOnOverlayClick={false}>
       <ModalOverlay />
       <ModalContent>
         <ModalHeader>{headingText}</ModalHeader>

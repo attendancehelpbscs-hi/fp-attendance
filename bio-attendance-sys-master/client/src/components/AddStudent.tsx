@@ -192,6 +192,7 @@ const AddStudent: FC<{
       }}
       isOpen={isOpen}
       size={size}
+      closeOnOverlayClick={false}
     >
       <DrawerOverlay />
       <DrawerContent>

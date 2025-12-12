@@ -1,549 +1,193 @@
-import { Request, Response, NextFunction } from 'express';
+import type { Request, Response, NextFunction } from 'express';
+import type { JwtPayload } from 'jsonwebtoken';
+import { createSuccess } from '../helpers/http.helper';
 import createError from 'http-errors';
 import { prisma } from '../db/prisma-client';
-import { createSuccess } from '../helpers/http.helper';
-import { hashPassword } from '../helpers/password.helper';
-import { sendTeacherWelcomeEmail } from '../helpers/email.helper';
-import { registerTeacherSchema } from '../../joi/teacher.joi';
-import type { JwtPayload } from 'jsonwebtoken';
+import type { PaginationMeta } from '../interfaces/helper.interface';
+import type { Role } from '@prisma/client';
+import { addTeacherToDb, getTeachersFromDb, getTeacherByIdFromDb, updateTeacherInDb, deleteTeacherFromDb, importTeachersFromCsv } from '../services/teacher.service';
+import multer from 'multer';
+import { createAuditLog } from '../services/audit.service';
+import { sendTeacherApprovalEmail, sendTeacherRejectionEmail, sendTeacherWelcomeEmail } from '../helpers/email.helper';
 
-// Extend JwtPayload to include our custom properties
-interface CustomJwtPayload extends JwtPayload {
-  id: string;
-}
+// Configure multer for file uploads
+const upload = multer({
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === 'text/csv' || file.mimetype === 'application/vnd.ms-excel' || file.originalname.endsWith('.csv')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only CSV files are allowed'));
+    }
+  },
+});
 
-// Create a new teacher account (admin only)
-export const createTeacher = async (req: Request, res: Response, next: NextFunction) => {
-  const { firstName, lastName, email, password, section, grade, matric_no } = req.body;
-  const user = req.user as CustomJwtPayload;
-  if (!user || !user.id) {
-    return next(createError(401, 'Unauthorized'));
+export const addTeacher = async (req: Request, res: Response, next: NextFunction) => {
+  const { firstName, lastName, email, password, role, section, grade, matric_no } = req.body as {
+    firstName: string;
+    lastName: string;
+    email: string;
+    password: string;
+    role?: string;
+    section?: string;
+    grade?: string;
+    matric_no?: string;
+  };
+
+  const user_id = (req.user as JwtPayload)?.id;
+
+  if (!user_id) return next(new createError.Unauthorized('User not authenticated'));
+
+  // Get the current user's role
+  const currentUser = await prisma.staff.findUnique({
+    where: { id: user_id },
+    select: { role: true }
+  });
+
+  if (!currentUser) {
+    return next(new createError.Unauthorized('User not found'));
   }
-  const user_id = user.id;
 
-  // Check if the current user is an admin
+  // Only admins can add teachers
+  if (currentUser.role !== 'ADMIN') {
+    return next(new createError.Forbidden('Access denied. Only admins can add teachers.'));
+  }
+
   try {
-    const currentUser = await prisma.staff.findUnique({
-      where: { id: user_id },
-      select: { role: true }
+    const newTeacher = await addTeacherToDb({
+      firstName,
+      lastName,
+      email,
+      password,
+      role: (role as Role) || 'TEACHER',
+      section,
+      grade,
+      matric_no,
     });
 
-    if (!currentUser || currentUser.role !== 'ADMIN') {
-      return next(createError(403, 'Only admins can create teacher accounts'));
-    }
-  } catch (err) {
-    return next(err);
-  }
+    // Audit log
+    await createAuditLog(user_id, 'TEACHER_CREATED', `Teacher ${newTeacher.email} created by admin`);
 
-  // Validate input
-  if (!firstName || !lastName || !email || !password) {
-    return next(createError(400, 'All fields are required'));
-  }
-
-  try {
-    // Check if teacher already exists
-    const existingTeacher = await prisma.staff.findUnique({
-      where: { email }
-    });
-
-    if (existingTeacher) {
-      return next(createError(409, 'A user with this email already exists'));
-    }
-
-    // Check if matric_no (Teacher ID) already exists
-    if (matric_no) {
-      const existingMatric = await prisma.course.findFirst({
-        where: { matric_no }
-      });
-
-      if (existingMatric) {
-        return next(createError(409, 'Teacher ID already exists'));
-      }
-    }
-
-    // Check if section already exists
-    if (section) {
-      const existingSection = await prisma.course.findFirst({
-        where: { course_code: section }
-      });
-
-      if (existingSection) {
-        return next(createError(409, 'Section already exists'));
-      }
-    }
-
-    // Hash the password
-    const hashedPassword = await hashPassword(password);
-
-    // Create the teacher
-    const teacherName = `${firstName} ${lastName}`;
-    const newTeacher = await prisma.staff.create({
-      data: {
-        firstName,
-        lastName,
-        name: teacherName,
-        email,
-        password: hashedPassword,
-        role: 'TEACHER',
-        created_at: new Date()
-      },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        name: true,
-        email: true,
-        role: true,
-        created_at: true
-      }
-    });
-
-    // If section details are provided, create a course for the teacher
-    let course = null;
-    if (section && grade) {
-      try {
-        course = await prisma.course.create({
-          data: {
-            staff_id: newTeacher.id,
-            course_name: teacherName,
-            course_code: section,
-            grade,
-            matric_no: matric_no || null,
-            created_at: new Date()
-          },
-          select: {
-            id: true,
-            course_name: true,
-            course_code: true,
-            grade: true,
-            matric_no: true
-          }
-        });
-      } catch (courseErr) {
-        // If course creation fails, log but don't fail the teacher creation
-        console.error('Failed to create course for teacher:', courseErr);
-      }
-    }
-
-    // Send welcome email (don't await to not delay response)
-    sendTeacherWelcomeEmail(email, teacherName).catch(err => {
-      console.error('Failed to send welcome email:', err);
-    });
-
-    return createSuccess(res, 201, 'Teacher account created successfully', { teacher: newTeacher, course });
+    return createSuccess(res, 201, 'Teacher created successfully', { teacher: newTeacher });
   } catch (err) {
     return next(err);
   }
 };
 
-// Register a new teacher (self-service)
-export const registerTeacher = async (req: Request, res: Response, next: NextFunction) => {
-  const { firstName, lastName, email, password, section, employeeId, grade } = req.body;
+export const getTeachers = async (req: Request, res: Response, next: NextFunction) => {
+  console.log('🔍 getTeachers called!', { query: req.query, user: req.user }); // ← ADD THIS LINE
+  const { page, per_page } = req.query;
+  const user_id = (req.user as JwtPayload)?.id;
 
-  // Validate input
-  const { error } = registerTeacherSchema.validate(req.body);
-  if (error) {
-    return next(createError(422, error.details[0].message));
+  if (!user_id) return next(new createError.Unauthorized('User not authenticated'));
+
+  // Get the current user's role
+  const currentUser = await prisma.staff.findUnique({
+    where: { id: user_id },
+    select: { role: true }
+  });
+
+  if (!currentUser) {
+    return next(new createError.Unauthorized('User not found'));
   }
+
+  // Only admins can view teachers
+  if (currentUser.role !== 'ADMIN') {
+    return next(new createError.Forbidden('Access denied. Only admins can view teachers.'));
+  }
+
+  const pageNum = Number(page) || 1;
+  const perPageNum = Number(per_page) || 10;
 
   try {
-    // Check if teacher already exists by email
-    const existingTeacher = await prisma.staff.findUnique({
-      where: { email }
-    });
+    const { teachers, total, totalPages } = await getTeachersFromDb(pageNum, perPageNum);
 
-    if (existingTeacher) {
-      return next(createError(409, 'A user with this email already exists'));
-    }
-
-    // Check if employeeId (Teacher ID) already exists
-    const existingMatric = await prisma.course.findFirst({
-      where: { matric_no: employeeId }
-    });
-
-    if (existingMatric) {
-      return next(createError(409, 'Teacher ID already exists'));
-    }
-
-    // Check if section already exists
-    const existingSection = await prisma.course.findFirst({
-      where: { course_code: section }
-    });
-
-    if (existingSection) {
-      return next(createError(409, 'Section already exists'));
-    }
-
-    // Hash the password
-    const hashedPassword = await hashPassword(password);
-
-    // Create the teacher
-    const teacherName = `${firstName} ${lastName}`;
-    const newTeacher = await prisma.staff.create({
-      data: {
-        firstName,
-        lastName,
-        name: teacherName,
-        email,
-        password: hashedPassword,
-        role: 'TEACHER',
-        created_at: new Date()
-      },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        name: true,
-        email: true,
-        role: true,
-        created_at: true
-      }
-    });
-
-    // Create a course for the teacher
-    let course = null;
-    try {
-      course = await prisma.course.create({
-        data: {
-          staff_id: newTeacher.id,
-          course_name: teacherName,
-          course_code: section,
-          grade,
-          matric_no: employeeId,
-          created_at: new Date()
-        },
-        select: {
-          id: true,
-          course_name: true,
-          course_code: true,
-          grade: true,
-          matric_no: true
-        }
-      });
-    } catch (courseErr) {
-      // If course creation fails, log but don't fail the teacher creation
-      console.error('Failed to create course for teacher:', courseErr);
-    }
-
-    // Send welcome email (don't await to not delay response)
-    sendTeacherWelcomeEmail(email, teacherName).catch(err => {
-      console.error('Failed to send welcome email:', err);
-    });
-
-    return createSuccess(res, 201, 'Teacher account created successfully', { teacher: newTeacher, course });
-  } catch (err) {
-    return next(err);
-  }
-};
-
-// Get all teachers (admin only)
-export const getAllTeachers = async (req: Request, res: Response, next: NextFunction) => {
-  const user = req.user as CustomJwtPayload;
-  if (!user || !user.id) {
-    return next(createError(401, 'Unauthorized'));
-  }
-  const user_id = user.id;
-  const page = req.query.page as string || '1';
-  const per_page = req.query.per_page as string || '10';
-  
-  // Convert string query parameters to numbers
-  const pageNumber = parseInt(page, 10) || 1;
-  const perPageNumber = parseInt(per_page, 10) || 10;
-
-  // Check if the current user is an admin
-  try {
-    const currentUser = await prisma.staff.findUnique({
-      where: { id: user_id },
-      select: { role: true }
-    });
-
-    if (!currentUser || currentUser.role !== 'ADMIN') {
-      return next(createError(403, 'Only admins can view all teachers'));
-    }
-  } catch (err) {
-    return next(err);
-  }
-
-  try {
-
-    // Get total count
-    const teacherCount = await prisma.staff.count({
-      where: { role: 'TEACHER' }
-    });
-
-    // Get teachers with pagination
-    const teachers = await prisma.staff.findMany({
-      where: { role: 'TEACHER' },
-      skip: (pageNumber - 1) * perPageNumber,
-      take: perPageNumber,
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        name: true,
-        email: true,
-        created_at: true,
-        courses: {
-          select: {
-            course_code: true,
-            grade: true,
-            matric_no: true
-          },
-          take: 1, // Get the first course for section info
-          orderBy: {
-            created_at: 'desc'
-          }
-        },
-        _count: {
-          select: {
-            students: true
-          }
-        }
-      },
-      orderBy: {
-        created_at: 'desc'
-      }
-    });
-
-    // Transform the data to include section, grade, matric_no at the top level
-    const transformedTeachers = teachers.map(teacher => ({
-      id: teacher.id,
-      firstName: teacher.firstName,
-      lastName: teacher.lastName,
-      name: teacher.name,
-      email: teacher.email,
-      role: 'TEACHER',
-      created_at: teacher.created_at,
-      section: teacher.courses[0]?.course_code || null,
-      grade: teacher.courses[0]?.grade || null,
-      matric_no: teacher.courses[0]?.matric_no || null,
-    }));
-
-    const meta = {
-      total_items: teacherCount,
-      total_pages: Math.ceil(teacherCount / perPageNumber) || 1,
-      page: pageNumber,
-      per_page: perPageNumber
+    const meta: PaginationMeta = {
+      total_items: total,
+      total_pages: totalPages,
+      page: pageNum,
+      per_page: perPageNum,
     };
 
-    return createSuccess(res, 200, 'Teachers retrieved successfully', { teachers: transformedTeachers, meta });
+    return createSuccess(res, 200, 'Teachers fetched successfully', { teachers, meta });
   } catch (err) {
     return next(err);
   }
 };
 
-// Get a single teacher (admin only)
-export const getTeacher = async (req: Request, res: Response, next: NextFunction) => {
+export const getTeacherById = async (req: Request, res: Response, next: NextFunction) => {
   const { id } = req.params;
-  const user = req.user as CustomJwtPayload;
-  if (!user || !user.id) {
-    return next(createError(401, 'Unauthorized'));
-  }
-  const user_id = user.id;
+  const user_id = (req.user as JwtPayload)?.id;
 
-  // Check if the current user is an admin
-  try {
-    const currentUser = await prisma.staff.findUnique({
-      where: { id: user_id },
-      select: { role: true }
-    });
+  if (!user_id) return next(new createError.Unauthorized('User not authenticated'));
+  if (!id) return next(new createError.BadRequest('Teacher ID is required'));
 
-    if (!currentUser || currentUser.role !== 'ADMIN') {
-      return next(createError(403, 'Only admins can view teacher details'));
-    }
-  } catch (err) {
-    return next(err);
+  // Get the current user's role
+  const currentUser = await prisma.staff.findUnique({
+    where: { id: user_id },
+    select: { role: true }
+  });
+
+  if (!currentUser) {
+    return next(new createError.Unauthorized('User not found'));
   }
 
-  if (!id) {
-    return next(createError(400, 'Teacher ID is required'));
+  // Only admins can view teacher details
+  if (currentUser.role !== 'ADMIN') {
+    return next(new createError.Forbidden('Access denied. Only admins can view teacher details.'));
   }
 
   try {
-    // Find teacher by ID first, then check role
-    const teacher = await prisma.staff.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        name: true,
-        email: true,
-        role: true,
-        created_at: true,
-        students: {
-          select: {
-            id: true,
-            name: true,
-            matric_no: true,
-            grade: true,
-            created_at: true
-          }
-        }
-      }
-    });
+    const teacher = await getTeacherByIdFromDb(id);
 
     if (!teacher) {
-      return next(createError(404, 'Teacher not found'));
+      return next(new createError.NotFound('Teacher not found'));
     }
 
-    // Verify it's actually a teacher
-    if (teacher.role !== 'TEACHER') {
-      return next(createError(404, 'Teacher not found'));
-    }
-
-    return createSuccess(res, 200, 'Teacher retrieved successfully', { teacher });
+    return createSuccess(res, 200, 'Teacher fetched successfully', { teacher });
   } catch (err) {
     return next(err);
   }
 };
 
-// Update a teacher (admin only)
-export const updateTeacher = async (req: Request, res: Response, next: NextFunction) => {
-  const { id, firstName, lastName, email, password, section, grade, matric_no } = req.body;
-  const user = req.user as CustomJwtPayload;
-  if (!user || !user.id) {
-    return next(createError(401, 'Unauthorized'));
-  }
-  const user_id = user.id;
+export const updateTeacherById = async (req: Request, res: Response, next: NextFunction) => {
+  const { id } = req.params;
+  const updateData = req.body as {
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    password?: string;
+    role?: Role;
+    section?: string;
+    grade?: string;
+    matric_no?: string;
+  };
 
-  // Check if the current user is an admin
+  const user_id = (req.user as JwtPayload)?.id;
+
+  if (!user_id) return next(new createError.Unauthorized('User not authenticated'));
+  if (!id) return next(new createError.BadRequest('Teacher ID is required'));
+
+  // Get the current user's role
+  const currentUser = await prisma.staff.findUnique({
+    where: { id: user_id },
+    select: { role: true }
+  });
+
+  if (!currentUser) {
+    return next(new createError.Unauthorized('User not found'));
+  }
+
+  // Only admins can update teachers
+  if (currentUser.role !== 'ADMIN') {
+    return next(new createError.Forbidden('Access denied. Only admins can update teachers.'));
+  }
+
   try {
-    const currentUser = await prisma.staff.findUnique({
-      where: { id: user_id },
-      select: { role: true }
-    });
+    const updatedTeacher = await updateTeacherInDb(id, updateData);
 
-    if (!currentUser || currentUser.role !== 'ADMIN') {
-      return next(createError(403, 'Only admins can update teacher accounts'));
-    }
-  } catch (err) {
-    return next(err);
-  }
-
-  if (!id) {
-    return next(createError(400, 'Teacher ID is required'));
-  }
-
-  // Validate input
-  if (!firstName && !lastName && !email && !password && !section && !grade && !matric_no) {
-    return next(createError(400, 'At least one field must be provided for update'));
-  }
-
-  try {
-    // Check if teacher exists
-    const existingTeacher = await prisma.staff.findUnique({
-      where: { id }
-    });
-
-    if (!existingTeacher) {
-      return next(createError(404, 'Teacher not found'));
-    }
-
-    // Verify it's actually a teacher
-    if (existingTeacher.role !== 'TEACHER') {
-      return next(createError(404, 'Teacher not found'));
-    }
-
-    // Check if email is being changed and if it's already in use
-    if (email && email !== existingTeacher.email) {
-      const emailInUse = await prisma.staff.findUnique({
-        where: { email }
-      });
-
-      if (emailInUse) {
-        return next(createError(409, 'This email is already in use by another user'));
-      }
-    }
-
-    // Prepare update data
-    const updateData: any = {};
-    if (firstName) updateData.firstName = firstName;
-    if (lastName) updateData.lastName = lastName;
-    if (email) updateData.email = email;
-    if (password) updateData.password = await hashPassword(password);
-
-    // Update name if first or last name is provided
-    if (firstName || lastName) {
-      const updatedFirstName = firstName || existingTeacher.firstName;
-      const updatedLastName = lastName || existingTeacher.lastName;
-      updateData.name = `${updatedFirstName} ${updatedLastName}`;
-    }
-
-    // Update the teacher
-    const updatedTeacher = await prisma.staff.update({
-      where: { id },
-      data: updateData,
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        name: true,
-        email: true,
-        role: true,
-        created_at: true
-      }
-    });
-
-    // If section details are provided, update or create the course
-    if (section || grade || matric_no) {
-      try {
-        // Check uniqueness for matric_no
-        if (matric_no !== undefined) {
-          const existingMatric = await prisma.course.findFirst({
-            where: { matric_no, staff_id: { not: id } }
-          });
-
-          if (existingMatric) {
-            return next(createError(409, 'Teacher ID already exists'));
-          }
-        }
-
-        // Check uniqueness for section
-        if (section) {
-          const existingSection = await prisma.course.findFirst({
-            where: { course_code: section, staff_id: { not: id } }
-          });
-
-          if (existingSection) {
-            return next(createError(409, 'Section already exists'));
-          }
-        }
-
-        const existingCourse = await prisma.course.findFirst({
-          where: { staff_id: id },
-          orderBy: { created_at: 'desc' }
-        });
-
-        const courseData: any = {};
-        if (section) courseData.course_code = section;
-        if (grade) courseData.grade = grade;
-        if (matric_no !== undefined) courseData.matric_no = matric_no;
-
-        if (existingCourse) {
-          // Update existing course
-          await prisma.course.update({
-            where: { id: existingCourse.id },
-            data: courseData
-          });
-        } else if (section && grade) {
-          // Create new course if section and grade are provided
-          await prisma.course.create({
-            data: {
-              staff_id: id,
-              course_name: updatedTeacher.name,
-              course_code: section,
-              grade,
-              matric_no: matric_no || null,
-              created_at: new Date()
-            }
-          });
-        }
-      } catch (courseErr) {
-        // If course update fails, log but don't fail the teacher update
-        console.error('Failed to update course for teacher:', courseErr);
-      }
-    }
+    // Audit log
+    await createAuditLog(user_id, 'TEACHER_UPDATED', `Teacher ${updatedTeacher.email} updated by admin`);
 
     return createSuccess(res, 200, 'Teacher updated successfully', { teacher: updatedTeacher });
   } catch (err) {
@@ -551,128 +195,302 @@ export const updateTeacher = async (req: Request, res: Response, next: NextFunct
   }
 };
 
-// Delete a teacher (admin only)
-export const deleteTeacher = async (req: Request, res: Response, next: NextFunction) => {
+export const deleteTeacherById = async (req: Request, res: Response, next: NextFunction) => {
   const { id } = req.params;
-  const user = req.user as CustomJwtPayload;
-  if (!user || !user.id) {
-    return next(createError(401, 'Unauthorized'));
-  }
-  const user_id = user.id;
+  const { password } = req.body;
+  const user_id = (req.user as JwtPayload)?.id;
 
-  // Check if the current user is an admin
+  if (!user_id) return next(new createError.Unauthorized('User not authenticated'));
+  if (!id) return next(new createError.BadRequest('Teacher ID is required'));
+
+  // Get the current user's role
+  const currentUser = await prisma.staff.findUnique({
+    where: { id: user_id },
+    select: { role: true }
+  });
+
+  if (!currentUser) {
+    return next(new createError.Unauthorized('User not found'));
+  }
+
+  // Only admins can delete teachers
+  if (currentUser.role !== 'ADMIN') {
+    return next(new createError.Forbidden('Access denied. Only admins can delete teachers.'));
+  }
+
   try {
+    // Check if teacher exists
+    const teacher = await getTeacherByIdFromDb(id);
+    if (!teacher) {
+      return next(new createError.NotFound('Teacher not found'));
+    }
+
+    // Verify teacher's password before deletion
+    if (!password) {
+      return next(new createError.BadRequest('Teacher password is required for deletion confirmation'));
+    }
+
+    // Get teacher's stored password hash
+    const teacherRecord = await prisma.staff.findUnique({
+      where: { id },
+      select: { password: true, email: true }
+    });
+
+    if (!teacherRecord) {
+      return next(new createError.NotFound('Teacher not found'));
+    }
+
+    // Verify password
+    const { validatePassword } = await import('../helpers/password.helper');
+    const isPasswordValid = await validatePassword(password, teacherRecord.password);
+
+    if (!isPasswordValid) {
+      return next(new createError.BadRequest('Invalid teacher password. Deletion cancelled.'));
+    }
+
+    await deleteTeacherFromDb(id);
+
+    // Audit log
+    await createAuditLog(user_id, 'TEACHER_DELETED', `Teacher ${teacher.email} deleted by admin after password verification`);
+
+    return createSuccess(res, 200, 'Teacher deleted successfully', { deleted: true });
+  } catch (err) {
+    return next(err);
+  }
+};
+
+// Approve or reject teacher registration
+export const approveOrRejectTeacher = async (req: Request, res: Response, next: NextFunction) => {
+  const { id } = req.params;
+  const { action, reason } = req.body; // action: 'approve' | 'reject', reason: optional string
+  const user_id = (req.user as JwtPayload)?.id;
+
+  if (!user_id) return next(new createError.Unauthorized('User not authenticated'));
+  if (!id) return next(new createError.BadRequest('Teacher ID is required'));
+  if (!action || !['approve', 'reject'].includes(action)) {
+    return next(new createError.BadRequest('Action must be either "approve" or "reject"'));
+  }
+
+  // Get the current user's role
+  const currentUser = await prisma.staff.findUnique({
+    where: { id: user_id },
+    select: { role: true }
+  });
+
+  if (!currentUser) {
+    return next(new createError.Unauthorized('User not found'));
+  }
+
+  // Only admins can approve/reject teachers
+  if (currentUser.role !== 'ADMIN') {
+    return next(new createError.Forbidden('Access denied. Only admins can approve or reject teachers.'));
+  }
+
+  try {
+    // Check if teacher exists
+    const teacher = await getTeacherByIdFromDb(id);
+    if (!teacher) {
+      return next(new createError.NotFound('Teacher not found'));
+    }
+
+    // Check if teacher is in pending status
+    const teacherRecord = await prisma.staff.findUnique({
+      where: { id },
+      select: { approval_status: true as any, email: true, firstName: true, lastName: true }
+    });
+
+    if (!teacherRecord) {
+      return next(new createError.NotFound('Teacher not found'));
+    }
+
+    if ((teacherRecord as any).approval_status !== 'PENDING') {
+      return next(new createError.BadRequest('Teacher is not in pending status'));
+    }
+
+    if (action === 'approve') {
+      // Update teacher status to APPROVED
+      await prisma.staff.update({
+        where: { id },
+        data: { approval_status: 'APPROVED' as any }
+      });
+
+      // Audit log
+      await createAuditLog(user_id, 'TEACHER_APPROVED',
+        `Teacher ${teacher.email} approved by admin`);
+
+      // Send approval email
+      const teacherName = `${teacherRecord.firstName} ${teacherRecord.lastName}`;
+      sendTeacherApprovalEmail(teacherRecord.email, teacherName).catch(err => {
+        console.error('Failed to send teacher approval email:', err);
+      });
+
+      return createSuccess(res, 200, 'Teacher approved successfully', {
+        teacherId: id,
+        action: 'approve',
+        status: 'APPROVED'
+      });
+    } else {
+      // For rejection, delete the teacher entirely
+      await deleteTeacherFromDb(id);
+
+      // Audit log
+      await createAuditLog(user_id, 'TEACHER_REJECTED_DELETED',
+        `Teacher ${teacher.email} rejected and deleted by admin${reason ? `. Reason: ${reason}` : ''}`);
+
+      // Send rejection email
+      const teacherName = `${teacherRecord.firstName} ${teacherRecord.lastName}`;
+      sendTeacherRejectionEmail(teacherRecord.email, teacherName, reason).catch(err => {
+        console.error('Failed to send teacher rejection email:', err);
+      });
+
+      return createSuccess(res, 200, 'Teacher rejected and removed successfully', {
+        teacherId: id,
+        action: 'reject',
+        status: 'DELETED',
+        reason
+      });
+    }
+  } catch (err) {
+    return next(err);
+  }
+};
+
+// Get pending teacher approvals
+export const getPendingTeachers = async (req: Request, res: Response, next: NextFunction) => {
+  const user_id = (req.user as JwtPayload)?.id;
+
+  if (!user_id) return next(new createError.Unauthorized('User not authenticated'));
+
+  // Get the current user's role
+  const currentUser = await prisma.staff.findUnique({
+    where: { id: user_id },
+    select: { role: true }
+  });
+
+  if (!currentUser) {
+    return next(new createError.Unauthorized('User not found'));
+  }
+
+  // Only admins can view pending teachers
+  if (currentUser.role !== 'ADMIN') {
+    return next(new createError.Forbidden('Access denied. Only admins can view pending teachers.'));
+  }
+
+  try {
+    const pendingTeachers = await prisma.staff.findMany({
+      where: {
+        role: 'TEACHER',
+        approval_status: 'PENDING' as any
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        name: true,
+        email: true,
+        role: true,
+        approval_status: true as any,
+        section: true,
+        grade: true,
+        matric_no: true,
+        created_at: true
+      },
+      orderBy: { created_at: 'desc' }
+    });
+
+    // Add cache-control headers to prevent caching
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+
+    return createSuccess(res, 200, 'Pending teachers fetched successfully', { teachers: pendingTeachers });
+  } catch (err) {
+    return next(err);
+  }
+};
+
+export const importTeachers = [
+  upload.single('file'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    const user_id = (req.user as JwtPayload)?.id;
+
+    if (!user_id) return next(new createError.Unauthorized('User not authenticated'));
+
+    // Get the current user's role
     const currentUser = await prisma.staff.findUnique({
       where: { id: user_id },
       select: { role: true }
     });
 
-    if (!currentUser || currentUser.role !== 'ADMIN') {
-      return next(createError(403, 'Only admins can delete teacher accounts'));
+    if (!currentUser) {
+      return next(new createError.Unauthorized('User not found'));
     }
-  } catch (err) {
-    return next(err);
+
+    // Only admins can import teachers
+    if (currentUser.role !== 'ADMIN') {
+      return next(new createError.Forbidden('Access denied. Only admins can import teachers.'));
+    }
+
+    if (!req.file) {
+      return next(new createError.BadRequest('No file uploaded'));
+    }
+
+    try {
+      const csvData = req.file.buffer.toString('utf-8');
+      const result = await importTeachersFromCsv(csvData);
+
+      // Audit log
+      await createAuditLog(user_id, 'TEACHERS_IMPORTED', `${result.imported} teachers imported via CSV by admin`);
+
+      return createSuccess(res, 200, 'Teachers imported successfully', {
+        message: `${result.imported} teachers imported successfully`,
+        imported: result.imported,
+        errors: result.errors,
+      });
+    } catch (err: any) {
+      return next(new createError.BadRequest(err.message));
+    }
+  },
+];
+
+export const sendWelcomeEmail = async (req: Request, res: Response, next: NextFunction) => {
+  const { id } = req.params;
+  const user_id = (req.user as JwtPayload)?.id;
+
+  if (!user_id) return next(new createError.Unauthorized('User not authenticated'));
+  if (!id) return next(new createError.BadRequest('Teacher ID is required'));
+
+  // Get the current user's role
+  const currentUser = await prisma.staff.findUnique({
+    where: { id: user_id },
+    select: { role: true }
+  });
+
+  if (!currentUser) {
+    return next(new createError.Unauthorized('User not found'));
   }
 
-  if (!id) {
-    return next(createError(400, 'Teacher ID is required'));
+  // Only admins can send welcome emails
+  if (currentUser.role !== 'ADMIN') {
+    return next(new createError.Forbidden('Access denied. Only admins can send welcome emails.'));
   }
 
   try {
     // Check if teacher exists
-    const existingTeacher = await prisma.staff.findUnique({
-      where: { id }
-    });
-    
-    if (!existingTeacher) {
-      return next(createError(404, 'Teacher not found'));
+    const teacher = await getTeacherByIdFromDb(id);
+    if (!teacher) {
+      return next(new createError.NotFound('Teacher not found'));
     }
 
-    // Verify it's actually a teacher
-    if (existingTeacher.role !== 'TEACHER') {
-      return next(createError(404, 'Teacher not found'));
-    }
-
-    // Get counts of associated records for warning
-    const [studentCount, courseCount, attendanceCount, auditLogCount, tokenCount] = await Promise.all([
-      prisma.student.count({ where: { staff_id: id } }),
-      prisma.course.count({ where: { staff_id: id } }),
-      prisma.attendance.count({ where: { staff_id: id } }),
-      prisma.auditLog.count({ where: { staff_id: id } }),
-      prisma.token.count({ where: { staff_id: id } })
-    ]);
-
-    // Delete all associated records in a transaction
-    await prisma.$transaction(async (tx) => {
-      // Delete student attendance records first
-      await tx.studentAttendance.deleteMany({
-        where: {
-          attendance: {
-            staff_id: id
-          }
-        }
-      });
-
-      // Delete attendance records
-      await tx.attendance.deleteMany({
-        where: { staff_id: id }
-      });
-
-      // Delete student-course relationships
-      await tx.studentCourse.deleteMany({
-        where: {
-          course: {
-            staff_id: id
-          }
-        }
-      });
-
-      // Delete fingerprints of students
-      await tx.fingerprint.deleteMany({
-        where: {
-          student: {
-            staff_id: id
-          }
-        }
-      });
-
-      // Delete students
-      await tx.student.deleteMany({
-        where: { staff_id: id }
-      });
-
-      // Delete courses
-      await tx.course.deleteMany({
-        where: { staff_id: id }
-      });
-
-      // Delete audit logs
-      await tx.auditLog.deleteMany({
-        where: { staff_id: id }
-      });
-
-      // Delete tokens
-      await tx.token.deleteMany({
-        where: { staff_id: id }
-      });
-
-      // Finally delete the teacher
-      await tx.staff.delete({
-        where: { id }
-      });
+    // Send welcome email
+    sendTeacherWelcomeEmail(teacher.email, teacher.name).catch(err => {
+      console.error('Failed to send teacher welcome email:', err);
     });
 
-    return createSuccess(res, 200, 'Teacher and all associated records deleted successfully', {
-      deletedRecords: {
-        students: studentCount,
-        courses: courseCount,
-        attendances: attendanceCount,
-        auditLogs: auditLogCount,
-        tokens: tokenCount
-      }
-    });
+    // Audit log
+    await createAuditLog(user_id, 'WELCOME_EMAIL_SENT', `Welcome email sent to teacher ${teacher.email}`);
 
-    return createSuccess(res, 200, 'Teacher deleted successfully', {});
+    return createSuccess(res, 200, 'Welcome email sent successfully', { teacherId: id });
   } catch (err) {
     return next(err);
   }

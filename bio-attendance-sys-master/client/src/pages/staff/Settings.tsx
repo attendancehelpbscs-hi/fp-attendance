@@ -256,7 +256,7 @@ const Settings: FC = () => {
   useEffect(() => {
     fingerprintControl.onDeviceConnectedCallback = handleDeviceConnected;
     fingerprintControl.onDeviceDisconnectedCallback = handleDeviceDisconnected;
-    fingerprintControl.onSamplesAcquiredCallback = handleSampleAcquired;
+    fingerprintControl.onSampleAcquiredCallback = handleSampleAcquired;
 
     // Check initial connection status (same as AttendanceKiosk)
     const checkInitialConnection = () => {
@@ -289,9 +289,9 @@ const Settings: FC = () => {
 
     // Cleanup callbacks on unmount (but don't destroy the global instance)
     return () => {
-      fingerprintControl.onDeviceConnectedCallback = undefined;
-      fingerprintControl.onDeviceDisconnectedCallback = undefined;
-      fingerprintControl.onSamplesAcquiredCallback = undefined;
+      fingerprintControl.onDeviceConnectedCallback = null as any;
+      fingerprintControl.onDeviceDisconnectedCallback = null as any;
+      fingerprintControl.onSampleAcquiredCallback = null as any;
     };
   }, []);
 

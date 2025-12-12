@@ -48,7 +48,10 @@ export const useAddTeacher = useBaseMutation<AddTeacherResult, BaseError, AddTea
 export const useGetTeachers = (page: number = 1, per_page: number = 10, options: Omit<UseQueryOptions<GetTeachersResult, BaseError, GetTeachersResult, QueryKey>, 'queryFn'> = {}) =>
   useBaseQuery<GetTeachersResult, BaseError>(`/api/teachers?page=${page}&per_page=${per_page}`, options);
 export const useUpdateTeacher = useBaseMutation<UpdateTeacherResult, BaseError, UpdateTeacherInput>('/api/teachers', 'put');
-export const useDeleteTeacher = useBaseMutation<DeleteTeacherResult, BaseError, { url: string }>('/api/teachers', 'delete');
+export const useDeleteTeacher = useBaseMutation<DeleteTeacherResult, BaseError, { url: string; password?: string }>('/api/teachers', 'delete');
+export const useGetPendingTeachers = (options: Omit<UseQueryOptions<{ teachers: any[] }, BaseError, { teachers: any[] }, QueryKey>, 'queryFn'> = {}) =>
+  useBaseQuery<{ teachers: any[] }, BaseError>('/api/teachers/pending/list', options);
+export const useApproveTeacher = useBaseMutation<{ message: string }, BaseError, { teacherId: string; action: 'approve' | 'reject'; reason?: string; url: string }>('/api/teachers', 'post');
 export const useImportTeachers = (options?: any) => {
   const queryClient = useQueryClient();
 
@@ -73,3 +76,5 @@ export const useImportTeachers = (options?: any) => {
     }
   );
 };
+
+export const useSendWelcomeEmail = useBaseMutation<{ message: string }, BaseError, { teacherId: string; url: string }>('/api/teachers', 'post');

@@ -41,12 +41,13 @@ import useStore from '../../store/store';
 import {
   useGetStudents,
   useGetStudentFingerprints,
+  useGetStudentsFingerprints,
   useAddStudentFingerprint,
   useCheckFingerprintUniquenesMulti,
   useDeleteStudentFingerprint,
 } from '../../api/student.api';
 import { toast } from 'react-hot-toast';
-import { Student } from '../../interfaces/api.interface';
+import { Student, StudentFingerprint } from '../../interfaces/api.interface';
 import { getFingerprintImgString } from '../../components/AddStudent';
 import { queryClient } from '../../lib/query-client';
 import constants from '../../config/constants.config';
@@ -84,6 +85,25 @@ const FingerprintEnrollment: FC = () => {
       keepPreviousData: true,
     }
   );
+
+  // Get all student fingerprints to check enrollment status
+  const { data: allFingerprintsData } = useGetStudentsFingerprints(
+    staffInfo?.id as string,
+    1,
+    1000,
+    {
+      queryKey: ['all-students-fingerprints'],
+      enabled: !!staffInfo?.id,
+    }
+  );
+
+  // Create a map of student IDs to their enrollment status
+  const studentEnrollmentMap = new Map<string, boolean>();
+  if (allFingerprintsData?.data?.students) {
+    allFingerprintsData.data.students.forEach((student: StudentFingerprint) => {
+      studentEnrollmentMap.set(student.matric_no, true);
+    });
+  }
 
   const addFingerprintMutation = useAddStudentFingerprint();
   const checkFingerprintMutation = useCheckFingerprintUniquenesMulti();
@@ -395,6 +415,9 @@ const FingerprintEnrollment: FC = () => {
                               <Text fontSize="sm" color="gray.600">ID: {student.matric_no}</Text>
                               <HStack>
                                 <Badge colorScheme="blue">Grade {student.grade}</Badge>
+                                {studentEnrollmentMap.has(student.matric_no) && (
+                                  <Badge colorScheme="green">ENROLLED</Badge>
+                                )}
                               </HStack>
                             </VStack>
                           </CardBody>
@@ -466,6 +489,7 @@ const FingerprintEnrollment: FC = () => {
                               variant="ghost"
                               leftIcon={<Trash2 size={14} />}
                               onClick={() => handleDeleteFingerprint(fp.id)}
+                              isDisabled={isAdmin}
                             >
                               Delete
                             </Button>

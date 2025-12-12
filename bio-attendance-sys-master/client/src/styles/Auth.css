@@ -123,6 +123,13 @@
   font-size: 14px;
 }
 
+.field-error {
+  color: #d32f2f;
+  font-size: 14px;
+  margin-top: 5px;
+  font-weight: 500;
+}
+
 .password-input-container {
   position: relative;
 }

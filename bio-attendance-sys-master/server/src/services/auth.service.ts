@@ -11,7 +11,17 @@ export const getStaffFromDb = async (staffEmail: string, staffPassword: string, 
     where: {
       email: staffEmail,
     },
-    include: {
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      name: true,
+      email: true,
+      password: true,
+      role: true,
+      approval_status: true as any,
+      created_at: true,
+      profilePicture: true,
       courses: {
         select: {
           course_code: true,
@@ -36,7 +46,8 @@ export const getStaffFromDb = async (staffEmail: string, staffPassword: string, 
       return { staff }; // Return staff info for forgot password
     }
 
-    const { id, firstName, lastName, name, email, password, role, created_at, profilePicture, courses } = staff;
+    const { id, firstName, lastName, name, email, password, role, created_at, profilePicture, courses } = staff as any;
+    const approval_status = (staff as any).approval_status;
     const profilePictureData = profilePicture || undefined;
 
     try {
@@ -63,6 +74,7 @@ export const getStaffFromDb = async (staffEmail: string, staffPassword: string, 
           name,
           email,
           role, // Include role in the return object
+          approval_status,
           created_at,
           profilePicture: profilePictureData,
         };

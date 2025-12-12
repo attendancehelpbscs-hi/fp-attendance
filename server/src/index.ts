@@ -12,6 +12,9 @@ import { prisma } from './db/prisma-client';
 import { markDailyAbsentsForAllStaff } from './services/attendance.service';
 import reportsRoute from './routes/reports.route';
 import attendanceRoute from './routes/attendance.route';
+import teacherRoute from './routes/teacher.route';
+
+console.log('teacherRoute:', teacherRoute);
 
 // Increase max listeners to prevent warning
 process.setMaxListeners(15);
@@ -42,20 +45,26 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Routes
 app.use(constants.apiBase, attendanceRoute);
-app.use(constants.apiBase, reportsRoute);
+app.use(`${constants.apiBase}/reports`, reportsRoute);
+
+// ✅ FIXED: Changed from /teachers to just apiBase
+// The route file already defines routes as '/', '/:id', etc.
+// So this becomes /api/teachers/, /api/teachers/:id automatically
+console.log('Registering teacher routes at:', constants.apiBase);
+app.use(constants.apiBase, teacherRoute);
 
 // Health check
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
-// Error handling
-app.use(errorMiddleware);
-
-// 404 handler
+// 404 handler - MUST be after all routes
 app.use('*', (req, res, next) => {
   next(createError(404, 'Route not found'));
 });
+
+// Error handling - MUST be last
+app.use(errorMiddleware);
 
 // Start server
 const PORT = process.env.PORT || 3000;

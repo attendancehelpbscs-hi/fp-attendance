@@ -5,7 +5,7 @@ import { createSuccess } from '../helpers/http.helper';
 import { sendPasswordResetEmail, sendPasswordChangeNotification } from '../helpers/email.helper';
 import { signAccessToken, signRefreshToken } from '../helpers/jwt.helper';
 import { hashPassword } from '../helpers/password.helper';
-import { sendTeacherWelcomeEmail } from '../helpers/email.helper';
+import { sendTeacherWelcomeEmail, sendTeacherRegistrationEmail } from '../helpers/email.helper';
 import jwt from 'jsonwebtoken';
 import { envConfig } from '../config/environment.config';
 import constants from '../config/constants.config';
@@ -163,6 +163,12 @@ export const loginTeacher = async (req: Request, res: Response, next: NextFuncti
   try {
     const loggedInTeacher = await getStaffFromDb(email, password);
     if (loggedInTeacher && loggedInTeacher.staff.role === 'TEACHER') {
+      // Check approval status
+      if ((loggedInTeacher.staff as any).approval_status === 'PENDING') {
+        return next(createError(403, 'Your account is pending administrator approval. You will be notified once your account is approved.'));
+      } else if ((loggedInTeacher.staff as any).approval_status === 'REJECTED') {
+        return next(createError(403, 'Your account has been rejected by an administrator. Please contact support for more information.'));
+      }
       return createSuccess(res, 200, 'Teacher logged in successfully', loggedInTeacher);
     } else if (loggedInTeacher) {
       return next(createError(403, 'Access denied. Not a teacher account.'));
@@ -215,7 +221,7 @@ export const registerTeacher = async (req: Request, res: Response, next: NextFun
     // Hash the password
     const hashedPassword = await hashPassword(password);
 
-    // Create the teacher
+    // Create the teacher with PENDING status
     const teacherName = `${firstName} ${lastName}`;
     const newTeacher = await prisma.staff.create({
       data: {
@@ -225,6 +231,10 @@ export const registerTeacher = async (req: Request, res: Response, next: NextFun
         email,
         password: hashedPassword,
         role: 'TEACHER',
+        approval_status: 'PENDING' as any,
+        section: section || null,
+        grade: grade || null,
+        matric_no: employeeId || null,
         created_at: new Date()
       },
       select: {
@@ -234,6 +244,10 @@ export const registerTeacher = async (req: Request, res: Response, next: NextFun
         name: true,
         email: true,
         role: true,
+        approval_status: true as any,
+        section: true,
+        grade: true,
+        matric_no: true,
         created_at: true
       }
     });
@@ -265,12 +279,12 @@ export const registerTeacher = async (req: Request, res: Response, next: NextFun
       }
     }
 
-    // Send welcome email (don't await to not delay response)
-    sendTeacherWelcomeEmail(email, teacherName).catch(err => {
-      console.error('Failed to send welcome email:', err);
+    // Send registration confirmation email (don't await to not delay response)
+    sendTeacherRegistrationEmail(email, teacherName).catch(err => {
+      console.error('Failed to send teacher registration email:', err);
     });
 
-    return createSuccess(res, 201, 'Teacher account created successfully', { teacher: newTeacher, course });
+    return createSuccess(res, 201, 'Teacher registration submitted successfully. Your account is pending administrator approval. You will be notified once your account is approved.', { teacher: newTeacher, course });
   } catch (err) {
     return next(err);
   }
@@ -395,6 +409,15 @@ export const fingerprintLogin = async (req: Request, res: Response, next: NextFu
     if (!staff) {
       console.log('Staff not found in database');
       throw createError(401, 'Fingerprint not recognized');
+    }
+
+    // Check approval status for teachers
+    if (staff.role === 'TEACHER') {
+      if ((staff as any).approval_status === 'PENDING') {
+        throw createError(403, 'Your account is pending administrator approval. You will be notified once your account is approved.');
+      } else if ((staff as any).approval_status === 'REJECTED') {
+        throw createError(403, 'Your account has been rejected by an administrator. Please contact support for more information.');
+      }
     }
 
     // Generate tokens

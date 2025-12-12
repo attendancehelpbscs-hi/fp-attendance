@@ -674,13 +674,13 @@ export const getCheckInTimeAnalysis = async (staff_id: string, filters: Filters)
   }
 };
 
-export const getStudentsByStatus = async (staff_id: string, date: string, grade: string, section: string, status: 'present' | 'absent' | 'late', session?: string) => {
+export const getStudentsByStatus = async (staff_id: string | null, date: string, grade: string, section: string, status: 'present' | 'absent' | 'late', session?: string) => {
   try {
     console.log('getStudentsByStatus params:', { staff_id, date, grade, section, status });
     console.log('Searching for attendance with date criteria:', { staff_id, date });
-    let attendance = await prisma.attendance.findFirst({ where: { staff_id, date }, orderBy: { created_at: 'desc' } });
+    let attendance = await prisma.attendance.findFirst({ where: staff_id ? { staff_id, date } : { date }, orderBy: { created_at: 'desc' } });
     console.log('Found attendance record:', attendance);
-    if (!attendance) {
+    if (!attendance && staff_id) {
       console.log('No attendance record found for date, creating one:', date);
       attendance = await prisma.attendance.create({
         data: {
@@ -691,11 +691,15 @@ export const getStudentsByStatus = async (staff_id: string, date: string, grade:
         },
       });
     }
-    await markAbsentForUnmarkedDays(staff_id, date);
+    if (staff_id) {
+      await markAbsentForUnmarkedDays(staff_id, date);
+    }
     const normalize = (v: any) => (v === null || v === undefined) ? '' : String(v).trim().toUpperCase();
     try {
-      const debugByAttendanceId = await prisma.studentAttendance.findMany({ where: { attendance_id: attendance.id }, include: { student: { select: { id: true, name: true, matric_no: true, grade: true, staff_id: true } }, attendance: true } });
-      console.log('Debug: studentAttendance rows (by attendance_id):', attendance.id, debugByAttendanceId.map(r => ({ student_id: r.student_id, time_type: r.time_type, status: r.status, section: r.section, created_at: r.created_at, attendance_id: r.attendance_id, attendance_date: r.attendance?.date, student: r.student })));
+      if (attendance) {
+        const debugByAttendanceId = await prisma.studentAttendance.findMany({ where: { attendance_id: attendance.id }, include: { student: { select: { id: true, name: true, matric_no: true, grade: true, staff_id: true } }, attendance: true } });
+        console.log('Debug: studentAttendance rows (by attendance_id):', attendance.id, debugByAttendanceId.map(r => ({ student_id: r.student_id, time_type: r.time_type, status: r.status, section: r.section, created_at: r.created_at, attendance_id: r.attendance_id, attendance_date: r.attendance?.date, student: r.student })));
+      }
       const debugByAttendanceDate = await prisma.studentAttendance.findMany({ where: { attendance: { date } }, include: { student: { select: { id: true, name: true, matric_no: true, grade: true, staff_id: true } }, attendance: true } });
       console.log('Debug: studentAttendance rows (by attendance.date):', date, debugByAttendanceDate.map(r => ({ student_id: r.student_id, time_type: r.time_type, status: r.status, section: r.section, created_at: r.created_at, attendance_id: r.attendance_id, attendance_date: r.attendance?.date, student: r.student })));
     } catch (dbgErr) {
@@ -703,16 +707,16 @@ export const getStudentsByStatus = async (staff_id: string, date: string, grade:
     }
     const allAttendanceRecords = await prisma.studentAttendance.findMany({
       where: {
-        attendance: { date, staff_id },
+        attendance: { date, ...(staff_id ? { staff_id } : {}) },
         ...(session ? { session_type: session as SessionType } : {})
       },
       include: { student: { include: { courses: { include: { course: true } } } }, attendance: true }
     });
     console.log('All attendance records for this date:', allAttendanceRecords.length);
     const filteredRecords = allAttendanceRecords.filter(rec => {
-      const st = rec.student;
+      const st = (rec as any).student;
       if (!st) return false;
-      if (String(st.staff_id) !== String(staff_id)) return false;
+      if (staff_id && String(st.staff_id) !== String(staff_id)) return false;
       if (normalize(st.grade) !== normalize(grade)) return false;
       const hasSectionCourse = Array.isArray(st.courses) && st.courses.some((sc: any) => normalize(sc?.course?.course_code) === normalize(section));
       return hasSectionCourse;
@@ -723,15 +727,15 @@ export const getStudentsByStatus = async (staff_id: string, date: string, grade:
       const studentSessionMap: Record<string, any> = {};
       filteredRecords.forEach(rec => {
         if (rec.status === 'present') {
-          const studentId = rec.student.id;
+          const studentId = (rec as any).student.id;
           const session = rec.session_type || 'AM';
           const key = `${studentId}-${session}`;
           if (!studentSessionMap[key]) {
             studentSessionMap[key] = {
-              id: rec.student.id,
-              name: rec.student.name,
-              matric_no: rec.student.matric_no,
-              grade: rec.student.grade,
+              id: (rec as any).student.id,
+              name: (rec as any).student.name,
+              matric_no: (rec as any).student.matric_no,
+              grade: (rec as any).student.grade,
               section: rec.section,
               checkin_time: null,
               checkout_time: null,
@@ -760,15 +764,15 @@ export const getStudentsByStatus = async (staff_id: string, date: string, grade:
         if (rec.status === 'present' && rec.time_type === 'IN') {
           const isLate = isLateArrival(rec.created_at, rec.session_type as SessionType, rec.time_type as TimeType, lateOptions);
           if (isLate) {
-            const studentId = rec.student.id;
+            const studentId = (rec as any).student.id;
             const session = rec.session_type || 'AM';
             const key = `${studentId}-${session}`;
             if (!studentSessionMap[key]) {
               studentSessionMap[key] = {
-                id: rec.student.id,
-                name: rec.student.name,
-                matric_no: rec.student.matric_no,
-                grade: rec.student.grade,
+                id: (rec as any).student.id,
+                name: (rec as any).student.name,
+                matric_no: (rec as any).student.matric_no,
+                grade: (rec as any).student.grade,
                 section: rec.section,
                 checkin_time: rec.created_at ? rec.created_at.toISOString() : null,
                 checkout_time: null,

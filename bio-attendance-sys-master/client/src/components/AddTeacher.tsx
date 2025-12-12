@@ -31,6 +31,7 @@ import { useAddTeacher, useImportTeachers } from '../api/staff.api';
 import { Teacher, AddTeacherInput } from '../interfaces/api.interface';
 import { queryClient } from '../lib/query-client';
 import SimpleReactValidator from 'simple-react-validator';
+import useStore from '../store/store';
 
 interface AddTeacherProps {
   isOpen: boolean;
@@ -40,12 +41,13 @@ interface AddTeacherProps {
 }
 
 const AddTeacher: FC<AddTeacherProps> = ({ isOpen, onClose, activeTeacher, setActiveTeacher }) => {
+  const staffInfo = useStore.use.staffInfo();
   const [teacherInput, setTeacherInput] = useState<AddTeacherInput>({
     firstName: '',
     lastName: '',
     email: '',
     password: '',
-    role: 'teacher',
+    role: 'TEACHER',
     section: '',
     grade: '',
     matric_no: '',
@@ -151,7 +153,7 @@ const AddTeacher: FC<AddTeacherProps> = ({ isOpen, onClose, activeTeacher, setAc
         lastName: '',
         email: '',
         password: '',
-        role: 'teacher',
+        role: 'TEACHER',
         section: '',
         grade: '',
         matric_no: '',
@@ -234,7 +236,7 @@ const AddTeacher: FC<AddTeacherProps> = ({ isOpen, onClose, activeTeacher, setAc
       lastName: '',
       email: '',
       password: '',
-      role: 'teacher',
+      role: 'TEACHER',
       section: '',
       grade: '',
       matric_no: '',
@@ -248,8 +250,8 @@ const AddTeacher: FC<AddTeacherProps> = ({ isOpen, onClose, activeTeacher, setAc
   const downloadSampleCSV = () => {
     // Create a sample CSV content
     const csvContent = `firstName,lastName,email,password,role,matric_no,section,grade
-John,Doe,john.doe@example.com,password123,teacher,T001,A,1
-Jane,Smith,jane.smith@example.com,password123,teacher,T002,B,2`;
+John,Doe,john.doe@example.com,password123,teacher,1001,A,1
+Jane,Smith,jane.smith@example.com,password123,teacher,2002,B,2`;
 
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
@@ -396,9 +398,8 @@ Jane,Smith,jane.smith@example.com,password123,teacher,T002,B,2`;
 
                     <FormControl>
                       <FormLabel>Role</FormLabel>
-                      <Select name="role" value={teacherInput.role} onChange={handleInputChange}>
-                        <option value="teacher">Teacher</option>
-                        <option value="admin">Admin</option>
+                      <Select name="role" value={teacherInput.role} onChange={handleInputChange} isDisabled={staffInfo?.role === 'ADMIN'}>
+                        <option value="TEACHER">Teacher</option>
                       </Select>
                     </FormControl>
 
@@ -481,10 +482,10 @@ Jane,Smith,jane.smith@example.com,password123,teacher,T002,B,2`;
                 <ListItem>lastName: Teacher's last name (required)</ListItem>
                 <ListItem>email: Teacher's email address (required, must be unique)</ListItem>
                 <ListItem>password: Initial password (required, must be at least 8 characters with uppercase, lowercase, number, and special character)</ListItem>
-                <ListItem>role: Either "teacher" or "admin" (required)</ListItem>
+                <ListItem>role: Must be "teacher" (required, case-insensitive). Other roles like "admin" will be rejected.</ListItem>
                 <ListItem>matric_no: Teacher ID number (required)</ListItem>
                 <ListItem>section: Section name (required)</ListItem>
-                <ListItem>grade: Grade level (1-6, required)</ListItem>
+                <ListItem>grade: Grade level (1-6, required, must be a number between 1 and 6)</ListItem>
               </UnorderedList>
               <Text fontSize="sm" color="blue.600" mt={2}>
                 <strong>Note:</strong> A course will be automatically created for each teacher using the section and grade information.

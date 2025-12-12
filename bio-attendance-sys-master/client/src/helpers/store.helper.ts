@@ -16,7 +16,9 @@ export function useBaseMutation<TRes = unknown, TError = unknown, TData = unknow
         // FIXED: Added 'id' to the list of properties to remove from the payload
         const payload = removeObjectProps(data as { [k: string]: unknown }, ['staffId', 'studentId', 'url', 'id']);
         return method === 'delete'
-          ? (await axiosClient[method](dynamicUrl)).data
+          ? payload && Object.keys(payload).length > 0
+            ? (await axiosClient[method](dynamicUrl, { data: payload })).data
+            : (await axiosClient[method](dynamicUrl)).data
           : (await axiosClient[method](dynamicUrl, payload)).data;
       },
       useMutationOptions,

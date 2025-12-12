@@ -280,7 +280,7 @@ export const updateStudent = async (req: Request, res: Response, next: NextFunct
 
           if (response.ok) {
             const result = await response.json();
-            if (result.confidence > 50) {
+            if (result.confidence > 70) {
               return next(createError(400, 'Fingerprint already enrolled for another student.'));
             }
           } else {
@@ -630,7 +630,7 @@ export const checkFingerprintUniqueness = async (req: Request, res: Response, ne
 
         console.log('Fingerprint check result:', { confidence, student_id: result.student_id });
 
-        if (confidence > 30) {
+        if (confidence > 70) {
           return createSuccess(res, 200, 'Fingerprint already exists', {
             isUnique: false,
             confidence,
@@ -938,8 +938,8 @@ export const checkFingerprintUniquenessMulti = async (req: Request, res: Respons
           finger_type: fingerType 
         });
 
-        // If confidence is above 30%, consider it a duplicate
-        if (confidence > 30 && result.student_id) {
+        // If confidence is above 70%, consider it a duplicate (increased from 30% to reduce false positives)
+        if (confidence > 70 && result.student_id) {
           return createSuccess(res, 200, 'Fingerprint already exists', {
             isUnique: false,
             confidence,

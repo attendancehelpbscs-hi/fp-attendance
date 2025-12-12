@@ -1,5 +1,5 @@
 import type { FC } from 'react';
-import { Box, Heading, Text, VStack, Divider, List, ListItem, ListIcon, Grid, GridItem, Card, CardBody, Icon, Button } from '@chakra-ui/react';
+import { Box, Heading, Text, VStack, Divider, List, ListItem, ListIcon, Grid, GridItem, Card, CardBody, Icon, Button, Image } from '@chakra-ui/react';
 import { FaFingerprint, FaUsers, FaChartBar, FaShieldAlt, FaCode, FaDatabase, FaReact, FaNodeJs, FaPython } from 'react-icons/fa';
 import { Link } from 'react-router-dom';
 
@@ -27,6 +27,68 @@ const About: FC = () => {
             The Trackers Attendance System is designed to streamline attendance tracking using advanced biometric technology.
             Our system provides secure, efficient, and accurate attendance management for students and staff in educational environments.
           </Text>
+        </Box>
+
+        <Divider />
+
+        <Box>
+          <Heading as="h2" size="lg" mb={6} textAlign="center">
+            Project Goal
+          </Heading>
+          <Text fontSize="md" textAlign="center" mb={6}>
+            The main objective of this project was to successfully design and deploy a scalable, user-friendly biometric attendance system
+            that streamlines attendance tracking and management for educational institutions. Our solution leverages cutting-edge technology
+            to provide accurate, secure, and efficient attendance monitoring while generating comprehensive reports for administrative analysis.
+          </Text>
+        </Box>
+
+        <Divider />
+
+        <Box>
+          <Image
+            src="/The Trackers LOGO.png"
+            alt="The Trackers Logo"
+            height="180px"
+            mb={6}
+            mx="auto"
+          />
+          <Heading as="h2" size="lg" mb={6} textAlign="center">
+            Team Information
+          </Heading>
+          <VStack spacing={3} textAlign="center">
+            <Text fontSize="md">
+              <strong>Developed by:</strong> The Trackers Team (BSIS–4B)
+            </Text>
+            <Text fontSize="md">
+              <strong>Supervised by:</strong> Our Capstone Adviser
+            </Text>
+          </VStack>
+        </Box>
+
+        <Divider />
+
+        <Box>
+          <Heading as="h2" size="lg" mb={6} textAlign="center">
+            Contact Information
+          </Heading>
+          <VStack spacing={3} textAlign="center">
+            <Text fontSize="md">
+              <strong>Email:</strong> attendance.help.bscs@gmail.com
+            </Text>
+            <Text fontSize="md">
+              <strong>Source Code:</strong> <a href="https://github.com/attendancehelpbscs-hi/fp-attendance" target="_blank" rel="noopener noreferrer">GitHub Repository</a>
+            </Text>
+          </VStack>
+        </Box>
+
+        <Divider />
+
+        <Box>
+          <Heading as="h2" size="lg" mb={6} display="flex" alignItems="center" justifyContent="center">
+            <Icon as={FaFingerprint as any} mr={3} />
+            System Features
+          </Heading>
+
 
           <Grid templateColumns={{ base: '1fr', md: 'repeat(2, 1fr)' }} gap={6}>
             <Card>

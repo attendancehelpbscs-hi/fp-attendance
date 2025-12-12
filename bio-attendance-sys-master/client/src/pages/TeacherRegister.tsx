@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import useStore from '../store/store';
-import { toast } from 'react-hot-toast';
+import toast from 'react-hot-toast';
 import { AiOutlineEye, AiOutlineEyeInvisible } from 'react-icons/ai';
 import '../styles/Auth.css';
 
@@ -16,7 +16,7 @@ const TeacherRegister = () => {
     employeeId: '',
     grade: '',
   });
-  const [error, setError] = useState('');
+  const [errors, setErrors] = useState<{[key: string]: string}>({});
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -44,18 +44,22 @@ const TeacherRegister = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Clear previous errors
+    setErrors({});
+
     // Validate form
     if (formData.password !== formData.confirmPassword) {
-      return setError('Passwords do not match');
+      setErrors({ confirmPassword: 'Passwords do not match' });
+      return;
     }
 
     // Strong password validation
     const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
     if (!passwordRegex.test(formData.password)) {
-      return setError('Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character');
+      setErrors({ password: 'Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character' });
+      return;
     }
 
-    setError('');
     setLoading(true);
 
     try {
@@ -77,15 +81,52 @@ const TeacherRegister = () => {
         }),
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        throw new Error('Failed to create an account');
+        // Handle validation errors from backend
+        if (data.message) {
+          // If it's a generic error message, show it
+          setErrors({ general: data.message });
+        } else if (data.details && Array.isArray(data.details)) {
+          // If Joi validation errors, parse them
+          const fieldErrors: {[key: string]: string} = {};
+          data.details.forEach((error: any) => {
+            const field = error.path?.[0] || 'general';
+            fieldErrors[field] = error.message;
+          });
+          setErrors(fieldErrors);
+        } else {
+          setErrors({ general: 'Failed to create an account' });
+        }
+        return;
       }
 
-      alert('Account created successfully');
+      toast.success('📋 Registration submitted successfully! Your account is pending administrator approval. You will be notified once your account is approved and you can log in.', {
+        duration: 6000,
+        style: {
+          background: '#F59E0B',
+          color: '#fff',
+          fontSize: '16px',
+          fontWeight: '500',
+          borderRadius: '8px',
+          padding: '16px',
+        },
+      });
       navigate('/teacher-login');
     } catch (err: any) {
-      setError(err.message || 'Failed to create an account');
-      alert(err.message || 'Failed to create an account');
+      setErrors({ general: err.message || 'Failed to create an account' });
+      toast.error(err.message || 'Failed to create an account', {
+        duration: 4000,
+        style: {
+          background: '#EF4444',
+          color: '#fff',
+          fontSize: '16px',
+          fontWeight: '500',
+          borderRadius: '8px',
+          padding: '16px',
+        },
+      });
     } finally {
       setLoading(false);
     }
@@ -99,7 +140,7 @@ const TeacherRegister = () => {
           <p>Create your teacher account</p>
         </div>
 
-        {error && <div className="error-message">{error}</div>}
+        {errors.general && <div className="error-message">{errors.general}</div>}
 
         <form onSubmit={handleSubmit} className="auth-form">
           <div className="form-row">
@@ -113,6 +154,7 @@ const TeacherRegister = () => {
                 onChange={handleChange}
                 required
               />
+              {errors.firstName && <div className="field-error">{errors.firstName}</div>}
             </div>
 
             <div className="form-group">
@@ -125,6 +167,7 @@ const TeacherRegister = () => {
                 onChange={handleChange}
                 required
               />
+              {errors.lastName && <div className="field-error">{errors.lastName}</div>}
             </div>
           </div>
 
@@ -138,6 +181,7 @@ const TeacherRegister = () => {
               onChange={handleChange}
               required
             />
+            {errors.email && <div className="field-error">{errors.email}</div>}
           </div>
 
           <div className="form-group">
@@ -150,6 +194,7 @@ const TeacherRegister = () => {
               onChange={handleChange}
               required
             />
+            {errors.employeeId && <div className="field-error">{errors.employeeId}</div>}
           </div>
 
           <div className="form-group">
@@ -162,6 +207,7 @@ const TeacherRegister = () => {
               onChange={handleChange}
               required
             />
+            {errors.section && <div className="field-error">{errors.section}</div>}
           </div>
 
           <div className="form-group">
@@ -181,6 +227,7 @@ const TeacherRegister = () => {
               <option value="5">Grade 5</option>
               <option value="6">Grade 6</option>
             </select>
+            {errors.grade && <div className="field-error">{errors.grade}</div>}
           </div>
 
           <div className="form-group">
@@ -199,9 +246,11 @@ const TeacherRegister = () => {
                 className="password-toggle"
                 onClick={() => setShowPassword(!showPassword)}
               >
+                {/* @ts-ignore */}
                 {showPassword ? <AiOutlineEyeInvisible /> : <AiOutlineEye />}
               </button>
             </div>
+            {errors.password && <div className="field-error">{errors.password}</div>}
           </div>
 
           <div className="form-group">
@@ -220,9 +269,11 @@ const TeacherRegister = () => {
                 className="password-toggle"
                 onClick={() => setShowConfirmPassword(!showConfirmPassword)}
               >
+                {/* @ts-ignore */}
                 {showConfirmPassword ? <AiOutlineEyeInvisible /> : <AiOutlineEye />}
               </button>
             </div>
+            {errors.confirmPassword && <div className="field-error">{errors.confirmPassword}</div>}
           </div>
 
           <button type="submit" className="auth-button" disabled={loading}>

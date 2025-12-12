@@ -24,28 +24,32 @@ datasource db {
 
 // MODELS
 model Staff {
-  id                   String     @id @default(uuid())
-  firstName            String     @default("")
-  lastName             String     @default("")
-  name                 String     // Keep for backward compatibility
-  email                String     @unique
-  password             String
-  role                 Role       @default(TEACHER)
-  fingerprint          String?    @db.LongText // Optional fingerprint field for biometric login (legacy - unencrypted)
-  fingerprint_hash     String?    @db.VarChar(64) // SHA-256 hash for integrity verification
-  encrypted_fingerprint String?   @db.LongText // AES-256 encrypted fingerprint data
-  profilePicture       String?    @db.LongText // Optional profile picture as base64
-  grace_period_minutes Int        @default(15)
-  school_start_time    String     @default("08:00")
-  late_threshold_hours Int        @default(1)
-  pm_late_cutoff_enabled Boolean  @default(false)
-  pm_late_cutoff_time   String?   @default("12:50")
-  created_at           DateTime
-  courses              Course[]
-  students             Student[]
-  attendances          Attendance[]
-  auditLogs            AuditLog[]
-  tokens               Token[]
+   id                   String         @id @default(uuid())
+   firstName            String         @default("")
+   lastName             String         @default("")
+   name                 String         // Keep for backward compatibility
+   email                String         @unique
+   password             String
+   role                 Role           @default(TEACHER)
+   approval_status      ApprovalStatus @default(APPROVED) // Default to APPROVED for existing admins
+   section              String?        // Optional section for teachers
+   grade                String?        // Optional grade for teachers
+   matric_no            String?        // Optional matriculation number for teachers
+   fingerprint          String?        @db.LongText // Optional fingerprint field for biometric login (legacy - unencrypted)
+   fingerprint_hash     String?        @db.VarChar(64) // SHA-256 hash for integrity verification
+   encrypted_fingerprint String?       @db.LongText // AES-256 encrypted fingerprint data
+   profilePicture       String?        @db.LongText // Optional profile picture as base64
+   grace_period_minutes Int            @default(15)
+   school_start_time    String         @default("08:00")
+   late_threshold_hours Int            @default(1)
+   pm_late_cutoff_enabled Boolean      @default(false)
+   pm_late_cutoff_time   String?       @default("12:50")
+   created_at           DateTime
+   courses              Course[]
+   students             Student[]
+   attendances          Attendance[]
+   auditLogs            AuditLog[]
+   tokens               Token[]
 }
 
 enum FingerType {
@@ -151,6 +155,12 @@ enum SessionType {
 enum Role {
   ADMIN
   TEACHER
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 model Token {

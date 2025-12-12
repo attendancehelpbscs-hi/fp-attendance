@@ -1,5 +1,5 @@
 import type { FC } from 'react';
-import { useState, useMemo, useEffect, Fragment } from 'react';
+import { useState, useMemo, useEffect, Fragment, useRef } from 'react';
 import WithStaffLayout from '../../layouts/WithStaffLayout';
 import {
   Card,
@@ -38,6 +38,12 @@ import {
   AlertIcon,
   AlertTitle,
   AlertDescription,
+  AlertDialog,
+  AlertDialogBody,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogContent,
+  AlertDialogOverlay,
   Progress,
   Spinner,
   Center,
@@ -214,6 +220,9 @@ const Reports: FC = () => {
   const [holidayName, setHolidayName] = useState<string>('');
   const [holidayType, setHolidayType] = useState<string>('regular');
   const [isAddingHoliday, setIsAddingHoliday] = useState<boolean>(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState<boolean>(false);
+  const [holidayToDelete, setHolidayToDelete] = useState<any>(null);
+  const cancelRef = useRef<HTMLButtonElement>(null);
 
   const toast = useToast();
 
@@ -305,14 +314,28 @@ const Reports: FC = () => {
     }
   };
 
-  const handleDeleteHoliday = async (id: string) => {
+  const handleDeleteHolidayClick = (holiday: any) => {
+    setHolidayToDelete(holiday);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleDeleteHolidayConfirm = async () => {
+    if (!holidayToDelete) return;
+
     try {
-      await deleteHoliday(id);
+      await deleteHoliday(holidayToDelete.id);
       toast({ status: 'success', title: 'Holiday deleted successfully' });
       loadHolidays();
+      setIsDeleteDialogOpen(false);
+      setHolidayToDelete(null);
     } catch (error) {
       toast({ status: 'error', title: 'Failed to delete holiday' });
     }
+  };
+
+  const handleDeleteHolidayCancel = () => {
+    setIsDeleteDialogOpen(false);
+    setHolidayToDelete(null);
   };
 
   const { data: reportsData, isLoading, error } = useGetReports(staffInfo?.id || '', {
@@ -421,7 +444,7 @@ const Reports: FC = () => {
   const sf2Data = sf2ReportData?.data as SF2ReportData | undefined;
   const sf2Days = sf2Data?.schoolDays || [];
   const sf2Students = sf2Data?.students || [];
-  const sf2AveragePercent = sf2Data ? Math.round(sf2Data.averageDailyAttendance * 10000) / 100 : 0;
+  const sf2AveragePercent = sf2Data?.averageDailyAttendance ?? 0;
   const sf2AttendancePercent = sf2Data?.percentageAttendance ?? 0;
   const sf2ErrorMessage = (sf2Error as BaseError)?.response?.data?.message || (sf2Error as BaseError)?.message;
   const formatSF2Attendance = (value?: string) => {
@@ -797,75 +820,70 @@ const Reports: FC = () => {
     }
   };
 
-  const exportToCSV = () => {
-    const data = selectedReportType === 'daily-records' ? paginatedData : filteredStudentData;
-    const headers = selectedReportType === 'daily-records'
-      ? ['Date', 'Grade', 'Section', 'Session', 'Present', 'Absent', 'Late']
-      : ['Student Name', 'ID No', 'Grade', 'Date', 'Status', 'Session', 'Section'];
-
-    const csvContent = [
-      headers.join(','),
-      ...data.map((row: any) => {
-        if (selectedReportType === 'daily-records') {
-        return [row.date, row.grade, row.section, row.session_type || 'N/A', row.present, row.absent, row.late ?? 0].join(',');
-        } else {
-          return [row.student_name, row.matric_no, row.grade, row.date, row.status, row.session_type || 'N/A', row.section].join(',');
-        }
-      })
-    ].join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `${selectedReportType}_report_${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
 
   const exportToPDF = () => {
     const doc = new jsPDF();
     const data = selectedReportType === 'daily-records' ? paginatedData : filteredStudentData;
 
-    // Add title
-    doc.setFontSize(18);
-    doc.text(`${REPORT_TYPES.find(t => t.value === selectedReportType)?.label} Report`, 14, 22);
+    // Professional Header with School Branding
+    doc.setFillColor(0, 102, 204); // Professional blue header
+    doc.rect(0, 0, 210, 50, 'F');
 
-    // Add filters info
+    doc.setTextColor(255, 255, 255); // White text
+    doc.setFontSize(22);
+    doc.setFont('helvetica', 'bold');
+    doc.text('School Attendance Management System', 14, 18);
+
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`${REPORT_TYPES.find(t => t.value === selectedReportType)?.label} Report`, 14, 30);
+
+    doc.setFontSize(10);
+    doc.setTextColor(255, 255, 255);
+    doc.text(`Generated on: ${new Date().toLocaleDateString()} | Total Records: ${data.length}`, 14, 42);
+
+    // Summary Statistics Box
+    doc.setFillColor(248, 249, 250);
+    doc.setDrawColor(0, 102, 204);
+    doc.setLineWidth(0.8);
+    doc.rect(14, 55, 182, 30, 'FD');
+
+    doc.setTextColor(0, 0, 0); // Black text
     doc.setFontSize(12);
-    let yPosition = 35;
-    doc.text(`Grade: ${selectedGrade || 'All Grades'}`, 14, yPosition);
-    yPosition += 7;
-    doc.text(`Section: ${selectedSection || 'All Sections'}`, 14, yPosition);
-    yPosition += 7;
-    doc.text(`Session: ${selectedSession === 'all' ? 'All Sessions' : selectedSession}`, 14, yPosition);
-    yPosition += 7;
-    doc.text(`Date Range: ${selectedDateRange}`, 14, yPosition);
-    yPosition += 7;
-    doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, yPosition);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Report Summary:', 20, 65);
 
-    // Prepare table data
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Grade: ${selectedGrade || 'All Grades'} | Section: ${selectedSection || 'All Sections'}`, 20, 72);
+    doc.text(`Session: ${selectedSession === 'all' ? 'All Sessions' : selectedSession} | Date Range: ${selectedDateRange}`, 20, 78);
+    doc.text(`Report Type: ${REPORT_TYPES.find(t => t.value === selectedReportType)?.description}`, 20, 84);
+
+    let yPosition = 95;
+
+    // Prepare table data with enhanced formatting
     const tableColumns = selectedReportType === 'daily-records'
-      ? ['Date', 'Grade', 'Section', 'Session', 'Present']
-      : ['Student Name', 'ID No', 'Grade', 'Date', 'Status', 'Session', 'Section'];
+      ? ['Date', 'Grade', 'Section', 'Session', 'Present', 'Absent', 'Late']
+      : ['Student Name', 'ID No', 'Grade', 'Date', 'Time', 'Status', 'Session', 'Section'];
 
     const tableRows = data.map((row: any) => {
       if (selectedReportType === 'daily-records') {
         return [
-          row.date,
+          new Date(row.date).toLocaleDateString(),
           row.grade,
           row.section,
           row.session_type || 'N/A',
-          row.present.toString()
+          row.present?.toString() || '0',
+          row.absent?.toString() || '0',
+          (row.late || 0).toString()
         ];
       } else {
         return [
           row.student_name,
           row.matric_no,
           row.grade,
-          row.date,
+          new Date(row.date).toLocaleDateString(),
+          row.created_at ? dayjs(row.created_at).format('hh:mm A') : '-',
           row.status,
           row.session_type || 'N/A',
           row.section
@@ -873,24 +891,80 @@ const Reports: FC = () => {
       }
     });
 
-    // Add table
+    // Enhanced table with professional styling
     autoTable(doc, {
       head: [tableColumns],
       body: tableRows,
-      startY: yPosition + 10,
+      startY: yPosition,
       styles: {
         fontSize: 8,
-        cellPadding: 3,
+        cellPadding: 4,
+        lineColor: [200, 200, 200],
+        lineWidth: 0.1,
       },
       headStyles: {
-        fillColor: [56, 178, 172], // Teal color
+        fillColor: [0, 102, 204], // Professional blue
         textColor: 255,
         fontStyle: 'bold',
+        fontSize: 9,
+        halign: 'center',
       },
       alternateRowStyles: {
-        fillColor: [245, 245, 245],
+        fillColor: [249, 249, 249], // Light gray for alternating rows
       },
+      columnStyles: selectedReportType === 'daily-records' ? {
+        4: { halign: 'center', fillColor: [220, 252, 231] }, // Present - light green
+        5: { halign: 'center', fillColor: [254, 226, 226] }, // Absent - light red
+        6: { halign: 'center', fillColor: [254, 240, 138] }, // Late - light yellow
+      } : {
+        5: { // Status column with color coding
+          halign: 'center',
+          cellWidth: 20,
+        }
+      },
+      didParseCell: function(data) {
+        // Apply status-based colors for student summary
+        if (selectedReportType !== 'daily-records' && data.column.index === 5) {
+          const status = data.cell.raw?.toString().toLowerCase();
+          if (status === 'present') {
+            data.cell.styles.fillColor = [40, 167, 69]; // Green
+            data.cell.styles.textColor = 255;
+            data.cell.styles.fontStyle = 'bold';
+          } else if (status === 'absent') {
+            data.cell.styles.fillColor = [220, 53, 69]; // Red
+            data.cell.styles.textColor = 255;
+            data.cell.styles.fontStyle = 'bold';
+          } else if (status === 'late') {
+            data.cell.styles.fillColor = [255, 193, 7]; // Yellow
+            data.cell.styles.textColor = [0, 0, 0];
+            data.cell.styles.fontStyle = 'bold';
+          }
+        }
+      },
+      margin: { top: 10, left: 14, right: 14 },
     });
+
+    // Enhanced Footer with Professional Branding
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+
+      // Footer background
+      doc.setFillColor(248, 249, 250);
+      doc.rect(0, doc.internal.pageSize.height - 20, 210, 20, 'F');
+
+      // Footer border
+      doc.setDrawColor(0, 102, 204);
+      doc.setLineWidth(0.3);
+      doc.line(0, doc.internal.pageSize.height - 20, 210, doc.internal.pageSize.height - 20);
+
+      // Footer text
+      doc.setFontSize(8);
+      doc.setTextColor(102, 102, 102);
+      doc.text(`Page ${i} of ${pageCount}`, 14, doc.internal.pageSize.height - 10);
+      doc.text('Generated by School Attendance Management System', 105, doc.internal.pageSize.height - 10, { align: 'center' });
+      doc.text(`© ${new Date().getFullYear()} - Confidential School Document`, 196, doc.internal.pageSize.height - 10, { align: 'right' });
+    }
 
     // Save the PDF
     doc.save(`${selectedReportType}_report_${new Date().toISOString().split('T')[0]}.pdf`);
@@ -1270,12 +1344,103 @@ const Reports: FC = () => {
                   Export Report
                 </MenuButton>
                 <MenuList>
-                  <MenuItem onClick={exportToCSV}>Export as CSV</MenuItem>
                   <MenuItem onClick={exportToPDF}>Export as PDF</MenuItem>
                   <MenuItem onClick={() => {
                     const data = selectedReportType === 'daily-records' ? paginatedData : filteredStudentData;
-                    const ws = XLSX.utils.json_to_sheet(data);
                     const wb = XLSX.utils.book_new();
+
+                    // Create worksheet with enhanced professional formatting
+                    const ws = XLSX.utils.aoa_to_sheet([]);
+
+                    // Professional header section
+                    XLSX.utils.sheet_add_aoa(ws, [
+                      ['School Attendance Management System'],
+                      [`${REPORT_TYPES.find(t => t.value === selectedReportType)?.label} Report`],
+                      [`Generated on: ${new Date().toLocaleDateString()}`],
+                      [''],
+                      ['Report Filters Applied:'],
+                      [`Grade: ${selectedGrade || 'All Grades'} | Section: ${selectedSection || 'All Sections'}`],
+                      [`Session: ${selectedSession === 'all' ? 'All Sessions' : selectedSession} | Date Range: ${selectedDateRange}`],
+                      [''],
+                      ['Summary Statistics:'],
+                      [`Total Records: ${data.length} | Report Type: ${REPORT_TYPES.find(t => t.value === selectedReportType)?.label}`],
+                      [''],
+                    ], { origin: 'A1' });
+
+                    // Add table headers with professional styling
+                    const headers = selectedReportType === 'daily-records'
+                      ? ['Date', 'Grade', 'Section', 'Session', 'Present', 'Absent', 'Late', 'Attendance Rate']
+                      : ['Student Name', 'ID No', 'Grade', 'Date', 'Time', 'Status', 'Session', 'Section'];
+
+                    XLSX.utils.sheet_add_aoa(ws, [headers], { origin: 'A11' });
+
+                    // Add data rows with enhanced formatting and status indicators
+                    const tableData = data.map((row: any) => {
+                      if (selectedReportType === 'daily-records') {
+                        const total = (row.present || 0) + (row.absent || 0);
+                        const rate = total > 0 ? ((row.present || 0) / total * 100).toFixed(1) + '%' : '0%';
+                        return [
+                          new Date(row.date).toLocaleDateString(),
+                          row.grade,
+                          row.section,
+                          row.session_type || 'N/A',
+                          row.present || 0,
+                          row.absent || 0,
+                          row.late || 0,
+                          rate
+                        ];
+                      } else {
+                        return [
+                          row.student_name,
+                          row.matric_no,
+                          row.grade,
+                          new Date(row.date).toLocaleDateString(),
+                          row.created_at ? dayjs(row.created_at).format('hh:mm A') : '-',
+                          row.status.toUpperCase(), // Make status more prominent
+                          row.session_type || 'N/A',
+                          row.section
+                        ];
+                      }
+                    });
+
+                    XLSX.utils.sheet_add_aoa(ws, tableData, { origin: 'A12' });
+
+                    // Set column widths for better readability
+                    ws['!cols'] = headers.map((header, index) => {
+                      if (header === 'Student Name') return { wch: 20 };
+                      if (header === 'Date') return { wch: 12 };
+                      if (header === 'Time') return { wch: 10 };
+                      if (header === 'Status') return { wch: 12 };
+                      return { wch: 15 };
+                    });
+
+                    // Add cell styling and merges for professional look
+                    if (!ws['!merges']) ws['!merges'] = [];
+                    ws['!merges'].push(
+                      { s: { r: 0, c: 0 }, e: { r: 0, c: headers.length - 1 } }, // Main title merge
+                      { s: { r: 1, c: 0 }, e: { r: 1, c: headers.length - 1 } }, // Subtitle merge
+                      { s: { r: 2, c: 0 }, e: { r: 2, c: headers.length - 1 } }, // Date merge
+                      { s: { r: 4, c: 0 }, e: { r: 4, c: headers.length - 1 } }, // Filters title merge
+                      { s: { r: 8, c: 0 }, e: { r: 8, c: headers.length - 1 } }  // Summary merge
+                    );
+
+                    // Add footer information
+                    const footerRow = tableData.length + 13; // After data + headers
+                    XLSX.utils.sheet_add_aoa(ws, [
+                      [''],
+                      ['Report Generated by School Attendance Management System'],
+                      [`Export Date: ${new Date().toLocaleString()}`],
+                      ['Confidential - For School Administration Use Only']
+                    ], { origin: `A${footerRow}` });
+
+                    // Merge footer rows
+                    ws['!merges'].push(
+                      { s: { r: footerRow, c: 0 }, e: { r: footerRow, c: headers.length - 1 } },
+                      { s: { r: footerRow + 1, c: 0 }, e: { r: footerRow + 1, c: headers.length - 1 } },
+                      { s: { r: footerRow + 2, c: 0 }, e: { r: footerRow + 2, c: headers.length - 1 } },
+                      { s: { r: footerRow + 3, c: 0 }, e: { r: footerRow + 3, c: headers.length - 1 } }
+                    );
+
                     XLSX.utils.book_append_sheet(wb, ws, `${REPORT_TYPES.find(t => t.value === selectedReportType)?.label} Report`);
                     XLSX.writeFile(wb, `${selectedReportType}_report_${new Date().toISOString().split('T')[0]}.xlsx`);
                   }}>Export as Excel</MenuItem>
@@ -2086,7 +2251,7 @@ const Reports: FC = () => {
                                   size="sm"
                                   colorScheme="red"
                                   variant="outline"
-                                  onClick={() => handleDeleteHoliday(holiday.id)}
+                                  onClick={() => handleDeleteHolidayClick(holiday)}
                                 >
                                   Delete
                                 </Button>
@@ -2117,6 +2282,35 @@ const Reports: FC = () => {
         status={listModalStatus}
         session={selectedSession}
       />
+
+      {/* Delete Holiday Confirmation Dialog */}
+      <AlertDialog
+        isOpen={isDeleteDialogOpen}
+        leastDestructiveRef={cancelRef}
+        onClose={handleDeleteHolidayCancel}
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent>
+            <AlertDialogHeader fontSize="lg" fontWeight="bold">
+              Delete Holiday
+            </AlertDialogHeader>
+
+            <AlertDialogBody>
+              Are you sure you want to delete the holiday "{holidayToDelete?.name}" on {holidayToDelete ? new Date(holidayToDelete.date).toLocaleDateString() : ''}?
+              This action cannot be undone and may affect attendance reports that reference this holiday.
+            </AlertDialogBody>
+
+            <AlertDialogFooter>
+              <Button ref={cancelRef} onClick={handleDeleteHolidayCancel}>
+                Cancel
+              </Button>
+              <Button colorScheme="red" onClick={handleDeleteHolidayConfirm} ml={3}>
+                Delete
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
     </WithStaffLayout>
   );
 };

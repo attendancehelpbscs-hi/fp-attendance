@@ -339,6 +339,6 @@ Distributed under the MIT License. See `LICENSE` for more information.
 
 ## Acknowledgments
 
-- Inspired by Gideon Idoko's original FP Attendance System
+- Inspired by Gideon Idoko's original Fingerprint Attendance System
 - Built with modern web technologies for enhanced performance and security
 - Special thanks to the DigitalPersona team for fingerprint scanner SDK

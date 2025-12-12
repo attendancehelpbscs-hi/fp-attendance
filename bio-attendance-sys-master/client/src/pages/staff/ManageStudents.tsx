@@ -389,7 +389,7 @@ const ManageStudents: FC = () => {
       <ImportStudentsModal isOpen={isImportOpen} onClose={onImportClose} />
 
       {/* Attendance History Modal */}
-      <Modal isOpen={isOpen} onClose={onClose} size="6xl">
+      <Modal isOpen={isOpen} onClose={onClose} size="6xl" closeOnOverlayClick={false}>
         <ModalOverlay />
         <ModalContent maxW="95vw">
           <ModalHeader>Attendance History - {selectedStudentForHistory?.name}</ModalHeader>
@@ -525,6 +525,7 @@ const ManageStudents: FC = () => {
         isOpen={isDeleteOpen}
         leastDestructiveRef={cancelRef}
         onClose={onDeleteClose}
+        closeOnOverlayClick={false}
       >
         <AlertDialogOverlay>
           <AlertDialogContent>
@@ -564,6 +565,7 @@ const ManageStudents: FC = () => {
         isOpen={isBulkDeleteOpen}
         leastDestructiveRef={bulkCancelRef}
         onClose={onBulkDeleteClose}
+        closeOnOverlayClick={false}
       >
         <AlertDialogOverlay>
           <AlertDialogContent>
