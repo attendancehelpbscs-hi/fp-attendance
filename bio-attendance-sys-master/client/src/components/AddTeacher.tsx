@@ -27,11 +27,12 @@ import {
   ListItem,
 } from '@chakra-ui/react';
 import { Upload, X, Download, Info, Eye, EyeOff } from 'lucide-react';
-import { useAddTeacher, useImportTeachers } from '../api/staff.api';
+import { useAddTeacher, useImportTeachers, useGetAllAssignedSections } from '../api/staff.api';
 import { Teacher, AddTeacherInput } from '../interfaces/api.interface';
 import { queryClient } from '../lib/query-client';
 import SimpleReactValidator from 'simple-react-validator';
 import useStore from '../store/store';
+import { getSectionsForGrade } from '../config/sections.config';
 
 interface AddTeacherProps {
   isOpen: boolean;
@@ -56,6 +57,7 @@ const AddTeacher: FC<AddTeacherProps> = ({ isOpen, onClose, activeTeacher, setAc
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [isImportMode, setIsImportMode] = useState<boolean>(false);
   const [forceUpdate, setForceUpdate] = useState<boolean>(false);
+  const [assignedSections, setAssignedSections] = useState<string[]>([]);
   const { isOpen: isInfoOpen, onOpen: onInfoOpen, onClose: onInfoClose } = useDisclosure();
 
   const toast = useToast();
@@ -80,6 +82,7 @@ const AddTeacher: FC<AddTeacherProps> = ({ isOpen, onClose, activeTeacher, setAc
   const { mutate: addTeacher, isLoading: isAddingTeacher } = useAddTeacher({
     onSuccess: () => {
       queryClient.invalidateQueries(['teachers']);
+      queryClient.invalidateQueries(['/api/teachers/assigned-sections']);
       toast({
         title: 'Success',
         description: activeTeacher ? 'Teacher updated successfully' : 'Teacher added successfully',
@@ -103,6 +106,7 @@ const AddTeacher: FC<AddTeacherProps> = ({ isOpen, onClose, activeTeacher, setAc
   const { mutate: importTeachers, isLoading: isImporting } = useImportTeachers({
     onSuccess: (data: any) => {
       queryClient.invalidateQueries(['teachers']);
+      queryClient.invalidateQueries(['/api/teachers/assigned-sections']);
       toast({
         title: 'Import Complete',
         description: `Successfully imported ${data.imported} teachers.`,
@@ -132,6 +136,18 @@ const AddTeacher: FC<AddTeacherProps> = ({ isOpen, onClose, activeTeacher, setAc
         isClosable: true,
       });
     },
+  });
+
+  // Fetch ALL assigned sections across all grades
+  const { data: assignedSectionsData } = useGetAllAssignedSections({
+    enabled: !activeTeacher && staffInfo?.role === 'ADMIN',
+    onSuccess: (data) => {
+      setAssignedSections(data.sections || []);
+    },
+    onError: (err) => {
+      console.error('Failed to fetch assigned sections:', err);
+      setAssignedSections([]);
+    }
   });
 
   useEffect(() => {
@@ -415,17 +431,6 @@ Jane,Smith,jane.smith@example.com,password123,teacher,2002,B,2`;
                     </FormControl>
 
                     <FormControl>
-                      <FormLabel>Section</FormLabel>
-                      <Input
-                        name="section"
-                        value={teacherInput.section}
-                        onChange={handleInputChange}
-                        placeholder="Enter section"
-                      />
-                      {simpleValidator.current.message('section', teacherInput.section, 'required|between:2,50')}
-                    </FormControl>
-
-                    <FormControl>
                       <FormLabel>Grade</FormLabel>
                       <Select name="grade" value={teacherInput.grade} onChange={handleInputChange} placeholder="Select grade">
                         <option value="1">Grade 1</option>
@@ -436,6 +441,32 @@ Jane,Smith,jane.smith@example.com,password123,teacher,2002,B,2`;
                         <option value="6">Grade 6</option>
                       </Select>
                       {simpleValidator.current.message('grade', teacherInput.grade, 'required')}
+                    </FormControl>
+
+                    <FormControl>
+                      <FormLabel>Section</FormLabel>
+                      <Select
+                        name="section"
+                        value={teacherInput.section}
+                        onChange={handleInputChange}
+                        placeholder="Select section"
+                        isDisabled={!teacherInput.grade}
+                      >
+                        {teacherInput.grade && getSectionsForGrade(teacherInput.grade).map((section) => {
+                          const isAssigned = assignedSections.includes(section);
+                          return (
+                            <option
+                              key={section}
+                              value={section}
+                              disabled={isAssigned && (!activeTeacher || activeTeacher.section !== section)}
+                              style={{ color: isAssigned ? '#999' : 'inherit' }}
+                            >
+                              {section} {isAssigned && (!activeTeacher || activeTeacher.section !== section) ? '(Assigned)' : ''}
+                            </option>
+                          );
+                        })}
+                      </Select>
+                      {simpleValidator.current.message('section', teacherInput.section, 'required|between:2,50')}
                     </FormControl>
                   </VStack>
                 </form>

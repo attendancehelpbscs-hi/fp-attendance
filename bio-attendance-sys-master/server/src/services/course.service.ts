@@ -1,10 +1,27 @@
 import createError from 'http-errors';
 import { prisma } from '../db/prisma-client';
 import type { Course } from '@prisma/client';
+import { isSectionValidForGrade, isSectionAlreadyAssigned } from '../config/sections.config';
 
 export const saveCourseToDb = (course: Omit<Course, 'id'>): Promise<Course> => {
   return new Promise<Course>(async (resolve, reject) => {
     try {
+      // Validate section if provided
+      if (course.course_code && course.grade) {
+        // Check if section is valid for the grade
+        if (!isSectionValidForGrade(course.course_code, course.grade)) {
+          reject(createError(400, `Section ${course.course_code} is not valid for Grade ${course.grade}`));
+          return;
+        }
+
+        // Check if section is already assigned to another teacher for the same grade
+        const isSectionTaken = await isSectionAlreadyAssigned(course.course_code, course.grade, course.staff_id);
+        if (isSectionTaken) {
+          reject(createError(409, `Section ${course.course_code} for Grade ${course.grade} is already assigned to another teacher`));
+          return;
+        }
+      }
+
       const savedCourse = await prisma.course.create({
         data: course,
       });

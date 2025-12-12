@@ -78,3 +78,9 @@ export const useImportTeachers = (options?: any) => {
 };
 
 export const useSendWelcomeEmail = useBaseMutation<{ message: string }, BaseError, { teacherId: string; url: string }>('/api/teachers', 'post');
+
+export const useGetAssignedSectionsForGrade = (grade: string, options: Omit<UseQueryOptions<{ sections: string[] }, BaseError, { sections: string[] }, QueryKey>, 'queryFn'> = {}) =>
+  useBaseQuery<{ sections: string[] }, BaseError>(`/api/teachers/assigned-sections/${grade}`, options);
+
+export const useGetAllAssignedSections = (options: Omit<UseQueryOptions<{ sections: string[] }, BaseError, { sections: string[] }, QueryKey>, 'queryFn'> = {}) =>
+  useBaseQuery<{ sections: string[] }, BaseError>(`/api/teachers/assigned-sections`, options);

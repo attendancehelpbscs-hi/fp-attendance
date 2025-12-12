@@ -3,6 +3,7 @@ import { hashPassword } from '../helpers/password.helper';
 import { prisma } from '../db/prisma-client';
 import type { Staff, Role } from '@prisma/client';
 import { createAuditLog } from './audit.service';
+import { isSectionValidForGrade, isSectionAlreadyAssigned } from '../config/sections.config';
 
 export interface NewTeacher {
   firstName: string;
@@ -42,6 +43,20 @@ export const addTeacherToDb = async (newTeacher: NewTeacher): Promise<TeacherRet
     throw createError(406, 'Teacher with this email already exists');
   }
 
+  // Validate section if provided
+  if (section && grade) {
+    // Check if section is valid for the grade
+    if (!isSectionValidForGrade(section, grade)) {
+      throw createError(400, `Section ${section} is not valid for Grade ${grade}`);
+    }
+
+    // Check if section is already assigned to another teacher (globally unique)
+    const isSectionTaken = await isSectionAlreadyAssigned(section, grade);
+    if (isSectionTaken) {
+      throw createError(409, `Section ${section} is already assigned to another teacher`);
+    }
+  }
+
   try {
     const hashedPassword = await hashPassword(password);
     const teacherData = {
@@ -76,6 +91,45 @@ export const addTeacherToDb = async (newTeacher: NewTeacher): Promise<TeacherRet
       grade: teacherGrade || undefined,
       matric_no: teacherMatricNo || undefined,
     };
+  } catch (err) {
+    throw err;
+  }
+};
+
+export const getAssignedSectionsForGrade = async (grade: string): Promise<string[]> => {
+  try {
+    const assignedTeachers = await prisma.staff.findMany({
+      where: {
+        grade,
+        section: { not: null },
+        role: 'TEACHER',
+        approval_status: 'APPROVED'
+      },
+      select: {
+        section: true
+      }
+    });
+
+    return assignedTeachers.map(teacher => teacher.section || '').filter(section => section !== '');
+  } catch (err) {
+    throw err;
+  }
+};
+
+export const getAllAssignedSections = async (): Promise<string[]> => {
+  try {
+    const assignedTeachers = await prisma.staff.findMany({
+      where: {
+        section: { not: null },
+        role: 'TEACHER',
+        approval_status: { in: ['APPROVED', 'PENDING'] }
+      },
+      select: {
+        section: true
+      }
+    });
+
+    return assignedTeachers.map(teacher => teacher.section || '').filter(section => section !== '');
   } catch (err) {
     throw err;
   }
@@ -186,6 +240,32 @@ export const updateTeacherInDb = async (id: string, updateData: Partial<NewTeach
     if (updateData.email) dataToUpdate.email = updateData.email;
     if (updateData.password) dataToUpdate.password = await hashPassword(updateData.password);
     if (updateData.role) dataToUpdate.role = updateData.role;
+
+    // Validate section if being updated
+    if (updateData.section !== undefined || updateData.grade !== undefined) {
+      // Get current teacher data to check what's changing
+      const currentTeacher = await prisma.staff.findUnique({
+        where: { id },
+        select: { section: true, grade: true }
+      });
+
+      const newSection = updateData.section !== undefined ? updateData.section : currentTeacher?.section;
+      const newGrade = updateData.grade !== undefined ? updateData.grade : currentTeacher?.grade;
+
+      if (newSection && newGrade) {
+        // Check if section is valid for the grade
+        if (!isSectionValidForGrade(newSection, newGrade)) {
+          throw createError(400, `Section ${newSection} is not valid for Grade ${newGrade}`);
+        }
+
+        // Check if section is already assigned to another teacher (globally unique)
+        const isSectionTaken = await isSectionAlreadyAssigned(newSection, newGrade, id);
+        if (isSectionTaken) {
+          throw createError(409, `Section ${newSection} is already assigned to another teacher`);
+        }
+      }
+    }
+
     if (updateData.section !== undefined) dataToUpdate.section = updateData.section;
     if (updateData.grade !== undefined) dataToUpdate.grade = updateData.grade;
     if (updateData.matric_no !== undefined) dataToUpdate.matric_no = updateData.matric_no;
@@ -360,6 +440,22 @@ export const importTeachersFromCsv = async (csvData: string): Promise<{ imported
         if (existingTeacher) {
           errors.push(`Row ${i + 1}: Teacher with email ${rowData.email} already exists`);
           continue;
+        }
+
+        // Validate section if provided
+        if (rowData.section && rowData.grade) {
+          // Check if section is valid for the grade
+          if (!isSectionValidForGrade(rowData.section, rowData.grade)) {
+            errors.push(`Row ${i + 1}: Section ${rowData.section} is not valid for Grade ${rowData.grade}`);
+            continue;
+          }
+
+          // Check if section is already assigned to another teacher for the same grade
+          const isSectionTaken = await isSectionAlreadyAssigned(rowData.section, rowData.grade);
+          if (isSectionTaken) {
+            errors.push(`Row ${i + 1}: Section ${rowData.section} for Grade ${rowData.grade} is already assigned to another teacher`);
+            continue;
+          }
         }
 
         // Create teacher

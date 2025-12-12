@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import type { FC } from 'react';
 import {
   Box,
@@ -114,8 +114,14 @@ const AttendanceKiosk: FC = () => {
     onSuccess: () => {
       toast.success('Student marked successfully - Ready for next scan');
       resetScanState();
+      // FIXED: More aggressive query invalidation to ensure table updates
       attendanceListData.refetch();
       queryClient.invalidateQueries(['attendanceList', attendanceId]);
+      queryClient.invalidateQueries(['attendances', staffInfo?.id]);
+      // Add a small delay to ensure data is fetched before processing
+      setTimeout(() => {
+        attendanceListData.refetch();
+      }, 500);
     },
     onError: (err) => {
       const errorMessage = err.response?.data?.message as string;
@@ -136,44 +142,63 @@ const AttendanceKiosk: FC = () => {
     setMatchedFingerType(null);
   };
 
-  const attendanceData = attendanceListData.data?.data?.attendanceList?.reduce((acc: any[], record: any) => {
-    // Only process present/late records, skip absent records for kiosk display
-    if (record.status === 'absent') return acc;
+  // FIXED: Simplified attendance data processing for better reactivity
+  const attendanceData = useMemo(() => {
+    if (!attendanceListData.data?.data?.attendanceList) return [];
 
-    const statusLabel = record.status === 'present' && record.isLate ? 'late' : record.status;
-    const existing = acc.find(item => item.id === record.student.matric_no);
-    if (existing) {
+    const records = attendanceListData.data.data.attendanceList;
+
+    // Create a map to group records by student
+    const studentMap = new Map();
+
+    records.forEach((record: any) => {
+      // Only process present/late records, skip absent records for kiosk display
+      if (record.status === 'absent') return;
+
+      const statusLabel = record.status === 'present' && record.isLate ? 'late' : record.status;
+      const studentId = record.student.matric_no;
+
+      if (!studentMap.has(studentId)) {
+        studentMap.set(studentId, {
+          id: studentId,
+          name: record.student.name,
+          grade: record.student.grade,
+          section: record.section,
+          timeIn: null,
+          timeOut: null,
+          timeInRaw: null,
+          timeOutRaw: null,
+          status: statusLabel,
+          statusUpdatedAt: record.created_at,
+        });
+      }
+
+      const studentData = studentMap.get(studentId);
+
+      // Update time in/out based on record type
       if (record.time_type === 'IN' && record.status === 'present') {
-        if (!existing.timeInRaw || dayjs(record.created_at).isAfter(dayjs(existing.timeInRaw))) {
-          existing.timeIn = dayjs(record.created_at).format('hh:mm A');
-          existing.timeInRaw = record.created_at;
+        if (!studentData.timeInRaw || dayjs(record.created_at).isAfter(dayjs(studentData.timeInRaw))) {
+          studentData.timeIn = dayjs(record.created_at).format('hh:mm A');
+          studentData.timeInRaw = record.created_at;
         }
       } else if (record.time_type === 'OUT' && record.status === 'present') {
-        if (!existing.timeOutRaw || dayjs(record.created_at).isAfter(dayjs(existing.timeOutRaw))) {
-          existing.timeOut = dayjs(record.created_at).format('hh:mm A');
-          existing.timeOutRaw = record.created_at;
+        if (!studentData.timeOutRaw || dayjs(record.created_at).isAfter(dayjs(studentData.timeOutRaw))) {
+          studentData.timeOut = dayjs(record.created_at).format('hh:mm A');
+          studentData.timeOutRaw = record.created_at;
         }
       }
-      if (dayjs(record.created_at).isAfter(dayjs(existing.statusUpdatedAt || '1970-01-01'))) {
-        existing.status = statusLabel;
-        existing.statusUpdatedAt = record.created_at;
+
+      // Update status if this record is newer
+      if (dayjs(record.created_at).isAfter(dayjs(studentData.statusUpdatedAt || '1970-01-01'))) {
+        studentData.status = statusLabel;
+        studentData.statusUpdatedAt = record.created_at;
       }
-    } else {
-      acc.push({
-        id: record.student.matric_no,
-        name: record.student.name,
-        grade: record.student.grade,
-        section: record.section,
-        timeIn: (record.time_type === 'IN' && record.status === 'present') ? dayjs(record.created_at).format('hh:mm A') : null,
-        timeOut: (record.time_type === 'OUT' && record.status === 'present') ? dayjs(record.created_at).format('hh:mm A') : null,
-        timeInRaw: (record.time_type === 'IN' && record.status === 'present') ? record.created_at : null,
-        timeOutRaw: (record.time_type === 'OUT' && record.status === 'present') ? record.created_at : null,
-        status: statusLabel,
-        statusUpdatedAt: record.created_at,
-      });
-    }
-    return acc;
-  }, []) || [];
+    });
+
+    // Sort by most recent update first
+    const result = Array.from(studentMap.values());
+    return result.sort((a, b) => dayjs(b.statusUpdatedAt).valueOf() - dayjs(a.statusUpdatedAt).valueOf());
+  }, [attendanceListData.data, attendanceListData.isFetching]);
 
   useEffect(() => {
     const timeInterval = setInterval(() => {
@@ -611,7 +636,7 @@ const AttendanceKiosk: FC = () => {
                     </Thead>
                     <Tbody>
                       {attendanceData.map((record, idx) => (
-                        <Tr key={record.id} bg={idx === 0 ? "green.50" : "white"}>
+                        <Tr key={`${record.id}-${record.statusUpdatedAt}`} bg={idx === 0 ? "green.50" : "white"}>
                           <Td fontSize="xs">{record.id}</Td>
                           <Td fontSize="xs">{record.name}</Td>
                           <Td fontSize="xs">{record.grade}</Td>

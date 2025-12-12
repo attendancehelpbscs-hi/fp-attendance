@@ -32,6 +32,7 @@ import 'react-datepicker/dist/react-datepicker.css';
 import { useGetStudentsByStatus, useMarkStudentAttendance } from '../api/atttendance.api';
 import { useToast } from '@chakra-ui/react';
 import useStore from '../store/store';
+import { getSectionsForGrade } from '../config/sections.config';
 
 interface StudentAttendanceModalProps {
   isOpen: boolean;
@@ -146,11 +147,16 @@ const StudentAttendanceModal: React.FC<StudentAttendanceModalProps> = ({
 
             <FormControl isRequired>
               <FormLabel>Section</FormLabel>
-              <Input
+              <Select
                 value={section}
                 onChange={(e) => setSection(e.target.value)}
-                placeholder="Enter section (e.g., A, B, C)"
-              />
+                placeholder="Select section"
+                isDisabled={!grade}
+              >
+                {grade && getSectionsForGrade(grade).map((sectionOption) => (
+                  <option key={sectionOption} value={sectionOption}>{sectionOption}</option>
+                ))}
+              </Select>
             </FormControl>
 
             <FormControl isRequired>

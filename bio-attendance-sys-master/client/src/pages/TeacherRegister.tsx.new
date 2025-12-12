@@ -22,7 +22,6 @@ const TeacherRegister = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [assignedSections, setAssignedSections] = useState<string[]>([]);
-  const [sectionSearchTerm, setSectionSearchTerm] = useState('');
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -52,7 +51,7 @@ const TeacherRegister = () => {
 
     // Restrict Employee ID to numbers and symbols only
     if (e.target.name === 'employeeId') {
-      value = value.replace(/[^0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/g, '');
+      value = value.replace(/[^0-9!@#$%^&*()_+\-=\[\]{};':"\|,.<>\/?`~]/g, '');
     }
 
     setFormData({

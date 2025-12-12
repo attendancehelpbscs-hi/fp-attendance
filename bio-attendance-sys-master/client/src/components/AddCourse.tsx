@@ -26,6 +26,7 @@ import {
 import { toast } from 'react-hot-toast';
 import useStore from '../store/store';
 import { queryClient } from '../lib/query-client';
+import { getSectionsForGrade } from '../config/sections.config';
 
 const AddCourse: FC<{
   isOpen: boolean;
@@ -168,13 +169,17 @@ const AddCourse: FC<{
             </FormControl>
             <FormControl marginTop="1rem">
               <FormLabel>Section</FormLabel>
-              <Input
-                type="text"
+              <Select
                 name="course_code"
                 required
                 value={courseInput.course_code}
                 onChange={handleInputChange}
-              />
+                placeholder="Select section"
+              >
+                {courseInput.grade && getSectionsForGrade(courseInput.grade).map((section) => (
+                  <option key={section} value={section}>{section}</option>
+                ))}
+              </Select>
               {simpleValidator.current.message(
                 'section',
                 courseInput.course_code,

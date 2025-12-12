@@ -5,7 +5,7 @@ import createError from 'http-errors';
 import { prisma } from '../db/prisma-client';
 import type { PaginationMeta } from '../interfaces/helper.interface';
 import type { Role } from '@prisma/client';
-import { addTeacherToDb, getTeachersFromDb, getTeacherByIdFromDb, updateTeacherInDb, deleteTeacherFromDb, importTeachersFromCsv } from '../services/teacher.service';
+import { addTeacherToDb, getTeachersFromDb, getTeacherByIdFromDb, updateTeacherInDb, deleteTeacherFromDb, importTeachersFromCsv, getAssignedSectionsForGrade as getAssignedSectionsForGradeService, getAllAssignedSections as getAllAssignedSectionsService } from '../services/teacher.service';
 import multer from 'multer';
 import { createAuditLog } from '../services/audit.service';
 import { sendTeacherApprovalEmail, sendTeacherRejectionEmail, sendTeacherWelcomeEmail } from '../helpers/email.helper';
@@ -69,6 +69,73 @@ export const addTeacher = async (req: Request, res: Response, next: NextFunction
     await createAuditLog(user_id, 'TEACHER_CREATED', `Teacher ${newTeacher.email} created by admin`);
 
     return createSuccess(res, 201, 'Teacher created successfully', { teacher: newTeacher });
+  } catch (err) {
+    return next(err);
+  }
+};
+
+export const getAssignedSectionsForGrade = async (req: Request, res: Response, next: NextFunction) => {
+  const { grade } = req.params;
+  const user_id = (req.user as JwtPayload)?.id;
+
+  if (!user_id) return next(new createError.Unauthorized('User not authenticated'));
+  if (!grade) return next(new createError.BadRequest('Grade is required'));
+
+  // Get the current user's role
+  const currentUser = await prisma.staff.findUnique({
+    where: { id: user_id },
+    select: { role: true }
+  });
+
+  if (!currentUser) {
+    return next(new createError.Unauthorized('User not found'));
+  }
+
+  // Only admins can check assigned sections
+  if (currentUser.role !== 'ADMIN') {
+    return next(new createError.Forbidden('Access denied. Only admins can check assigned sections.'));
+  }
+
+  try {
+    const assignedSections = await getAssignedSectionsForGradeService(grade);
+    return createSuccess(res, 200, 'Assigned sections fetched successfully', { sections: assignedSections });
+  } catch (err) {
+    return next(err);
+  }
+};
+
+export const getAllAssignedSections = async (req: Request, res: Response, next: NextFunction) => {
+  const user_id = (req.user as JwtPayload)?.id;
+
+  if (!user_id) return next(new createError.Unauthorized('User not authenticated'));
+
+  // Get the current user's role
+  const currentUser = await prisma.staff.findUnique({
+    where: { id: user_id },
+    select: { role: true }
+  });
+
+  if (!currentUser) {
+    return next(new createError.Unauthorized('User not found'));
+  }
+
+  // Only admins can check assigned sections
+  if (currentUser.role !== 'ADMIN') {
+    return next(new createError.Forbidden('Access denied. Only admins can check assigned sections.'));
+  }
+
+  try {
+    const assignedSections = await getAllAssignedSectionsService();
+    return createSuccess(res, 200, 'All assigned sections fetched successfully', { sections: assignedSections });
+  } catch (err) {
+    return next(err);
+  }
+};
+
+export const getPublicAssignedSections = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const assignedSections = await getAllAssignedSectionsService();
+    return createSuccess(res, 200, 'Assigned sections fetched successfully', { sections: assignedSections });
   } catch (err) {
     return next(err);
   }
