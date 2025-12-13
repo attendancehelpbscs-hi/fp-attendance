@@ -144,37 +144,29 @@ const AttendanceKiosk: FC = () => {
     setScanAttempts(0);
   };
 
-  // Show ONLY students who did checkin/out for any session type (AM/PM)
+  // FIXED: Show ONLY students who did checkin/out for any session type (AM/PM)
   const attendanceData = useMemo(() => {
+    console.log('🔄 Processing attendance data...', attendanceListData.data);
+
     if (!attendanceListData.data?.data?.attendanceList) {
-      console.log('🔍 No attendance list data available');
+      console.log('⚠️ No attendance list data available');
       return [];
     }
-  
+
     const records = attendanceListData.data.data.attendanceList;
-  
+    console.log(`📊 Found ${records.length} attendance records`);
+    console.log('🔍 Raw records:', records);
+
     // Group records by student ID to consolidate IN/OUT records for each student
     const studentRecordsMap = new Map();
-  
+
     // First, collect all student records with either IN or OUT time
     records
-      .filter(record => {
-        const hasStudent = record.student && record.student.matric_no;
-        const hasTimeType = record.time_type === 'IN' || record.time_type === 'OUT';
-        // ONLY show present or late students, NOT absent ones
-        const isPresentOrLate = !record.status || record.status === 'present' || record.status === 'late';
-        
-        if (!hasStudent) console.log('⚠️ Record missing student data:', record);
-        if (!hasTimeType) console.log('⚠️ Record missing valid time_type:', record);
-        if (record.status && record.status === 'absent') {
-          console.log('ℹ️ Filtering out absent student:', record.student.name, record.student.matric_no);
-        }
-        if (record.status && !['present', 'late', 'absent'].includes(record.status)) {
-          console.log('⚠️ Record has unexpected status:', record.status, record);
-        }
-        
-        return hasStudent && hasTimeType && isPresentOrLate;
-      })
+      .filter(record =>
+        record.student &&
+        (record.time_type === 'IN' || record.time_type === 'OUT') &&
+        record.status === 'present' // ONLY show present records, not absent
+      )
       .forEach(record => {
         const studentId = record.student.matric_no;
 
@@ -187,7 +179,7 @@ const AttendanceKiosk: FC = () => {
             section: record.section || 'N/A',
             timeIn: null,
             timeOut: null,
-            status: record.status || 'present',
+            status: 'present',
             sessionType: record.session_type || 'N/A',
             created_at: record.created_at,
             isLate: record.isLate
@@ -199,7 +191,6 @@ const AttendanceKiosk: FC = () => {
         if (record.time_type === 'IN') {
           studentRecord.timeIn = dayjs(record.created_at).format('hh:mm A');
           if (record.isLate) studentRecord.status = 'late';
-          else if (record.status) studentRecord.status = record.status;
         } else if (record.time_type === 'OUT') {
           studentRecord.timeOut = dayjs(record.created_at).format('hh:mm A');
         }
@@ -213,9 +204,8 @@ const AttendanceKiosk: FC = () => {
     // Convert map back to array
     const result = Array.from(studentRecordsMap.values());
 
-    console.log('📋 Filtered checkin/out records (with timein/out):', result.length, 'students');
-    console.log('📝 Sample records:', result.slice(0, 3));
-    
+    console.log('📋 Filtered checkin/out records (present only):', result);
+
     return result.sort((a, b) => dayjs(b.created_at).valueOf() - dayjs(a.created_at).valueOf());
   }, [attendanceListData.data, attendanceListData.isFetching, attendanceListData.isLoading]);
 
@@ -321,12 +311,12 @@ const AttendanceKiosk: FC = () => {
     try {
       // Convert base64 to File object for upload
       const base64Data = fingerprints.newFingerprint;
-      
+
       // Remove data URL prefix if present
-      const cleanBase64 = base64Data.includes(',') 
-        ? base64Data.split(',')[1] 
+      const cleanBase64 = base64Data.includes(',')
+        ? base64Data.split(',')[1]
         : base64Data;
-      
+
       // Convert base64 to blob
       const byteCharacters = atob(cleanBase64);
       const byteNumbers = new Array(byteCharacters.length);
@@ -374,7 +364,7 @@ const AttendanceKiosk: FC = () => {
         const student = studentFingerprintsData.data?.data?.students?.find(
           (s: StudentFingerprint) => s.id === student_id
         );
-        
+
         if (student) {
           setIdentifiedStudent(student);
           setConfidence(confidence);
@@ -398,8 +388,8 @@ const AttendanceKiosk: FC = () => {
             student_id: student_id,
             attendance_id: attendanceId,
             time_type: timeType,
-            section: (student.courses.length > 0 
-              ? student.courses[0].course_code 
+            section: (student.courses.length > 0
+              ? student.courses[0].course_code
               : student.grade).slice(0, 10),
             session_type: sessionType,
           }), 1000);
@@ -423,7 +413,7 @@ const AttendanceKiosk: FC = () => {
           status: 'error',
           confidence: confidence
         }, ...prev.slice(0, 9)]);
-        
+
         // FIXED: Better error messaging with helpful guidance
         if (confidence > 10) {
           toast.error(`Fingerprint detected but low confidence (${confidence.toFixed(1)}%). Try scanning again or use a different finger.`);
@@ -438,9 +428,9 @@ const AttendanceKiosk: FC = () => {
         time: dayjs().format('hh:mm:ss A'),
         status: 'error'
       }, ...prev.slice(0, 9)]);
-      
+
       console.error('Identification error: ', err);
-      
+
       if (err.response?.status === 404) {
         toast.error('No students enrolled with fingerprints.');
       } else if (err.response?.status === 400) {
@@ -628,7 +618,7 @@ const AttendanceKiosk: FC = () => {
                       <AlertIcon boxSize={3} />
                       <AlertTitle fontSize="xs">Unrecognized Fingerprint</AlertTitle>
                       <AlertDescription fontSize="xs">
-                        {confidence > 10 
+                        {confidence > 10
                           ? `Low confidence match (${confidence.toFixed(1)}%). Try a different finger or scan again.`
                           : 'Please try scanning again.'
                         }
