@@ -1,0 +1,188 @@
+// Prisma Schema
+// Documentation: https://pris.ly/d/prisma-schema
+
+// GENERATORS
+generator client {
+  provider = "prisma-client-js"
+}
+
+
+
+generator docs {
+  provider = "node node_modules/prisma-docs-generator"
+}
+
+generator joi {
+  provider = "prisma-joi-generator"
+  output = "./joi"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = "mysql://root:23Emthjw9Hi@localhost:3306/bioattendancesysdb"
+}
+
+// MODELS
+model Staff {
+   id                   String         @id @default(uuid())
+   firstName            String         @default("")
+   lastName             String         @default("")
+   name                 String         // Keep for backward compatibility
+   email                String         @unique
+   password             String
+   role                 Role           @default(TEACHER)
+   approval_status      ApprovalStatus @default(APPROVED) // Default to APPROVED for existing admins
+   section              String?        // Optional section for teachers
+   grade                String?        // Optional grade for teachers
+   matric_no            String?        // Optional matriculation number for teachers
+   fingerprint          String?        @db.LongText // Optional fingerprint field for biometric login (legacy - unencrypted)
+   fingerprint_hash     String?        @db.VarChar(64) // SHA-256 hash for integrity verification
+   encrypted_fingerprint String?       @db.LongText // AES-256 encrypted fingerprint data
+   profilePicture       String?        @db.LongText // Optional profile picture as base64
+   grace_period_minutes Int            @default(15)
+   school_start_time    String         @default("08:00")
+   late_threshold_hours Int            @default(1)
+   pm_late_cutoff_enabled Boolean      @default(false)
+   pm_late_cutoff_time   String?       @default("12:50")
+   created_at           DateTime
+   courses              Course[]
+   students             Student[]
+   attendances          Attendance[]
+   auditLogs            AuditLog[]
+   tokens               Token[]
+}
+
+enum FingerType {
+  thumb
+  index
+  middle
+  ring
+  pinky
+}
+
+model Fingerprint {
+  id             String     @id @default(uuid())
+  student_id     String
+  fingerprint    String?    @db.LongText // Legacy unencrypted fingerprint data (optional)
+  fingerprint_hash String?  @db.VarChar(64) // SHA-256 hash for integrity verification
+  encrypted_fingerprint String? @db.LongText // AES-256 encrypted fingerprint data
+  finger_type    FingerType
+  created_at     DateTime   @default(now())
+  student       Student    @relation(fields: [student_id], references: [id])
+
+  @@index([student_id])
+}
+
+model Student {
+  id          String               @id @default(uuid())
+  staff_id    String
+  name        String
+  matric_no   String              @unique
+  grade       String
+  fingerprint String?             @db.LongText // Legacy unencrypted fingerprint data (optional)
+  fingerprint_hash     String?    @db.VarChar(64) // SHA-256 hash for integrity verification
+  encrypted_fingerprint String?   @db.LongText // AES-256 encrypted fingerprint data
+  created_at  DateTime
+  courses      StudentCourse[]
+  attendances  StudentAttendance[]
+  fingerprints Fingerprint[]
+  staff       Staff           @relation(fields: [staff_id], references: [id])
+}
+
+model Course {
+  id           String          @id @default(uuid())
+  staff_id     String
+  course_name  String
+  course_code  String
+  grade        String
+  matric_no    String?
+  created_at   DateTime
+  students      StudentCourse[]
+  staff        Staff           @relation(fields: [staff_id], references: [id])
+
+  @@unique([course_code, staff_id])
+}
+
+model Attendance {
+  id           String               @id @default(uuid())
+  staff_id     String
+  name         String
+  created_at   DateTime
+  date         String
+  staff        Staff                @relation(fields: [staff_id], references: [id])
+  students     StudentAttendance[]
+}
+
+model StudentCourse {
+  student    Student @relation(fields: [student_id], references: [id])
+  student_id String
+  course     Course  @relation(fields: [course_id], references: [id])
+  course_id  String
+
+  @@id([student_id, course_id])
+}
+
+model StudentAttendance {
+  id             String           @id @default(cuid())
+  student        Student         @relation(fields: [student_id], references: [id])
+  student_id     String
+  attendance     Attendance      @relation(fields: [attendance_id], references: [id])
+  attendance_id  String
+  time_type      TimeType?
+  session_type   SessionType      @default(AM)
+  section        String
+  status         AttendanceStatus @default(present)
+  created_at     DateTime         @default(now())
+
+  @@index([student_id, attendance_id])
+}
+
+enum TimeType {
+  IN
+  OUT
+}
+
+enum AttendanceStatus {
+  present
+  absent
+}
+
+enum SessionType {
+  AM
+  PM
+}
+
+enum Role {
+  ADMIN
+  TEACHER
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model Token {
+  id           String      @id @default(uuid())
+  staff_id     String
+  token        String
+  staff        Staff       @relation(fields: [staff_id], references: [id])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  staff_id   String
+  action     String
+  details    String?  @db.LongText
+  created_at DateTime @default(now())
+  staff      Staff    @relation(fields: [staff_id], references: [id])
+}
+
+model Holiday {
+  id         String   @id @default(uuid())
+  date       String   @unique
+  name       String
+  type       String   @default("regular")
+  created_at DateTime @default(now())
+}

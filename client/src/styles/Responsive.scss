@@ -1,0 +1,407 @@
+// Comprehensive Mobile-First Responsive Design System
+// ==================================================
+
+// Breakpoints
+$mobile: 480px;
+$tablet: 768px;
+$desktop: 1024px;
+$large-desktop: 1200px;
+
+// Responsive Mixins
+@mixin mobile {
+  @media (max-width: #{$mobile - 1px}) {
+    @content;
+  }
+}
+
+@mixin tablet {
+  @media (min-width: $mobile) and (max-width: #{$tablet - 1px}) {
+    @content;
+  }
+}
+
+@mixin desktop {
+  @media (min-width: $tablet) {
+    @content;
+  }
+}
+
+@mixin large-desktop {
+  @media (min-width: $large-desktop) {
+    @content;
+  }
+}
+
+// Utility Classes for Mobile-First Design
+// ========================================
+
+// Container Utilities
+.container-responsive {
+  width: 100%;
+  margin: 0 auto;
+  padding: 0 clamp(0.5rem, 3vw, 1rem);
+  
+  @include tablet {
+    max-width: 720px;
+    padding: 0 clamp(0.75rem, 2vw, 1.5rem);
+  }
+  
+  @include desktop {
+    max-width: 960px;
+    padding: 0 clamp(1rem, 2vw, 2rem);
+  }
+  
+  @include large-desktop {
+    max-width: 1140px;
+  }
+}
+
+// Grid System
+.row-responsive {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 0 clamp(-0.5rem, -2vw, -1rem);
+  
+  @include mobile {
+    flex-direction: column;
+    margin: 0;
+  }
+}
+
+.col-responsive {
+  flex: 1;
+  padding: 0 clamp(0.5rem, 2vw, 1rem);
+  min-width: 0;
+  
+  @include mobile {
+    padding: clamp(0.5rem, 2.5vw, 0.75rem) 0;
+  }
+}
+
+// Text Responsive Utilities
+.text-responsive {
+  font-size: clamp(0.875rem, 2.5vw, 1rem);
+  line-height: 1.5;
+}
+
+.text-responsive-lg {
+  font-size: clamp(1.125rem, 3vw, 1.25rem);
+  line-height: 1.4;
+}
+
+.text-responsive-xl {
+  font-size: clamp(1.25rem, 4vw, 1.5rem);
+  line-height: 1.3;
+}
+
+.text-responsive-2xl {
+  font-size: clamp(1.5rem, 5vw, 2rem);
+  line-height: 1.2;
+}
+
+// Spacing Utilities
+.m-responsive {
+  margin: clamp(0.5rem, 2vw, 1rem);
+}
+
+.mt-responsive {
+  margin-top: clamp(0.5rem, 2vw, 1rem);
+}
+
+.mb-responsive {
+  margin-bottom: clamp(0.5rem, 2vw, 1rem);
+}
+
+.ml-responsive {
+  margin-left: clamp(0.5rem, 2vw, 1rem);
+}
+
+.mr-responsive {
+  margin-right: clamp(0.5rem, 2vw, 1rem);
+}
+
+.p-responsive {
+  padding: clamp(0.5rem, 2vw, 1rem);
+}
+
+.pt-responsive {
+  padding-top: clamp(0.5rem, 2vw, 1rem);
+}
+
+.pb-responsive {
+  padding-bottom: clamp(0.5rem, 2vw, 1rem);
+}
+
+.pl-responsive {
+  padding-left: clamp(0.5rem, 2vw, 1rem);
+}
+
+.pr-responsive {
+  padding-right: clamp(0.5rem, 2vw, 1rem);
+}
+
+// Touch-Friendly Utilities
+.btn-responsive {
+  min-height: 44px; // Apple's recommended minimum touch target
+  padding: clamp(0.5rem, 1.5vw, 0.75rem) clamp(1rem, 3vw, 1.5rem);
+  font-size: clamp(0.875rem, 2.5vw, 1rem);
+  border-radius: clamp(6px, 1.5vw, 8px);
+  transition: all 0.2s ease;
+  
+  &:hover {
+    transform: translateY(-1px);
+  }
+  
+  &:active {
+    transform: translateY(0);
+  }
+  
+  @include mobile {
+    width: 100%;
+    margin-bottom: clamp(0.5rem, 2vw, 0.75rem);
+  }
+  
+  @include tablet {
+    width: auto;
+    min-width: 120px;
+  }
+}
+
+.input-responsive {
+  min-height: 48px; // Touch-friendly input height
+  padding: clamp(0.75rem, 2.5vw, 1rem);
+  font-size: clamp(0.875rem, 2.5vw, 1rem);
+  border-radius: clamp(6px, 1.5vw, 8px);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
+  
+  &:focus {
+    outline: none;
+    border-color: var(--bg-primary);
+    box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
+  }
+}
+
+// Hide/Show Utilities
+.hide-mobile {
+  @include mobile {
+    display: none !important;
+  }
+}
+
+.hide-tablet {
+  @include tablet {
+    display: none !important;
+  }
+}
+
+.hide-desktop {
+  @include desktop {
+    display: none !important;
+  }
+}
+
+.show-mobile {
+  display: none;
+  
+  @include mobile {
+    display: block !important;
+  }
+}
+
+.show-tablet {
+  display: none;
+  
+  @include tablet {
+    display: block !important;
+  }
+}
+
+.show-desktop {
+  display: none;
+  
+  @include desktop {
+    display: block !important;
+  }
+}
+
+// Layout Utilities
+.flex-responsive {
+  display: flex;
+  gap: clamp(0.5rem, 2vw, 1rem);
+  
+  @include mobile {
+    flex-direction: column;
+    gap: clamp(0.75rem, 3vw, 1rem);
+  }
+}
+
+.center-responsive {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  
+  @include mobile {
+    text-align: center;
+  }
+}
+
+// Card Responsive Design
+.card-responsive {
+  background: white;
+  border-radius: clamp(8px, 2vw, 12px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  padding: clamp(1rem, 3vw, 1.5rem);
+  margin-bottom: clamp(1rem, 3vw, 1.5rem);
+  transition: all 0.2s ease;
+  
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  }
+  
+  @include mobile {
+    padding: clamp(0.75rem, 3vw, 1rem);
+    margin-bottom: clamp(0.75rem, 3vw, 1rem);
+  }
+}
+
+// Navigation Responsive Design
+.nav-responsive {
+  .nav-list {
+    display: flex;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    gap: clamp(0.5rem, 2vw, 1rem);
+    flex-wrap: wrap;
+    justify-content: center;
+    
+    .nav-item {
+      .nav-link {
+        display: flex;
+        align-items: center;
+        gap: clamp(0.25rem, 1vw, 0.5rem);
+        padding: clamp(0.5rem, 1.5vw, 0.75rem) clamp(0.75rem, 2vw, 1rem);
+        min-height: 44px; // Touch-friendly
+        text-decoration: none;
+        border-radius: clamp(4px, 1vw, 6px);
+        transition: all 0.2s ease;
+        white-space: nowrap;
+        
+        @include mobile {
+          font-size: clamp(0.75rem, 2.5vw, 0.875rem);
+          padding: clamp(0.4rem, 1.2vw, 0.5rem) clamp(0.6rem, 1.5vw, 0.75rem);
+        }
+      }
+    }
+    
+    @include mobile {
+      gap: clamp(0.25rem, 1.5vw, 0.5rem);
+      justify-content: center;
+      padding: 0 clamp(0.25rem, 1vw, 0.5rem);
+    }
+  }
+}
+
+// Table Responsive Design
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 600px; // Allow horizontal scroll on mobile
+    
+    th, td {
+      padding: clamp(0.5rem, 2vw, 0.75rem);
+      text-align: left;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+      
+      @include mobile {
+        padding: clamp(0.375rem, 1.5vw, 0.5rem);
+        font-size: clamp(0.75rem, 2.5vw, 0.875rem);
+      }
+    }
+    
+    th {
+      font-weight: 600;
+      background-color: rgba(0, 0, 0, 0.05);
+      
+      @include mobile {
+        font-size: clamp(0.75rem, 2.5vw, 0.875rem);
+      }
+    }
+  }
+  
+  @include mobile {
+    margin: 0 clamp(-0.5rem, -2.5vw, -0.75rem);
+    border-radius: 0;
+  }
+}
+
+// Modal Responsive Design
+.modal-responsive {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: clamp(0.5rem, 3vw, 1rem);
+  z-index: 1000;
+  
+  .modal-content {
+    background: white;
+    border-radius: clamp(8px, 2vw, 12px);
+    max-width: clamp(300px, 90vw, 500px);
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    padding: clamp(1rem, 3vw, 1.5rem);
+    
+    @include mobile {
+      margin: 0;
+      border-radius: 0;
+      max-width: 100%;
+      max-height: 100vh;
+    }
+  }
+}
+
+// Animation Utilities
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in-up {
+  animation: fadeInUp 0.5s ease-out;
+}
+
+// Print Styles
+@media print {
+  .hide-print {
+    display: none !important;
+  }
+  
+  .show-print {
+    display: block !important;
+  }
+  
+  .container-responsive,
+  .card-responsive,
+  .modal-responsive .modal-content {
+    box-shadow: none !important;
+    border: 1px solid #000 !important;
+  }
+}

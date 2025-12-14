@@ -1,0 +1,32 @@
+[build]
+builder = "nixpacks"
+
+[deploy]
+healthcheckPath = "/api/health"
+healthcheckTimeout = 300
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 10
+
+[[services]]
+name = "bio-attendance-api"
+source = "server/"
+startCommand = "npm start"
+healthcheckPath = "/api/health"
+healthcheckTimeout = 300
+
+[[services]]
+name = "bio-attendance-web"
+source = "client/"
+startCommand = "npm run build && npm run preview"
+healthcheckPath = "/"
+healthcheckTimeout = 300
+
+[environments.production.variables]
+NODE_ENV = "production"
+APP_PORT = "5005"
+CORS_ORIGIN = "https://your-app.railway.app"
+
+[environments.staging.variables]
+NODE_ENV = "development"
+APP_PORT = "5005"
+CORS_ORIGIN = "http://localhost:5173"

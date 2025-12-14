@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE `staff` ADD COLUMN `approval_status` ENUM('PENDING', 'APPROVED', 'REJECTED') NOT NULL DEFAULT 'APPROVED';

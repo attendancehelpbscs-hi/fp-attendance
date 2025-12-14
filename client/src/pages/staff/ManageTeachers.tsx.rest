@@ -1,0 +1,112 @@
+        <ModalContent>
+          <ModalHeader>Teacher Details</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            {selectedTeacherForDetails && (
+              <Box>
+                <HStack spacing={4} mb={4}>
+                  <Box>
+                    <Text fontWeight="bold">Name:</Text>
+                    <Text>{selectedTeacherForDetails.name}</Text>
+                  </Box>
+                  <Box>
+                    <Text fontWeight="bold">Email:</Text>
+                    <Text>{selectedTeacherForDetails.email}</Text>
+                  </Box>
+                  <Box>
+                    <Text fontWeight="bold">Role:</Text>
+                    <Badge colorScheme={selectedTeacherForDetails.role === 'admin' ? 'red' : 'blue'}>
+                      {selectedTeacherForDetails.role}
+                    </Badge>
+                  </Box>
+                </HStack>
+                <Box>
+                  <Text fontWeight="bold">Created At:</Text>
+                  <Text>{new Date(selectedTeacherForDetails.created_at).toLocaleString()}</Text>
+                </Box>
+              </Box>
+            )}
+          </ModalBody>
+          <ModalFooter>
+            <Button colorScheme="blue" onClick={onClose}>
+              Close
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      <AlertDialog
+        isOpen={isDeleteOpen}
+        leastDestructiveRef={cancelRef}
+        onClose={onDeleteClose}
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent>
+            <AlertDialogHeader fontSize="lg" fontWeight="bold">
+              Delete Teacher
+            </AlertDialogHeader>
+
+            <AlertDialogBody>
+              Are you sure you want to delete the teacher "{teacherToDelete?.name}" (Email: {teacherToDelete?.email})?
+              This action cannot be undone.
+            </AlertDialogBody>
+
+            <AlertDialogFooter>
+              <Button ref={cancelRef} onClick={onDeleteClose}>
+                Cancel
+              </Button>
+              <Button
+                colorScheme="red"
+                onClick={() => {
+                  if (teacherToDelete) {
+                    toastRef.current = toast.loading('Deleting teacher...');
+                    deleteTeacher({ url: `/${teacherToDelete.id}` });
+                    setTeacherToDelete(null);
+                    onDeleteClose();
+                  }
+                }}
+                ml={3}
+              >
+                Delete
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
+
+      <AlertDialog
+        isOpen={isBulkDeleteOpen}
+        leastDestructiveRef={bulkCancelRef}
+        onClose={onBulkDeleteClose}
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent>
+            <AlertDialogHeader fontSize="lg" fontWeight="bold">
+              Delete Selected Teachers
+            </AlertDialogHeader>
+
+            <AlertDialogBody>
+              Are you sure you want to delete {selectedTeachers.length} selected teacher(s)?
+              This action cannot be undone.
+            </AlertDialogBody>
+
+            <AlertDialogFooter>
+              <Button ref={bulkCancelRef} onClick={onBulkDeleteClose}>
+                Cancel
+              </Button>
+              <Button
+                colorScheme="red"
+                onClick={handleBulkDelete}
+                ml={3}
+              >
+                Delete All
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
+    </WithStaffLayout>
+  );
+};
+
+export default ManageTeachers;

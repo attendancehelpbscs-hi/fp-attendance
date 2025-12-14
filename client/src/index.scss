@@ -1,0 +1,99 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+
+// Import the responsive design system
+@import './styles/Responsive.scss';
+
+:root {
+  --bg-primary: #5A5CA1; /* desaturated indigo */
+  --bg-primary-light: #6b6db3; /* lighter variant for hover */
+  --accent: #E9C46A; /* pale gold */
+  --secondary: #2A2A40; /* charcoal indigo */
+  --bg-body: #F9FAFB; /* neutral soft white */
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--bg-body);
+}
+
+body, h1, h2, h3, h4, h5, h6 {
+  font-family: 'Poppins', sans-serif !important;
+}
+
+.main-layout-wrapper {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: clamp(0.5rem, 3vw, 1rem);
+    
+    @media (max-width: 767px) {
+        padding: clamp(0.25rem, 2vw, 0.75rem);
+    }
+    
+    @media (max-width: 480px) {
+        padding: clamp(0.25rem, 1.5vw, 0.5rem);
+    }
+}
+
+.login-link {
+  display: inline-flex;
+  color: white;
+  height: 100%;
+  width: 100%;
+  justify-content: center;
+  align-items: center;
+  font-weight: 600;
+
+  &:hover {
+    color: black;
+  }
+}
+
+.not-found {
+  height: 30rem;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+}
+
+.login-form {
+    padding: clamp(0.75rem, 3vw, 1rem);
+
+    @media (max-width: 480px) {
+        padding: clamp(0.5rem, 2.5vw, 0.75rem);
+    }
+
+    // Center the login buttons on desktop
+    button[type="submit"],
+    button:not([type]) {
+        @media (min-width: 768px) {
+            width: auto !important;
+            min-width: 120px;
+            display: block !important;
+            margin: 0 auto !important;
+        }
+    }
+}
+
+.formErrorMsg {
+	/*color: #843534;
+	*/color: #a94442;
+	background-color: #f2dede;
+	border: 1px solid #ebccd1;
+	border-radius: 4px;
+	font-size: 13px;
+	padding: 6px;
+	margin: 10px 0;
+	-webkit-border-radius: 4px;
+	-moz-border-radius: 4px;
+	-ms-border-radius: 4px;
+	-o-border-radius: 4px;
+}
